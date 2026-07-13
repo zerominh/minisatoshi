@@ -1,0 +1,15 @@
+[package]
+name = "descriptor-engine"
+description = "Miniscript policy to Bitcoin output descriptor compiler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+bitcoin.workspace = true
+miniscript.workspace = true
+policy-engine.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

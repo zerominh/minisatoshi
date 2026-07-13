@@ -1,0 +1,64 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  color: #e8e8e8;
+  background-color: #0f1117;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  padding: 1.5rem;
+  background: #161b26;
+  border-right: 1px solid #2a3142;
+}
+
+.sidebar h1 {
+  font-size: 1.1rem;
+  margin: 0 0 1.5rem;
+  color: #f7931a;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sidebar a {
+  color: #a8b0c0;
+  text-decoration: none;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+}
+
+.sidebar a:hover {
+  background: #1f2636;
+  color: #fff;
+}
+
+.content {
+  flex: 1;
+  padding: 2rem;
+}
+
+.content h2 {
+  margin-top: 0;
+}
+
+.status {
+  color: #4ade80;
+  font-size: 0.9rem;
+}

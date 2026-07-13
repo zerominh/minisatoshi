@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "network": "testnet",
+  "script_type": "taproot",
+  "keys": [
+    {
+      "id": "A",
+      "role": "investor",
+      "xpub": "tpubD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQ",
+      "fingerprint": "a1b2c3d4"
+    },
+    {
+      "id": "B",
+      "role": "manager",
+      "xpub": "tpubD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQ",
+      "fingerprint": "e5f6a7b8"
+    },
+    {
+      "id": "C",
+      "role": "recovery",
+      "xpub": "tpubD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQmD6NzVbkrYhZ4XWSyF8H6FQ",
+      "fingerprint": "c9d0e1f2"
+    }
+  ],
+  "policy": {
+    "primary": "(A && B) || (A && C)",
+    "fallback": {
+      "after": "4y",
+      "allow": "A"
+    }
+  }
+}

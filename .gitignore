@@ -13,7 +13,12 @@ target
 # Contains mutation testing data
 **/mutants.out*/
 
-# RustRover
+# Node
+node_modules/
+apps/desktop/dist/
+
+# SQLite
+*.db
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
