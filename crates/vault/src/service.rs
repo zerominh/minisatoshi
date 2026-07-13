@@ -1,11 +1,12 @@
 use address_engine::{new_change_address, new_receive_address, DerivedAddress};
+use blockchain::{
+    Balance, BlockchainBackend, DescriptorQuery, SyncProgress, SyncResult, TxSummary,
+};
 use policy_engine::PolicyConfig;
 use wallet_core::{Vault, VaultSummary, WalletStore};
 
 use crate::error::VaultError;
-use crate::types::{Balance, TxSummary, VaultWithAddress};
-
-/// High-level vault operations over a wallet store.
+use crate::types::VaultWithAddress;
 pub struct VaultService<'a> {
     store: &'a WalletStore,
 }
@@ -84,13 +85,36 @@ impl<'a> VaultService<'a> {
         Ok(self.store.list_addresses(vault_id)?)
     }
 
-    pub fn vault_balance(&self, vault_id: &str) -> Result<Balance, VaultError> {
-        self.get_vault(vault_id)?;
-        Ok(Balance::zero())
+    pub fn descriptor_query(&self, vault_id: &str) -> Result<DescriptorQuery, VaultError> {
+        let vault = self.get_vault(vault_id)?;
+        Ok(DescriptorQuery::new(vault.policy, vault.descriptor))
     }
 
-    pub fn vault_history(&self, vault_id: &str) -> Result<Vec<TxSummary>, VaultError> {
-        self.get_vault(vault_id)?;
-        Ok(Vec::new())
+    pub fn sync_vault(
+        &self,
+        vault_id: &str,
+        backend: &dyn BlockchainBackend,
+        progress: &dyn Fn(SyncProgress),
+    ) -> Result<SyncResult, VaultError> {
+        let query = self.descriptor_query(vault_id)?;
+        Ok(backend.sync(&query, progress)?)
+    }
+
+    pub fn vault_balance(
+        &self,
+        vault_id: &str,
+        backend: &dyn BlockchainBackend,
+    ) -> Result<Balance, VaultError> {
+        let query = self.descriptor_query(vault_id)?;
+        Ok(backend.get_balance(&query)?)
+    }
+
+    pub fn vault_history(
+        &self,
+        vault_id: &str,
+        backend: &dyn BlockchainBackend,
+    ) -> Result<Vec<TxSummary>, VaultError> {
+        let query = self.descriptor_query(vault_id)?;
+        Ok(backend.get_history(&query)?)
     }
 }

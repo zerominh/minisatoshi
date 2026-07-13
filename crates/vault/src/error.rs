@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 use address_engine::AddressError;
+use blockchain::ChainError;
 use policy_engine::PolicyError;
 use wallet_core::WalletError;
 
@@ -14,4 +15,7 @@ pub enum VaultError {
 
     #[error("policy error: {0}")]
     Policy(#[from] PolicyError),
+
+    #[error("blockchain error: {0}")]
+    Blockchain(#[from] ChainError),
 }

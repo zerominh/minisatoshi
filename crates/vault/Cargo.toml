@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 address-engine.workspace = true
+blockchain.workspace = true
 policy-engine.workspace = true
 storage.workspace = true
 thiserror.workspace = true
@@ -14,6 +15,8 @@ uuid.workspace = true
 wallet-core.workspace = true
 
 [dev-dependencies]
+blockchain.workspace = true
 descriptor-engine.workspace = true
+httpmock = "0.8.3"
 policy-engine.workspace = true
 tempfile = "3"

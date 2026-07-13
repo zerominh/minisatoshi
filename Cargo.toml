@@ -31,6 +31,7 @@ storage = { path = "crates/storage" }
 wallet-core = { path = "crates/wallet-core" }
 address-engine = { path = "crates/address-engine" }
 vault = { path = "crates/vault" }
+blockchain = { path = "crates/blockchain" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 
 [profile.release]

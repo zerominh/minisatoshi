@@ -399,7 +399,7 @@ flowchart LR
 - `export_watch_only_wallet` → descriptor có checksum, đúng network
 - `default_server_presets` trả preset hợp lệ cho từng network
 
-**Deliverable:** Sync balance trên testnet/signet; export descriptor import được vào Sparrow watch-only.
+**Deliverable:** Sync balance trên testnet/signet; export descriptor import được vào Sparrow watch-only. ✅
 
 ---
 
@@ -628,14 +628,13 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Sprint 4: Implement blockchain crate
-  - EsploraBackend, ElectrumBackend, CoreRpcBackend
-  - sparrow-interop: export_watch_only_wallet, default_server_presets
-  - Wire vault_balance / vault_history to real backends
+Sprint 5: Implement psbt-engine
+  - create_psbt, export base64/file (Sparrow-compatible)
+  - sign/combine/finalize with test keys
 ```
 
-Pipeline hiện tại: `Policy JSON → Descriptor → Address` ✅ (Sprint 1–3).
-Tiếp theo: `Descriptor → UTXO/Balance` + export cho Sparrow.
+Pipeline hiện tại: `Policy JSON → Descriptor → Address → Balance/UTXO` ✅ (Sprint 1–4).
+Tiếp theo: `UTXO → PSBT → Export`.
 
 ---
 

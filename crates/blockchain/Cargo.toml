@@ -1,8 +1,23 @@
 [package]
 name = "blockchain"
+description = "Blockchain backends and Sparrow interop for Minisatoshi"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
+address-engine.workspace = true
+bitcoin.workspace = true
+policy-engine.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 thiserror.workspace = true
+wallet-core.workspace = true
+
+[dev-dependencies]
+address-engine.workspace = true
+descriptor-engine.workspace = true
+httpmock = "0.8.3"
+policy-engine.workspace = true
+tempfile = "3"
