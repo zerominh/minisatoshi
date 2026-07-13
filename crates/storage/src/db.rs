@@ -284,6 +284,40 @@ impl Database {
             label: label.label.clone(),
         })
     }
+
+    pub fn list_addresses_for_vault(&self, vault_id: &str) -> Result<Vec<AddressRecord>, StorageError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, vault_id, address, index_num, is_change, used, created_at
+             FROM addresses WHERE vault_id = ?1 ORDER BY is_change ASC, index_num ASC",
+        )?;
+        let rows = stmt.query_map(params![vault_id], |row| {
+            Ok(AddressRecord {
+                id: row.get(0)?,
+                vault_id: row.get(1)?,
+                address: row.get(2)?,
+                index: row.get::<_, i64>(3)? as u32,
+                is_change: row.get::<_, i64>(4)? != 0,
+                used: row.get::<_, i64>(5)? != 0,
+                created_at: row.get(6)?,
+            })
+        })?;
+
+        rows.collect::<Result<Vec<_>, _>>().map_err(StorageError::from)
+    }
+
+    pub fn max_address_index(&self, vault_id: &str, is_change: bool) -> Result<Option<u32>, StorageError> {
+        let value: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT MAX(index_num) FROM addresses WHERE vault_id = ?1 AND is_change = ?2",
+                params![vault_id, is_change as i64],
+                |row| row.get(0),
+            )
+            .optional()?
+            .flatten();
+
+        Ok(value.map(|index| index as u32))
+    }
 }
 
 #[cfg(test)]

@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use address_engine::{new_change_address, new_receive_address, DerivedAddress};
 use descriptor_engine::compile_descriptor_from_config;
 use policy_engine::{PolicyConfig, ScriptTypeName};
-use storage::{Database, NewVault, NewWallet, StorageError};
+use storage::{Database, NewAddress, NewVault, NewWallet, StorageError};
 use uuid::Uuid;
 
 use crate::error::WalletError;
@@ -161,6 +162,75 @@ impl WalletStore {
             });
         }
         Ok(vaults)
+    }
+
+    pub fn save_address(
+        &self,
+        vault_id: &str,
+        address: &str,
+        index: u32,
+        is_change: bool,
+    ) -> Result<DerivedAddress, WalletError> {
+        self.db.get_vault(vault_id)?;
+        let now = unix_now();
+        self.db.insert_address(&NewAddress {
+            id: Uuid::new_v4().to_string(),
+            vault_id: vault_id.to_string(),
+            address: address.to_string(),
+            index,
+            is_change,
+            created_at: now,
+        })?;
+
+        Ok(DerivedAddress {
+            address: address.to_string(),
+            index,
+            is_change,
+        })
+    }
+
+    pub fn derive_and_save_receive_address(
+        &self,
+        vault_id: &str,
+        index: u32,
+    ) -> Result<DerivedAddress, WalletError> {
+        let vault = self.get_vault(vault_id)?;
+        let derived = new_receive_address(&vault.policy, &vault.descriptor, index)
+            .map_err(WalletError::from)?;
+        self.save_address(vault_id, &derived.address, derived.index, derived.is_change)
+    }
+
+    pub fn derive_and_save_change_address(
+        &self,
+        vault_id: &str,
+        index: u32,
+    ) -> Result<DerivedAddress, WalletError> {
+        let vault = self.get_vault(vault_id)?;
+        let derived = new_change_address(&vault.policy, &vault.descriptor, index)
+            .map_err(WalletError::from)?;
+        self.save_address(vault_id, &derived.address, derived.index, derived.is_change)
+    }
+
+    pub fn next_receive_address(&self, vault_id: &str) -> Result<DerivedAddress, WalletError> {
+        let index = self
+            .db
+            .max_address_index(vault_id, false)?
+            .map(|value| value + 1)
+            .unwrap_or(0);
+        self.derive_and_save_receive_address(vault_id, index)
+    }
+
+    pub fn list_addresses(&self, vault_id: &str) -> Result<Vec<DerivedAddress>, WalletError> {
+        self.db.get_vault(vault_id)?;
+        let records = self.db.list_addresses_for_vault(vault_id)?;
+        Ok(records
+            .into_iter()
+            .map(|record| DerivedAddress {
+                address: record.address,
+                index: record.index,
+                is_change: record.is_change,
+            })
+            .collect())
     }
 }
 

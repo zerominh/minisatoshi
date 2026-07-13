@@ -1,9 +1,19 @@
 [package]
 name = "address-engine"
+description = "Bitcoin address derivation from output descriptors"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
+bitcoin.workspace = true
 descriptor-engine.workspace = true
+miniscript.workspace = true
+policy-engine.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+descriptor-engine.workspace = true
+wallet-core.workspace = true
+policy-engine.workspace = true
+tempfile = "3"

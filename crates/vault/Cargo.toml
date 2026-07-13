@@ -1,10 +1,19 @@
 [package]
 name = "vault"
+description = "Vault orchestration for Minisatoshi"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
+address-engine.workspace = true
 policy-engine.workspace = true
-descriptor-engine.workspace = true
+storage.workspace = true
 thiserror.workspace = true
+uuid.workspace = true
+wallet-core.workspace = true
+
+[dev-dependencies]
+descriptor-engine.workspace = true
+policy-engine.workspace = true
+tempfile = "3"

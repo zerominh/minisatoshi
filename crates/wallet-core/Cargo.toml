@@ -14,6 +14,7 @@ serde_json.workspace = true
 storage.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
+address-engine.workspace = true
 
 [dev-dependencies]
 policy-engine.workspace = true

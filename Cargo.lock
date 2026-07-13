@@ -6,8 +6,13 @@ version = 4
 name = "address-engine"
 version = "0.1.0"
 dependencies = [
+ "bitcoin",
  "descriptor-engine",
+ "miniscript",
+ "policy-engine",
+ "tempfile",
  "thiserror 2.0.18",
+ "wallet-core",
 ]
 
 [[package]]
@@ -4048,9 +4053,14 @@ dependencies = [
 name = "vault"
 version = "0.1.0"
 dependencies = [
+ "address-engine",
  "descriptor-engine",
  "policy-engine",
+ "storage",
+ "tempfile",
  "thiserror 2.0.18",
+ "uuid",
+ "wallet-core",
 ]
 
 [[package]]
@@ -4105,6 +4115,7 @@ dependencies = [
 name = "wallet-core"
 version = "0.1.0"
 dependencies = [
+ "address-engine",
  "bitcoin",
  "descriptor-engine",
  "policy-engine",

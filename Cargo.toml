@@ -29,6 +29,8 @@ policy-engine = { path = "crates/policy-engine" }
 descriptor-engine = { path = "crates/descriptor-engine" }
 storage = { path = "crates/storage" }
 wallet-core = { path = "crates/wallet-core" }
+address-engine = { path = "crates/address-engine" }
+vault = { path = "crates/vault" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 
 [profile.release]

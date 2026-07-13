@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+use address_engine::AddressError;
 use descriptor_engine::DescriptorError;
 use policy_engine::PolicyError;
 use storage::StorageError;
@@ -14,6 +15,9 @@ pub enum WalletError {
 
     #[error("descriptor error: {0}")]
     Descriptor(#[from] DescriptorError),
+
+    #[error("address error: {0}")]
+    Address(#[from] AddressError),
 
     #[error("invalid network: {0}")]
     InvalidNetwork(String),
