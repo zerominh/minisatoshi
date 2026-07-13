@@ -29,6 +29,7 @@
 | **Policy engine tổng quát** | Không hard-code A/B/C; mọi vault là một policy config |
 | **Offline by default** | Blockchain sync là tùy chọn, không bắt buộc để tạo vault |
 | **Descriptor là source of truth** | Vault = descriptor + metadata; có thể export/import |
+| **Tương thích ví bên ngoài** | Sparrow không phải backend; interop qua descriptor + PSBT + cùng Electrum server |
 
 ---
 
@@ -64,7 +65,7 @@ minisatoshi/
 │   ├── descriptor-engine/        # Miniscript → descriptor
 │   ├── address-engine/           # derive receive/change
 │   ├── psbt-engine/              # create/sign/combine/finalize
-│   ├── blockchain/               # Core / Electrum / Esplora
+│   ├── blockchain/               # Esplora / Electrum / Core + Sparrow interop
 │   ├── storage/                  # SQLite
 │   └── vault/                    # orchestration layer
 ├── ui/                           # shared React components (optional)
@@ -94,6 +95,8 @@ flowchart TB
     Vault --> PsbtEngine[psbt-engine]
     Vault --> Blockchain[blockchain]
     Vault --> Storage[storage]
+
+    Blockchain --> SparrowInterop[sparrow-interop]
 
     PolicyEngine --> DescriptorEngine
     DescriptorEngine --> AddressEngine
@@ -318,11 +321,11 @@ pub fn vault_balance(vault_id: &str) -> Result<Balance, VaultError>;
 pub fn vault_history(vault_id: &str) -> Result<Vec<TxSummary>, VaultError>;
 ```
 
-**Deliverable:** Tạo vault từ policy JSON → nhận address Taproot đầu tiên.
+**Deliverable:** Tạo vault từ policy JSON → nhận address Taproot đầu tiên. ✅
 
 ---
 
-### Sprint 4 — `blockchain`
+### Sprint 4 — `blockchain` + Sparrow interop
 
 #### Trait chung
 
@@ -336,13 +339,67 @@ pub trait BlockchainBackend: Send + Sync {
 }
 ```
 
-#### Implementations (theo thứ tự ưu tiên)
+#### Blockchain backends (theo thứ tự ưu tiên)
 
 1. **Esplora** — dễ nhất, không cần node local
-2. **Electrum** — phổ biến
+2. **Electrum** — phổ biến; **dùng chung server với Sparrow**
 3. **Bitcoin Core RPC** — cho user chạy full node
 
-**Deliverable:** Sync balance trên testnet/signet.
+> **Lưu ý:** Sparrow **không** implement `BlockchainBackend`. Sparrow là app ví desktop;
+> nó kết nối *tới* Esplora/Electrum/Core chứ không expose API cho app khác query balance/UTXO.
+
+#### Sparrow interop (`blockchain::sparrow`)
+
+Module nhẹ, không phụ thuộc cài đặt Sparrow. Mục tiêu: workflow handoff file/string, offline-first.
+
+```rust
+/// Descriptor + metadata để user import watch-only wallet trong Sparrow.
+pub struct SparrowWalletExport {
+    pub name: String,
+    pub descriptor: String,
+    pub network: NetworkName,
+    pub import_instructions: String,
+}
+
+pub fn export_watch_only_wallet(vault: &Vault) -> Result<SparrowWalletExport, SparrowError>;
+
+/// Preset Electrum/Esplora URLs khớp network — cùng server Sparrow thường dùng.
+pub fn default_server_presets(network: NetworkName) -> Vec<ServerPreset>;
+
+pub struct ServerPreset {
+    pub label: String,       // e.g. "Blockstream (SSL)"
+    pub backend: BackendKind, // Esplora | Electrum | Core
+    pub url: String,
+}
+```
+
+**Sparrow ↔ Minisatoshi mapping**
+
+| Tính năng | Minisatoshi | Sparrow |
+|---|---|---|
+| Sync balance/UTXO | `EsploraBackend` / `ElectrumBackend` / `CoreRpcBackend` | Cùng loại server, cùng network |
+| Watch-only vault | Export descriptor từ vault | File → New Wallet → Import → Descriptor |
+| Ký giao dịch | Export PSBT unsigned (Sprint 5) | File → Open Transaction → Sign |
+| Broadcast | `BlockchainBackend::broadcast` | Sparrow broadcast qua server của nó |
+
+```mermaid
+flowchart LR
+    MS[Minisatoshi] -->|Sprint 4| BE[Esplora / Electrum / Core]
+    MS -->|Sprint 4 interop| DESC[Export descriptor]
+    MS -->|Sprint 5| PSBT[Export PSBT]
+    DESC -->|import watch-only| SP[Sparrow]
+    PSBT -->|sign offline| SP
+    BE -.->|cùng Electrum server| SP
+```
+
+#### Tests bắt buộc
+
+- Esplora balance/history trên testnet/signet (mock HTTP hoặc integration nhẹ)
+- Electrum client parse + query (mock server)
+- `export_watch_only_wallet` → descriptor có checksum, đúng network
+- `default_server_presets` trả preset hợp lệ cho từng network
+
+**Deliverable:** Sync balance trên testnet/signet; export descriptor import được vào Sparrow watch-only.
 
 ---
 
@@ -364,16 +421,18 @@ pub fn finalize(psbt: &mut Psbt) -> Result<Transaction, PsbtError>;
 pub fn broadcast(psbt: &Psbt, backend: &dyn BlockchainBackend) -> Result<Txid, PsbtError>;
 pub fn export_psbt(psbt: &Psbt, format: ExportFormat) -> Result<Vec<u8>, PsbtError>;
 // ExportFormat: Base64 | File | QR-chunks
+// Sparrow: import file .psbt hoặc paste base64 (BIP174 chuẩn, không custom format)
 ```
 
-**Giai đoạn 1:** Sign bằng xprv/software key (dev/test). Hardware wallet → Giai đoạn 3.
+**Giai đoạn 1:** Sign bằng xprv/software key (dev/test). Ký qua Sparrow/hardware wallet → import PSBT đã ký. Hardware wallet trực tiếp → Giai đoạn 3.
 
 #### Tests
 
 - 2-of-2 PSBT create → sign → combine → finalize
 - Timelock path: verify `nSequence` đúng
+- PSBT export → Sparrow import round-trip (unsigned)
 
-**Deliverable:** Tạo PSBT unsigned, export base64, finalize với test keys.
+**Deliverable:** Tạo PSBT unsigned, export base64/file tương thích Sparrow; finalize với test keys.
 
 ---
 
@@ -408,9 +467,9 @@ async fn create_psbt_cmd(req: CreatePsbtRequest) -> Result<PsbtDto, String>;
 | `/vaults` | Danh sách vault, dashboard |
 | `/vaults/new` | Wizard 5 bước |
 | `/vaults/:id` | Dashboard: balance, UTXO, policy, descriptor |
-| `/vaults/:id/receive` | Address + QR + copy descriptor |
-| `/vaults/:id/send` | Wizard: address → amount → fee → PSBT export |
-| `/settings` | Network, blockchain backend, Esplora URL |
+| `/vaults/:id/receive` | Address + QR + copy descriptor + **Export for Sparrow** |
+| `/vaults/:id/send` | Wizard: address → amount → fee → PSBT export (Sparrow-compatible) |
+| `/settings` | Network, blockchain backend, server URL, **Sparrow server presets** |
 
 #### Sidebar
 
@@ -438,7 +497,7 @@ Hiển thị: Balance, Recent TX, UTXO, Policy, Descriptor
 #### Send flow
 
 ```text
-Address → Amount → Fee → Create PSBT → Export
+Address → Amount → Fee → Create PSBT → Export (file / base64 → Sparrow)
 ```
 
 **Deliverable:** End-to-end flow trên testnet: tạo vault → nhận address → tạo PSBT.
@@ -492,8 +551,9 @@ Sau khi MVP ổn định, thêm:
 - Descriptor Import
 - Descriptor Export
 - QR Descriptor
+- **Sparrow workflow docs** (import descriptor, sign PSBT, recommended servers)
 
-**Phụ thuộc:** Descriptor engine.
+**Phụ thuộc:** Descriptor engine + PSBT engine.
 
 ---
 
@@ -522,6 +582,7 @@ Lúc này mới thêm server:
 | Timelock unit? | Blocks (chuẩn Miniscript `older`); UI hiển thị năm, convert `years × 52560` blocks |
 | BDK version? | `bdk_wallet 1.x` (tách từ bdk-ng) |
 | DB encryption? | Giai đoạn 1: không mã hóa (watch-only). Giai đoạn 3+: SQLCipher nếu lưu xprv |
+| Sparrow integration? | **Interop, không phải backend** — descriptor export (Sprint 4), PSBT BIP174 (Sprint 5), Electrum server presets |
 
 ---
 
@@ -559,18 +620,22 @@ tests/
 | `bdk_wallet` API thay đổi | Pin version; abstract qua trait trong `blockchain` |
 | Timelock sai số blocks | Document rõ; dùng constant `BLOCKS_PER_YEAR = 52560` |
 | User nhập xpub sai network | Validate version bytes (xpub/tpub) + fingerprint |
-| PSBT multi-signer phức tạp | Giai đoạn 1 chỉ export unsigned PSBT; sign offline |
+| PSBT multi-signer phức tạp | Giai đoạn 1 chỉ export unsigned PSBT; sign offline (Sparrow / HW) |
+| Nhầm Sparrow là blockchain backend | Document rõ trong plan; chỉ dùng Electrum/Esplora/Core cho sync |
 
 ---
 
 ## Session Cursor tiếp theo
 
 ```
-Sprint 0 + Sprint 1: Scaffold monorepo Tauri 2 + implement policy-engine
-và descriptor-engine với test A/B/C preset
+Sprint 4: Implement blockchain crate
+  - EsploraBackend, ElectrumBackend, CoreRpcBackend
+  - sparrow-interop: export_watch_only_wallet, default_server_presets
+  - Wire vault_balance / vault_history to real backends
 ```
 
-Đây là nền tảng — mọi thứ khác phụ thuộc vào pipeline `Policy JSON → Descriptor`.
+Pipeline hiện tại: `Policy JSON → Descriptor → Address` ✅ (Sprint 1–3).
+Tiếp theo: `Descriptor → UTXO/Balance` + export cho Sparrow.
 
 ---
 
