@@ -1,3 +1,9 @@
-//! Wallet lifecycle — Sprint 2.
+//! Wallet lifecycle: create, open, backup, vault + descriptor management.
 
-pub const PLACEHOLDER: &str = "wallet-core: not yet implemented";
+mod error;
+mod store;
+mod types;
+
+pub use error::WalletError;
+pub use store::WalletStore;
+pub use types::{Vault, VaultSummary, Wallet, WalletSummary};

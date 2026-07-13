@@ -27,6 +27,9 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 policy-engine = { path = "crates/policy-engine" }
 descriptor-engine = { path = "crates/descriptor-engine" }
+storage = { path = "crates/storage" }
+wallet-core = { path = "crates/wallet-core" }
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 [profile.release]
 lto = true

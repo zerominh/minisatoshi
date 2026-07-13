@@ -1,10 +1,20 @@
 [package]
 name = "wallet-core"
+description = "Wallet lifecycle and vault persistence"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-policy-engine.workspace = true
+bitcoin.workspace = true
 descriptor-engine.workspace = true
+policy-engine.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+storage.workspace = true
 thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+policy-engine.workspace = true
+tempfile = "3"

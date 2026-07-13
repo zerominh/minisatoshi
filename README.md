@@ -6,6 +6,7 @@ Offline-first desktop app for creating and managing Bitcoin vaults with Miniscri
 
 - **Sprint 0** — Monorepo scaffold (Tauri 2 + React)
 - **Sprint 1** — `policy-engine` + `descriptor-engine`
+- **Sprint 2** — `storage` (SQLite) + `wallet-core`
 
 ## Tech stack
 
@@ -39,6 +40,8 @@ minisatoshi/
 ├── crates/
 │   ├── policy-engine/     # JSON policy → Miniscript
 │   ├── descriptor-engine/ # Miniscript → descriptor
+│   ├── storage/           # SQLite persistence
+│   ├── wallet-core/       # wallet + vault lifecycle
 │   └── ...                # upcoming modules
 ├── docs/DEVELOPMENT_PLAN.md
 └── tests/vectors/

@@ -18,7 +18,8 @@ pub use compile::{
     compile_miniscript, compile_policy_string,
 };
 pub use config::{
-    FallbackPolicy, KeyConfig, KeyRole, NetworkName, PolicyConfig, PolicyExpression, ScriptTypeName,
+    FallbackPolicy, KeyConfig, KeyRole, NetworkName, PolicyConfig, PolicyExpression,
+    ScriptTypeName, POLICY_SCHEMA_VERSION,
 };
 pub use error::PolicyError;
 pub use parser::parse_expression;
