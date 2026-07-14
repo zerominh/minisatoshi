@@ -33,9 +33,14 @@ Watch-only only: never put `xprv` / `tprv` in a policy document.
 ```json
 "policy": {
   "primary": "(A && B) || (A && C)",
-  "fallback": { "after": "4y", "allow": "A" }
+  "fallbacks": [
+    { "after": "1y", "allow": "A" },
+    { "after": "4y", "allow": "A && B" }
+  ]
 }
 ```
+
+Legacy single `fallback` is still accepted and merged with `fallbacks`.
 
 ### Expression grammar
 
@@ -49,15 +54,16 @@ Examples:
 - `A && B` — both required
 - `(A && B) || (A && C)` — investor+manager or investor+recovery
 - `(A && B) || (A && C) || (B && C)` — any 2-of-3
+- `A` — single key primary (dead man's switch style)
 
-Every key referenced in `primary` / `fallback.allow` must exist in `keys`.
+Every key referenced in `primary` / each `allow` expression must exist in `keys`.
 
-### Timelock fallback
+### Timelock recovery paths (`fallbacks`)
 
 | Field | Description |
 |---|---|
 | `after` | Relative timelock duration |
-| `allow` | Key id(s) expression for the delayed path |
+| `allow` | Key expression for the delayed path (`A` or `A && B`) |
 
 Duration forms:
 
@@ -76,7 +82,20 @@ Constants (≈10‑minute blocks):
 - `BLOCKS_PER_WEEK = 1008`
 - `BLOCKS_PER_YEAR = 52560` (365.25 × 144)
 
-Fallback compiles to a Miniscript leaf like `and(pk(A), older(N))` alongside the primary leaves.
+Each fallback compiles to a Miniscript leaf `and(older(N), <allow>)` alongside the primary leaves.
+
+## Templates (Phase 2)
+
+Wizard templates in the desktop app / `policy_engine::templates`:
+
+| Id | Primary (default) | Default recovery |
+|---|---|---|
+| `abc` | `(A && B) \|\| (A && C)` | A after 4y |
+| `two_of_three` | any 2-of-3 | none |
+| `inheritance` | `A && B` | A after 4y |
+| `dead_mans_switch` | `A` | B after 1y |
+| `multi_manager` | `(A && B) \|\| (A && C) …` | none |
+| `custom` | user-defined | user-defined |
 
 ## Compilation result
 

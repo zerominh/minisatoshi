@@ -20,7 +20,9 @@ export interface FallbackPolicy {
 
 export interface PolicyExpression {
   primary: string;
+  /** @deprecated prefer `fallbacks` */
   fallback?: FallbackPolicy | null;
+  fallbacks?: FallbackPolicy[];
 }
 
 export interface PolicyConfig {

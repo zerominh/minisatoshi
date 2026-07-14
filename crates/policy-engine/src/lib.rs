@@ -4,6 +4,7 @@ mod compile;
 mod config;
 mod error;
 mod parser;
+mod templates;
 mod timelock;
 mod translate;
 #[cfg(test)]
@@ -23,6 +24,9 @@ pub use config::{
 };
 pub use error::PolicyError;
 pub use parser::parse_expression;
+pub use templates::{
+    build_from_template, list_templates, multi_manager_primary, TemplateId, TemplateInfo,
+};
 pub use timelock::{
     blocks_per_day, blocks_per_week, blocks_per_year, parse_duration, DurationUnit, BLOCKS_PER_DAY,
     BLOCKS_PER_WEEK, BLOCKS_PER_YEAR,
@@ -51,10 +55,11 @@ pub fn abc_preset(
         keys: vec![investor, manager, recovery],
         policy: PolicyExpression {
             primary: "(A && B) || (A && C)".to_string(),
-            fallback: Some(FallbackPolicy {
+            fallbacks: vec![FallbackPolicy {
                 after: format!("{inherit_after_years}y"),
                 allow: "A".to_string(),
-            }),
+            }],
+            ..Default::default()
         },
     }
 }
@@ -132,6 +137,7 @@ mod tests {
             policy: PolicyExpression {
                 primary: "A && Z".into(),
                 fallback: None,
+                fallbacks: vec![],
             },
         };
         let err = compile_policy_string(&config).unwrap_err();
@@ -154,6 +160,7 @@ mod tests {
             policy: PolicyExpression {
                 primary: "(A && B) || (A && C) || (B && C)".into(),
                 fallback: None,
+                fallbacks: vec![],
             },
         };
         compile_miniscript(&config).unwrap();

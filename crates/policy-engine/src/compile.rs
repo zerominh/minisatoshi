@@ -52,9 +52,11 @@ pub fn compile_leaf_policies(config: &PolicyConfig) -> Result<Vec<String>, Polic
     let mut leaves = Vec::new();
     collect_or_leaves(&primary_ast, &mut leaves)?;
 
-    if let Some(fallback) = &config.policy.fallback {
+    for fallback in config.policy.all_fallbacks() {
         let blocks = parse_duration(&fallback.after)?;
-        leaves.push(format!("and(older({blocks}),pk({}))", fallback.allow));
+        let allow_ast = parser::parse_expression(&fallback.allow)?;
+        let allow = ast_to_abstract_policy(&allow_ast)?;
+        leaves.push(format!("and(older({blocks}),{allow})"));
     }
 
     Ok(leaves)
@@ -72,14 +74,14 @@ fn collect_or_leaves(ast: &Expr, leaves: &mut Vec<String>) -> Result<(), PolicyE
 }
 fn build_abstract_policy_string(config: &PolicyConfig) -> Result<String, PolicyError> {
     let primary_ast = parser::parse_expression(&config.policy.primary)?;
-    let primary = ast_to_abstract_policy(&primary_ast)?;
+    let mut full = ast_to_abstract_policy(&primary_ast)?;
 
-    let full = if let Some(fallback) = &config.policy.fallback {
+    for fallback in config.policy.all_fallbacks() {
         let blocks = parse_duration(&fallback.after)?;
-        format!("or({primary},and(older({blocks}),pk({})))", fallback.allow)
-    } else {
-        primary
-    };
+        let allow_ast = parser::parse_expression(&fallback.allow)?;
+        let allow = ast_to_abstract_policy(&allow_ast)?;
+        full = format!("or({full},and(older({blocks}),{allow}))");
+    }
 
     Ok(full)
 }
@@ -99,3 +101,58 @@ fn ast_to_abstract_policy(ast: &Expr) -> Result<String, PolicyError> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{
+        FallbackPolicy, KeyConfig, KeyRole, NetworkName, PolicyExpression, ScriptTypeName,
+        POLICY_SCHEMA_VERSION,
+    };
+    use crate::test_vectors::{TEST_FP, TEST_XPUB_A, TEST_XPUB_B};
+
+    #[test]
+    fn multiple_fallbacks_become_or_chain() {
+        let config = PolicyConfig {
+            version: POLICY_SCHEMA_VERSION,
+            network: NetworkName::Testnet,
+            script_type: ScriptTypeName::Taproot,
+            keys: vec![
+                KeyConfig {
+                    id: "A".into(),
+                    role: KeyRole::Investor,
+                    xpub: TEST_XPUB_A.into(),
+                    fingerprint: "78412e3a".into(),
+                    origin_path: None,
+                },
+                KeyConfig {
+                    id: "B".into(),
+                    role: KeyRole::Manager,
+                    xpub: TEST_XPUB_B.into(),
+                    fingerprint: TEST_FP.into(),
+                    origin_path: None,
+                },
+            ],
+            policy: PolicyExpression {
+                primary: "A && B".into(),
+                fallback: None,
+                fallbacks: vec![
+                    FallbackPolicy {
+                        after: "1y".into(),
+                        allow: "A".into(),
+                    },
+                    FallbackPolicy {
+                        after: "4y".into(),
+                        allow: "B".into(),
+                    },
+                ],
+            },
+        };
+        let leaves = compile_leaf_policies(&config).unwrap();
+        assert_eq!(leaves.len(), 3);
+        let abstract_policy = compile_abstract_policy_string(&config).unwrap();
+        assert!(abstract_policy.contains("older("));
+        assert!(abstract_policy.matches("older(").count() >= 2);
+    }
+}
+

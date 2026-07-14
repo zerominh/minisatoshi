@@ -300,6 +300,7 @@ fn imported_policy_placeholder(
         policy: policy_engine::PolicyExpression {
             primary: "imported".into(),
             fallback: None,
+                fallbacks: vec![],
         },
     }
 }

@@ -13,14 +13,34 @@ pub struct PolicyConfig {
     pub policy: PolicyExpression,
 }
 
-/// Spending policy expression and optional timelocked fallback.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Spending policy expression and optional timelocked fallback(s).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct PolicyExpression {
     pub primary: String,
+    /// Legacy single fallback (still accepted when deserializing older vaults).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fallback: Option<FallbackPolicy>,
+    /// Timelocked recovery paths (Phase 2). Prefer this over `fallback`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fallbacks: Vec<FallbackPolicy>,
+}
+
+impl PolicyExpression {
+    /// All fallbacks: legacy `fallback` first (if any), then `fallbacks`.
+    pub fn all_fallbacks(&self) -> Vec<&FallbackPolicy> {
+        let mut out = Vec::with_capacity(self.fallbacks.len() + 1);
+        if let Some(fb) = &self.fallback {
+            out.push(fb);
+        }
+        out.extend(self.fallbacks.iter());
+        out
+    }
 }
 
 /// Timelocked fallback path (e.g. inheritance after N years).
+///
+/// `allow` is a key expression using the same grammar as `primary`
+/// (e.g. `A` or `A && B`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FallbackPolicy {
     pub after: String,

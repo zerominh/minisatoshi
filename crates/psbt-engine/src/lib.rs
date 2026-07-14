@@ -51,6 +51,7 @@ mod integration_tests {
             policy: PolicyExpression {
                 primary: "A && B".into(),
                 fallback: None,
+                fallbacks: vec![],
             },
         };
         let descriptor = descriptor_engine::compile_descriptor_from_config(&policy).unwrap();

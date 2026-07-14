@@ -20,18 +20,24 @@
 
 ---
 
+
+
 ## Nguyên tắc kiến trúc
 
-| Nguyên tắc | Ý nghĩa |
-|---|---|
-| **Rust-first** | Mọi logic Bitcoin/Miniscript nằm trong crates Rust |
-| **UI không biết Miniscript** | React chỉ gửi policy JSON + xpub; engine compile descriptor |
-| **Policy engine tổng quát** | Không hard-code A/B/C; mọi vault là một policy config |
-| **Offline by default** | Blockchain sync là tùy chọn, không bắt buộc để tạo vault |
-| **Descriptor là source of truth** | Vault = descriptor + metadata; có thể export/import |
-| **Tương thích ví bên ngoài** | Sparrow không phải backend; interop qua descriptor + PSBT + cùng Electrum server |
+
+| Nguyên tắc                        | Ý nghĩa                                                                          |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| **Rust-first**                    | Mọi logic Bitcoin/Miniscript nằm trong crates Rust                               |
+| **UI không biết Miniscript**      | React chỉ gửi policy JSON + xpub; engine compile descriptor                      |
+| **Policy engine tổng quát**       | Không hard-code A/B/C; mọi vault là một policy config                            |
+| **Offline by default**            | Blockchain sync là tùy chọn, không bắt buộc để tạo vault                         |
+| **Descriptor là source of truth** | Vault = descriptor + metadata; có thể export/import                              |
+| **Tương thích ví bên ngoài**      | Sparrow không phải backend; interop qua descriptor + PSBT + cùng Electrum server |
+
 
 ---
+
+
 
 ## Tech stack
 
@@ -49,6 +55,8 @@ SQLite
 ```
 
 ---
+
+
 
 ## Cấu trúc monorepo
 
@@ -82,6 +90,8 @@ minisatoshi/
 
 ---
 
+
+
 ## Sơ đồ phụ thuộc module
 
 ```mermaid
@@ -106,7 +116,11 @@ flowchart TB
     Blockchain --> Storage
 ```
 
+
+
 ---
+
+
 
 ## Policy Engine tổng quát
 
@@ -134,6 +148,8 @@ Thay vì thiết kế riêng cho mô hình A/B/C, policy engine nhận cấu hì
 }
 ```
 
+
+
 ### Pipeline biên dịch
 
 ```text
@@ -148,15 +164,21 @@ Descriptor (tr(...) hoặc wsh(...))
 Output descriptor string
 ```
 
+
+
 ### Policy DSL nội bộ
 
-| Token | Miniscript |
-|---|---|
-| `A`, `B`, `C` | `pk(key_A)` |
-| `&&` | `and_v` / `andor` (tùy context) |
-| `\|\|` | `or_i` / `or_c` |
-| `after: 4y` | `older(126144)` (blocks, configurable) |
-| `thresh(k, ...)` | `thresh(k, ...)` |
+
+| Token            | Miniscript                             |
+| ---------------- | -------------------------------------- |
+| `A`, `B`, `C`    | `pk(key_A)`                            |
+| `&&`             | `and_v` / `andor` (tùy context)        |
+| `||`             | `or_i` / `or_c`                        |
+| `after: 4y`      | `older(126144)` (blocks, configurable) |
+| `thresh(k, ...)` | `thresh(k, ...)`                       |
+
+
+
 
 ### Preset templates (UI wizard)
 
@@ -173,11 +195,15 @@ Sau này thêm preset `2-of-3`, `3-of-5` mà không sửa engine.
 
 ---
 
+
+
 ## Giai đoạn 1 — MVP (8 Sprint)
 
 Mỗi sprint = 1–2 session Cursor, có deliverable test được.
 
 ---
+
+
 
 ### Sprint 0 — Scaffold
 
@@ -192,6 +218,8 @@ Mỗi sprint = 1–2 session Cursor, có deliverable test được.
 
 ---
 
+
+
 ### Sprint 1 — `policy-engine` + `descriptor-engine`
 
 **Mục tiêu:** JSON → descriptor string, có unit test.
@@ -203,6 +231,8 @@ pub struct PolicyConfig { /* serde */ }
 pub fn validate(config: &PolicyConfig) -> Result<(), PolicyError>;
 pub fn compile_miniscript(config: &PolicyConfig) -> Result<Miniscript<...>, PolicyError>;
 ```
+
+
 
 #### `descriptor-engine` API
 
@@ -217,6 +247,8 @@ pub fn parse_descriptor(desc: &str) -> Result<Descriptor, DescriptorError>;
 pub fn checksum(descriptor: &str) -> String;
 ```
 
+
+
 #### Tests bắt buộc
 
 - A/B/C preset → descriptor khớp vector đã biết
@@ -228,7 +260,11 @@ pub fn checksum(descriptor: &str) -> String;
 
 ---
 
+
+
 ### Sprint 2 — `storage` + `wallet-core`
+
+
 
 #### SQLite schema v1
 
@@ -285,6 +321,8 @@ CREATE TABLE labels (
 );
 ```
 
+
+
 #### `wallet-core` API
 
 ```rust
@@ -301,7 +339,11 @@ pub fn export_descriptor(vault_id: &str) -> Result<String, WalletError>;
 
 ---
 
+
+
 ### Sprint 3 — `address-engine` + `vault`
+
+
 
 #### `address-engine` API
 
@@ -310,6 +352,8 @@ pub fn new_receive_address(vault: &Vault, index: u32) -> Result<Address, Address
 pub fn new_change_address(vault: &Vault, index: u32) -> Result<Address, AddressError>;
 pub fn derive_address(descriptor: &str, index: u32, is_change: bool) -> Result<String, AddressError>;
 ```
+
+
 
 #### `vault` API
 
@@ -325,7 +369,11 @@ pub fn vault_history(vault_id: &str) -> Result<Vec<TxSummary>, VaultError>;
 
 ---
 
+
+
 ### Sprint 4 — `blockchain` + Sparrow interop
+
+
 
 #### Trait chung
 
@@ -339,6 +387,8 @@ pub trait BlockchainBackend: Send + Sync {
 }
 ```
 
+
+
 #### Blockchain backends (theo thứ tự ưu tiên)
 
 1. **Esplora** — dễ nhất, không cần node local
@@ -347,6 +397,8 @@ pub trait BlockchainBackend: Send + Sync {
 
 > **Lưu ý:** Sparrow **không** implement `BlockchainBackend`. Sparrow là app ví desktop;
 > nó kết nối *tới* Esplora/Electrum/Core chứ không expose API cho app khác query balance/UTXO.
+
+
 
 #### Sparrow interop (`blockchain::sparrow`)
 
@@ -375,12 +427,14 @@ pub struct ServerPreset {
 
 **Sparrow ↔ Minisatoshi mapping**
 
-| Tính năng | Minisatoshi | Sparrow |
-|---|---|---|
-| Sync balance/UTXO | `EsploraBackend` / `ElectrumBackend` / `CoreRpcBackend` | Cùng loại server, cùng network |
-| Watch-only vault | Export descriptor từ vault | File → New Wallet → Import → Descriptor |
-| Ký giao dịch | Export PSBT unsigned (Sprint 5) | File → Open Transaction → Sign |
-| Broadcast | `BlockchainBackend::broadcast` | Sparrow broadcast qua server của nó |
+
+| Tính năng         | Minisatoshi                                             | Sparrow                                 |
+| ----------------- | ------------------------------------------------------- | --------------------------------------- |
+| Sync balance/UTXO | `EsploraBackend` / `ElectrumBackend` / `CoreRpcBackend` | Cùng loại server, cùng network          |
+| Watch-only vault  | Export descriptor từ vault                              | File → New Wallet → Import → Descriptor |
+| Ký giao dịch      | Export PSBT unsigned (Sprint 5)                         | File → Open Transaction → Sign          |
+| Broadcast         | `BlockchainBackend::broadcast`                          | Sparrow broadcast qua server của nó     |
+
 
 ```mermaid
 flowchart LR
@@ -391,6 +445,10 @@ flowchart LR
     PSBT -->|sign offline| SP
     BE -.->|cùng Electrum server| SP
 ```
+
+
+
+
 
 #### Tests bắt buộc
 
@@ -403,7 +461,11 @@ flowchart LR
 
 ---
 
+
+
 ### Sprint 5 — `psbt-engine`
+
+
 
 #### API
 
@@ -436,7 +498,11 @@ pub fn export_psbt(psbt: &Psbt, format: ExportFormat) -> Result<Vec<u8>, PsbtErr
 
 ---
 
+
+
 ### Sprint 6 — Tauri commands + type bridge
+
+
 
 #### Tauri commands (Rust → React)
 
@@ -457,19 +523,27 @@ async fn create_psbt_cmd(req: CreatePsbtRequest) -> Result<PsbtDto, String>;
 
 ---
 
+
+
 ### Sprint 7 — UI MVP
+
+
 
 #### Pages
 
-| Route | Nội dung |
-|---|---|
-| `/wallets` | Danh sách wallet, tạo mới |
-| `/vaults` | Danh sách vault, dashboard |
-| `/vaults/new` | Wizard 5 bước |
-| `/vaults/:id` | Dashboard: balance, UTXO, policy, descriptor |
-| `/vaults/:id/receive` | Address + QR + copy descriptor + **Export for Sparrow** |
-| `/vaults/:id/send` | Wizard: address → amount → fee → PSBT export (Sparrow-compatible) |
-| `/settings` | Network, blockchain backend, server URL, **Sparrow server presets** |
+
+| Route                 | Nội dung                                                            |
+| --------------------- | ------------------------------------------------------------------- |
+| `/wallets`            | Danh sách wallet, tạo mới                                           |
+| `/vaults`             | Danh sách vault, dashboard                                          |
+| `/vaults/new`         | Wizard 5 bước                                                       |
+| `/vaults/:id`         | Dashboard: balance, UTXO, policy, descriptor                        |
+| `/vaults/:id/receive` | Address + QR + copy descriptor + **Export for Sparrow**             |
+| `/vaults/:id/send`    | Wizard: address → amount → fee → PSBT export (Sparrow-compatible)   |
+| `/settings`           | Network, blockchain backend, server URL, **Sparrow server presets** |
+
+
+
 
 #### Sidebar
 
@@ -480,6 +554,8 @@ Transactions
 Settings
 ```
 
+
+
 #### Create Vault Wizard
 
 ```text
@@ -489,6 +565,8 @@ Step 3: Recovery XPUB
 Step 4: Timelock (slider: 1–10 năm)
 Step 5: Review policy JSON + Generate
 ```
+
+
 
 #### Dashboard
 
@@ -504,6 +582,8 @@ Address → Amount → Fee → Create PSBT → Export (file / base64 → Sparrow
 
 ---
 
+
+
 ### Sprint 8 — Test, hardening, release v0.1.0
 
 - [x] Integration tests full flow (`crates/vault/tests/vault_lifecycle.rs`)
@@ -514,26 +594,32 @@ Address → Amount → Fee → Create PSBT → Export (file / base64 → Sparrow
 
 **Deliverable:** Release v0.1.0 tooling sẵn sàng (tag `v0.1.0` → GitHub Release draft). ✅
 
-
 ---
 
+
+
 ## Giai đoạn 2–5 (roadmap)
+
+
 
 ### Giai đoạn 2 — Policy mở rộng
 
 Sau khi MVP ổn định, thêm:
 
-- Miniscript Builder GUI
-- Nhiều policy templates
-- Nhiều recovery path
-- Nhiều manager
-- Nhiều investor
-- Inheritance
-- Dead man's switch
+- [x] Miniscript Builder GUI (basic: chips + expression editor)
+- [x] Nhiều policy templates (`abc`, `2-of-3`, `inheritance`, `dead_mans_switch`, `multi_manager`, `custom`)
+- [x] Nhiều recovery path (`policy.fallbacks[]`, `allow` is a key expression)
+- [x] Nhiều manager / investor (dynamic key list in wizard)
+- [x] Inheritance template
+- [x] Dead man's switch template
 
 **Phụ thuộc:** Policy engine v1 ổn định.
 
+Module: `policy_engine::templates` + `apps/desktop` Create Vault wizard.
+
 ---
+
+
 
 ### Giai đoạn 3 — Hardware Wallet
 
@@ -545,6 +631,8 @@ Sau khi MVP ổn định, thêm:
 **Phụ thuộc:** PSBT engine + HWI integration.
 
 ---
+
+
 
 ### Giai đoạn 4 — Import/Export
 
@@ -558,14 +646,16 @@ Sau khi MVP ổn định, thêm:
 
 ---
 
+
+
 ### Giai đoạn 5 — Fund Management
 
 Lúc này mới thêm server:
 
 - KYC
-- Investor management
-- NAV
+- Investor managementV
 - Reporting
+- NA
 - API
 - Database
 
@@ -573,19 +663,25 @@ Lúc này mới thêm server:
 
 ---
 
+
+
 ## Quyết định kỹ thuật
 
-| Câu hỏi | Đề xuất |
-|---|---|
-| Script type mặc định? | **Taproot** (`tr`) — hiện đại, phí thấp |
-| Network mặc định dev? | **Signet** hoặc **testnet** |
-| Key derivation? | BIP86 (Taproot), BIP84 fallback nếu cần |
-| Timelock unit? | Blocks (chuẩn Miniscript `older`); UI hiển thị năm, convert `years × 52560` blocks |
-| BDK version? | `bdk_wallet 1.x` (tách từ bdk-ng) |
-| DB encryption? | Giai đoạn 1: không mã hóa (watch-only). Giai đoạn 3+: SQLCipher nếu lưu xprv |
-| Sparrow integration? | **Interop, không phải backend** — descriptor export (Sprint 4), PSBT BIP174 (Sprint 5), Electrum server presets |
+
+| Câu hỏi               | Đề xuất                                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Script type mặc định? | **Taproot** (`tr`) — hiện đại, phí thấp                                                                         |
+| Network mặc định dev? | **Signet** hoặc **testnet**                                                                                     |
+| Key derivation?       | BIP86 (Taproot), BIP84 fallback nếu cần                                                                         |
+| Timelock unit?        | Blocks (chuẩn Miniscript `older`); UI hiển thị năm, convert `years × 52560` blocks                              |
+| BDK version?          | `bdk_wallet 1.x` (tách từ bdk-ng)                                                                               |
+| DB encryption?        | Giai đoạn 1: không mã hóa (watch-only). Giai đoạn 3+: SQLCipher nếu lưu xprv                                    |
+| Sparrow integration?  | **Interop, không phải backend** — descriptor export (Sprint 4), PSBT BIP174 (Sprint 5), Electrum server presets |
+
 
 ---
+
+
 
 ## Test strategy
 
@@ -613,31 +709,39 @@ tests/
 
 ---
 
+
+
 ## Rủi ro và giảm thiểu
 
-| Rủi ro | Giảm thiểu |
-|---|---|
-| Miniscript compile fail với policy phức tạp | Validate AST trước khi compile; test matrix đủ lớn |
-| `bdk_wallet` API thay đổi | Pin version; abstract qua trait trong `blockchain` |
-| Timelock sai số blocks | Document rõ; dùng constant `BLOCKS_PER_YEAR = 52560` |
-| User nhập xpub sai network | Validate version bytes (xpub/tpub) + fingerprint |
-| PSBT multi-signer phức tạp | Giai đoạn 1 chỉ export unsigned PSBT; sign offline (Sparrow / HW) |
-| Nhầm Sparrow là blockchain backend | Document rõ trong plan; chỉ dùng Electrum/Esplora/Core cho sync |
+
+| Rủi ro                                      | Giảm thiểu                                                        |
+| ------------------------------------------- | ----------------------------------------------------------------- |
+| Miniscript compile fail với policy phức tạp | Validate AST trước khi compile; test matrix đủ lớn                |
+| `bdk_wallet` API thay đổi                   | Pin version; abstract qua trait trong `blockchain`                |
+| Timelock sai số blocks                      | Document rõ; dùng constant `BLOCKS_PER_YEAR = 52560`              |
+| User nhập xpub sai network                  | Validate version bytes (xpub/tpub) + fingerprint                  |
+| PSBT multi-signer phức tạp                  | Giai đoạn 1 chỉ export unsigned PSBT; sign offline (Sparrow / HW) |
+| Nhầm Sparrow là blockchain backend          | Document rõ trong plan; chỉ dùng Electrum/Esplora/Core cho sync   |
+
 
 ---
+
+
 
 ## Session Cursor tiếp theo
 
 ```
-Post-v0.1: Giai đoạn 2 — Policy mở rộng / Miniscript Builder GUI
-  hoặc Giai đoạn 3 — Hardware wallet signing
+Post-v0.1: Giai đoạn 2 policy templates + multi-fallback UI ✅
+  → tiếp: Giai đoạn 3 — Hardware wallet signing
+  hoặc ký software trong app / Core interop docs
 ```
 
 Pipeline hiện tại: `Policy → Descriptor → Address → Balance → PSBT → Tauri IPC → UI MVP` ✅ (Sprint 1–8).
 v0.1.0 hardening xong; bước kế: mở rộng policy hoặc HW signing.
 
-
 ---
+
+
 
 ## Luồng dữ liệu tổng thể
 
@@ -654,3 +758,4 @@ PSBT
   ↓
 Broadcast
 ```
+

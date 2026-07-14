@@ -211,6 +211,7 @@ mod tests {
             policy: PolicyExpression {
                 primary: "(A && B) || (A && C) || (B && C)".into(),
                 fallback: None,
+                fallbacks: vec![],
             },
         };
         let descriptor = compile_descriptor_from_config(&config).unwrap();
@@ -231,6 +232,7 @@ mod tests {
                     after: "4y".into(),
                     allow: "A".into(),
                 }),
+                fallbacks: vec![],
             },
         };
         let leaves = policy_engine::compile_leaf_policies(&config).unwrap();
@@ -263,6 +265,7 @@ mod tests {
             policy: PolicyExpression {
                 primary: "A && B".into(),
                 fallback: None,
+                fallbacks: vec![],
             },
         };
         let descriptor = compile_descriptor_from_config(&config).unwrap();
@@ -305,6 +308,7 @@ mod tests {
                     after: "1d".into(),
                     allow: "A".into(),
                 }),
+                fallbacks: vec![],
             },
         };
         let descriptor = compile_descriptor_from_config(&config).unwrap();

@@ -26,13 +26,12 @@ pub fn validate(config: &PolicyConfig) -> Result<(), PolicyError> {
     let primary_ast = parser::parse_expression(&config.policy.primary)?;
     validate_expr_keys(&primary_ast, config)?;
 
-    if let Some(fallback) = &config.policy.fallback {
+    for fallback in config.policy.all_fallbacks() {
         parse_duration(&fallback.after)?;
-        if !config.keys.iter().any(|k| k.id == fallback.allow) {
-            return Err(PolicyError::UnknownFallbackKey {
-                key: fallback.allow.clone(),
-            });
-        }
+        let allow_ast = parser::parse_expression(&fallback.allow).map_err(|e| {
+            PolicyError::InvalidExpression(format!("fallback allow: {e}"))
+        })?;
+        validate_expr_keys(&allow_ast, config)?;
     }
 
     Ok(())
@@ -96,6 +95,7 @@ mod tests {
             policy: PolicyExpression {
                 primary: "A && B".into(),
                 fallback: None,
+                fallbacks: vec![],
             },
         }
     }
@@ -168,8 +168,28 @@ mod tests {
         });
         assert!(matches!(
             validate(&config),
-            Err(PolicyError::UnknownFallbackKey { .. })
+            Err(PolicyError::UnknownKey(_))
         ));
+    }
+
+    #[test]
+    fn accepts_multiple_fallbacks_and_allow_expression() {
+        let mut config = base_config(vec![
+            key("A", TEST_XPUB_A, "78412e3a"),
+            key("B", TEST_XPUB_B, TEST_FP),
+        ]);
+        config.policy.fallback = None;
+        config.policy.fallbacks = vec![
+            FallbackPolicy {
+                after: "1y".into(),
+                allow: "A".into(),
+            },
+            FallbackPolicy {
+                after: "4y".into(),
+                allow: "A && B".into(),
+            },
+        ];
+        validate(&config).unwrap();
     }
 
     #[test]
