@@ -8,10 +8,15 @@ use crate::error::PsbtError;
 
 pub fn finalize_psbt(psbt: &mut Psbt) -> Result<Transaction, PsbtError> {
     let secp = Secp256k1::verification_only();
-    psbt.finalize_mut(&secp)
-        .map_err(|errors| PsbtError::Finalize(format!("{errors:?}")))?;
+    psbt.finalize_mut(&secp).map_err(|errors| {
+        PsbtError::Finalize(format!(
+            "could not finalize PSBT ({} failure(s))",
+            errors.len()
+        ))
+    })?;
 
-    psbt.extract(&secp).map_err(|e| PsbtError::Finalize(e.to_string()))
+    psbt.extract(&secp)
+        .map_err(|_| PsbtError::Finalize("could not extract finalized transaction".into()))
 }
 
 pub fn extract_transaction(psbt: &Psbt) -> Result<Transaction, PsbtError> {
@@ -20,7 +25,7 @@ pub fn extract_transaction(psbt: &Psbt) -> Result<Transaction, PsbtError> {
             && input
                 .final_script_sig
                 .as_ref()
-                .map_or(true, |script| script.is_empty())
+                .is_none_or(|script| script.is_empty())
     }) {
         return Err(PsbtError::NotFinalized);
     }

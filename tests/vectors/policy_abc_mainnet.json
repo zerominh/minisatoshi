@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "network": "testnet",
+  "network": "mainnet",
   "script_type": "taproot",
   "keys": [
     {

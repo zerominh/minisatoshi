@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use crate::error::WalletError;
 use crate::types::{
-    network_from_str, network_to_str, script_type_from_str, script_type_to_str, Vault, VaultSummary,
-    Wallet, WalletSummary,
+    network_from_str, network_to_str, script_type_from_str, script_type_to_str, Vault,
+    VaultSummary, Wallet, WalletSummary,
 };
 
 /// Persistent wallet database handle.
@@ -30,7 +30,11 @@ impl WalletStore {
         &self.path
     }
 
-    pub fn create_wallet(&self, name: &str, network: policy_engine::NetworkName) -> Result<Wallet, WalletError> {
+    pub fn create_wallet(
+        &self,
+        name: &str,
+        network: policy_engine::NetworkName,
+    ) -> Result<Wallet, WalletError> {
         if name.trim().is_empty() {
             return Err(WalletError::EmptyWalletName);
         }
@@ -348,7 +352,9 @@ mod tests {
         let db_path = dir.path().join("wallet.db");
         let store = WalletStore::open(&db_path).unwrap();
 
-        let wallet = store.create_wallet("Family Fund", NetworkName::Testnet).unwrap();
+        let wallet = store
+            .create_wallet("Family Fund", NetworkName::Testnet)
+            .unwrap();
         let keys = sample_keys();
         let policy = abc_preset(
             keys[0].clone(),
@@ -358,9 +364,7 @@ mod tests {
             NetworkName::Testnet,
         );
 
-        let vault = store
-            .create_vault(&wallet.id, "ABC Vault", policy)
-            .unwrap();
+        let vault = store.create_vault(&wallet.id, "ABC Vault", policy).unwrap();
 
         let exported = store.export_descriptor(&vault.id).unwrap();
         assert!(exported.starts_with("tr("));
@@ -382,7 +386,9 @@ mod tests {
         let restored_path = dir.path().join("restored.db");
 
         let store = WalletStore::open(&db_path).unwrap();
-        let wallet = store.create_wallet("Backup Test", NetworkName::Signet).unwrap();
+        let wallet = store
+            .create_wallet("Backup Test", NetworkName::Signet)
+            .unwrap();
         store.backup_wallet(&wallet.id, &backup_path).unwrap();
 
         let restored = WalletStore::restore_wallet(&backup_path, &restored_path).unwrap();

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use bitcoin::hashes::{sha256d, Hash};
-use bitcoin::ScriptBuf;
 use policy_engine::NetworkName;
 use reqwest::blocking::Client;
 use serde::Deserialize;
@@ -190,6 +189,8 @@ pub fn default_electrum_url(network: NetworkName) -> &'static str {
     match network {
         NetworkName::Mainnet => "https://blockstream.info/electrum/api",
         NetworkName::Testnet => "https://blockstream.info/testnet/electrum/api",
+        // No Blockstream HTTPS Electrum bridge for testnet4; local electrs default.
+        NetworkName::Testnet4 => "http://127.0.0.1:3004",
         NetworkName::Signet => "https://blockstream.info/signet/electrum/api",
         NetworkName::Regtest => "http://127.0.0.1:3004",
     }
@@ -200,9 +201,15 @@ fn address_to_scripthash(address: &str) -> Result<String, ChainError> {
         .parse::<bitcoin::Address<bitcoin::address::NetworkUnchecked>>()
         .map_err(|e| ChainError::Parse(e.to_string()))?
         .assume_checked();
-    let script = ScriptBuf::from(parsed.script_pubkey());
+    let script = parsed.script_pubkey();
     let hash = sha256d::Hash::hash(script.as_bytes());
-    Ok(hex::encode(hash.to_byte_array().iter().rev().copied().collect::<Vec<_>>()))
+    Ok(hex::encode(
+        hash.to_byte_array()
+            .iter()
+            .rev()
+            .copied()
+            .collect::<Vec<_>>(),
+    ))
 }
 
 mod hex {
@@ -252,8 +259,9 @@ mod tests {
             NetworkName::Testnet,
         );
         let descriptor = descriptor_engine::compile_descriptor_from_config(&policy).unwrap();
-        let address =
-            address_engine::new_receive_address(&policy, &descriptor, 0).unwrap().address;
+        let address = address_engine::new_receive_address(&policy, &descriptor, 0)
+            .unwrap()
+            .address;
 
         let hash = address_to_scripthash(&address).unwrap();
         assert_eq!(hash.len(), 64);

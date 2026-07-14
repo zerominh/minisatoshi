@@ -88,8 +88,14 @@ export async function listServerPresets(
   return invoke("list_server_presets", { network });
 }
 
+export async function appVersion(): Promise<string> {
+  return invoke("app_version");
+}
+
 export function formatError(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  return String(err);
+  let message: string;
+  if (err instanceof Error) message = err.message;
+  else if (typeof err === "string") message = err;
+  else message = String(err);
+  return message.replace(/\b[xt]prv[1-9A-HJ-NP-Za-km-z]+/gi, "[redacted-private-key]");
 }

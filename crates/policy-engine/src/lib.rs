@@ -91,7 +91,13 @@ mod tests {
     #[test]
     fn abc_preset_produces_valid_policy_string() {
         let keys = sample_keys();
-        let config = abc_preset(keys[0].clone(), keys[1].clone(), keys[2].clone(), 4, NetworkName::Testnet);
+        let config = abc_preset(
+            keys[0].clone(),
+            keys[1].clone(),
+            keys[2].clone(),
+            4,
+            NetworkName::Testnet,
+        );
         let policy = compile_policy_string(&config).unwrap();
         assert!(policy.contains("or("));
         assert!(policy.contains("and("));
@@ -101,7 +107,13 @@ mod tests {
     #[test]
     fn compile_miniscript_succeeds_for_abc_preset() {
         let keys = sample_keys();
-        let config = abc_preset(keys[0].clone(), keys[1].clone(), keys[2].clone(), 4, NetworkName::Testnet);
+        let config = abc_preset(
+            keys[0].clone(),
+            keys[1].clone(),
+            keys[2].clone(),
+            4,
+            NetworkName::Testnet,
+        );
         let ms = compile_miniscript(&config).unwrap();
         assert!(!format!("{ms}").is_empty());
     }

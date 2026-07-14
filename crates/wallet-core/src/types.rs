@@ -41,7 +41,9 @@ pub struct VaultSummary {
 pub(crate) fn network_from_str(value: &str) -> Result<NetworkName, String> {
     match value {
         "mainnet" => Ok(NetworkName::Mainnet),
-        "testnet" => Ok(NetworkName::Testnet),
+        // "testnet" and "testnet3" both mean classic testnet3.
+        "testnet" | "testnet3" => Ok(NetworkName::Testnet),
+        "testnet4" => Ok(NetworkName::Testnet4),
         "signet" => Ok(NetworkName::Signet),
         "regtest" => Ok(NetworkName::Regtest),
         other => Err(other.to_string()),
@@ -52,6 +54,7 @@ pub(crate) fn network_to_str(network: NetworkName) -> &'static str {
     match network {
         NetworkName::Mainnet => "mainnet",
         NetworkName::Testnet => "testnet",
+        NetworkName::Testnet4 => "testnet4",
         NetworkName::Signet => "signet",
         NetworkName::Regtest => "regtest",
     }

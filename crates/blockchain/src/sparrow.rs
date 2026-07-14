@@ -35,6 +35,35 @@ pub fn export_watch_only_wallet(vault: &Vault) -> Result<SparrowWalletExport, Ch
 
 /// Recommended server presets that Sparrow users commonly select.
 pub fn default_server_presets(network: NetworkName) -> Vec<ServerPreset> {
+    if network == NetworkName::Testnet4 {
+        return vec![
+            ServerPreset {
+                label: "Mempool Esplora (testnet4)".into(),
+                backend: BackendKind::Esplora,
+                url: default_esplora_url(network).into(),
+                network,
+            },
+            ServerPreset {
+                label: "Mempool Electrum SSL (Sparrow native)".into(),
+                backend: BackendKind::Electrum,
+                url: "ssl://mempool.space:40002".into(),
+                network,
+            },
+            ServerPreset {
+                label: "Local Electrum / electrs".into(),
+                backend: BackendKind::Electrum,
+                url: default_electrum_url(network).into(),
+                network,
+            },
+            ServerPreset {
+                label: "Bitcoin Core RPC (local testnet4)".into(),
+                backend: BackendKind::Core,
+                url: "http://127.0.0.1:48332".into(),
+                network,
+            },
+        ];
+    }
+
     let mut presets = vec![
         ServerPreset {
             label: "Blockstream Esplora".into(),
@@ -73,7 +102,7 @@ pub fn default_server_presets(network: NetworkName) -> Vec<ServerPreset> {
                 network,
             });
             presets.push(ServerPreset {
-                label: "Bitcoin Core RPC (local)".into(),
+                label: "Bitcoin Core RPC (local testnet3)".into(),
                 backend: BackendKind::Core,
                 url: "http://127.0.0.1:18332".into(),
                 network,
@@ -101,6 +130,7 @@ pub fn default_server_presets(network: NetworkName) -> Vec<ServerPreset> {
                 network,
             });
         }
+        NetworkName::Testnet4 => {}
     }
 
     presets
@@ -154,7 +184,9 @@ mod tests {
     fn export_watch_only_wallet_includes_checksum() {
         let dir = tempfile::tempdir().unwrap();
         let store = WalletStore::open(dir.path().join("wallet.db")).unwrap();
-        let wallet = store.create_wallet("Sparrow", NetworkName::Testnet).unwrap();
+        let wallet = store
+            .create_wallet("Sparrow", NetworkName::Testnet)
+            .unwrap();
         let policy = abc_preset(
             sample_keys()[0].clone(),
             sample_keys()[1].clone(),
@@ -173,10 +205,17 @@ mod tests {
     #[test]
     fn default_server_presets_for_testnet() {
         let presets = default_server_presets(NetworkName::Testnet);
-        assert!(presets.iter().any(|preset| preset.backend == BackendKind::Esplora));
-        assert!(presets.iter().any(|preset| preset.url.contains("testnet")));
         assert!(presets
             .iter()
-            .any(|preset| preset.url.contains("60002")));
+            .any(|preset| preset.backend == BackendKind::Esplora));
+        assert!(presets.iter().any(|preset| preset.url.contains("testnet")));
+        assert!(presets.iter().any(|preset| preset.url.contains("60002")));
+    }
+
+    #[test]
+    fn default_server_presets_for_testnet4() {
+        let presets = default_server_presets(NetworkName::Testnet4);
+        assert!(presets.iter().any(|preset| preset.url.contains("testnet4")));
+        assert!(presets.iter().any(|preset| preset.url.contains("48332")));
     }
 }

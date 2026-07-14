@@ -36,11 +36,9 @@ impl Database {
 
         let version: Option<u32> = self
             .conn
-            .query_row(
-                "SELECT version FROM schema_version LIMIT 1",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| {
+                row.get(0)
+            })
             .optional()?;
 
         if version.is_none() {
@@ -57,12 +55,7 @@ impl Database {
         self.conn.execute(
             "INSERT INTO wallets (id, name, network, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?4)",
-            params![
-                wallet.id,
-                wallet.name,
-                wallet.network,
-                wallet.created_at,
-            ],
+            params![wallet.id, wallet.name, wallet.network, wallet.created_at,],
         )?;
 
         self.get_wallet(&wallet.id)
@@ -106,7 +99,8 @@ impl Database {
             })
         })?;
 
-        rows.collect::<Result<Vec<_>, _>>().map_err(StorageError::from)
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
     }
 
     pub fn touch_wallet(&self, id: &str, updated_at: i64) -> Result<(), StorageError> {
@@ -157,14 +151,15 @@ impl Database {
                 },
             )
             .map_err(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => {
-                    StorageError::VaultNotFound(id.to_string())
-                }
+                rusqlite::Error::QueryReturnedNoRows => StorageError::VaultNotFound(id.to_string()),
                 other => StorageError::Database(other),
             })
     }
 
-    pub fn list_vaults_for_wallet(&self, wallet_id: &str) -> Result<Vec<VaultRecord>, StorageError> {
+    pub fn list_vaults_for_wallet(
+        &self,
+        wallet_id: &str,
+    ) -> Result<Vec<VaultRecord>, StorageError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, wallet_id, name, policy_json, descriptor, script_type, created_at
              FROM vaults WHERE wallet_id = ?1 ORDER BY created_at ASC",
@@ -181,7 +176,8 @@ impl Database {
             })
         })?;
 
-        rows.collect::<Result<Vec<_>, _>>().map_err(StorageError::from)
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
     }
 
     pub fn insert_address(&self, address: &NewAddress) -> Result<AddressRecord, StorageError> {
@@ -227,7 +223,10 @@ impl Database {
             })
     }
 
-    pub fn insert_transaction(&self, tx: &NewTransaction) -> Result<TransactionRecord, StorageError> {
+    pub fn insert_transaction(
+        &self,
+        tx: &NewTransaction,
+    ) -> Result<TransactionRecord, StorageError> {
         self.conn.execute(
             "INSERT INTO transactions (txid, vault_id, block_height, amount, fee, confirmed, raw_json)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -250,24 +249,24 @@ impl Database {
         txid: &str,
         vault_id: &str,
     ) -> Result<TransactionRecord, StorageError> {
-        self.conn.query_row(
-            "SELECT txid, vault_id, block_height, amount, fee, confirmed, raw_json
+        self.conn
+            .query_row(
+                "SELECT txid, vault_id, block_height, amount, fee, confirmed, raw_json
              FROM transactions WHERE txid = ?1 AND vault_id = ?2",
-            params![txid, vault_id],
-            |row| {
-                Ok(TransactionRecord {
-                    txid: row.get(0)?,
-                    vault_id: row.get(1)?,
-                    block_height: row.get(2)?,
-                    amount: row.get(3)?,
-                    fee: row.get(4)?,
-                    confirmed: row
-                        .get::<_, Option<i64>>(5)?
-                        .map(|value| value != 0),
-                    raw_json: row.get(6)?,
-                })
-            },
-        ).map_err(StorageError::from)
+                params![txid, vault_id],
+                |row| {
+                    Ok(TransactionRecord {
+                        txid: row.get(0)?,
+                        vault_id: row.get(1)?,
+                        block_height: row.get(2)?,
+                        amount: row.get(3)?,
+                        fee: row.get(4)?,
+                        confirmed: row.get::<_, Option<i64>>(5)?.map(|value| value != 0),
+                        raw_json: row.get(6)?,
+                    })
+                },
+            )
+            .map_err(StorageError::from)
     }
 
     pub fn insert_label(&self, label: &NewLabel) -> Result<LabelRecord, StorageError> {
@@ -285,7 +284,10 @@ impl Database {
         })
     }
 
-    pub fn list_addresses_for_vault(&self, vault_id: &str) -> Result<Vec<AddressRecord>, StorageError> {
+    pub fn list_addresses_for_vault(
+        &self,
+        vault_id: &str,
+    ) -> Result<Vec<AddressRecord>, StorageError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, vault_id, address, index_num, is_change, used, created_at
              FROM addresses WHERE vault_id = ?1 ORDER BY is_change ASC, index_num ASC",
@@ -302,10 +304,15 @@ impl Database {
             })
         })?;
 
-        rows.collect::<Result<Vec<_>, _>>().map_err(StorageError::from)
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
     }
 
-    pub fn max_address_index(&self, vault_id: &str, is_change: bool) -> Result<Option<u32>, StorageError> {
+    pub fn max_address_index(
+        &self,
+        vault_id: &str,
+        is_change: bool,
+    ) -> Result<Option<u32>, StorageError> {
         let value: Option<i64> = self
             .conn
             .query_row(

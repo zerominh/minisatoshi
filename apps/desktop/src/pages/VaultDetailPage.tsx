@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { formatError, getVault, syncVault } from "../lib/api";
-import { formatSats, getEsploraUrl } from "../lib/settings";
+import { formatNetwork, formatSats, getEsploraUrl } from "../lib/settings";
 import type { SyncResultDto, VaultDto } from "../lib/types";
 
 export function VaultDetailPage() {
@@ -39,7 +39,7 @@ export function VaultDetailPage() {
         <div>
           <h2>{vault.name}</h2>
           <p>
-            {vault.scriptType} · {vault.policy.network}
+            {vault.scriptType} · {formatNetwork(vault.policy.network)}
           </p>
         </div>
         <div className="row-actions">

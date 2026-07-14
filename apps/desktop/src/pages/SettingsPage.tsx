@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
-import { formatError, listServerPresets } from "../lib/api";
+import { appVersion, formatError, listServerPresets } from "../lib/api";
 import {
+  formatNetwork,
   getEsploraUrl,
   getPreferredNetwork,
   setEsploraUrl,
@@ -12,8 +13,13 @@ export function SettingsPage() {
   const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
   const [esploraUrl, setUrl] = useState(getEsploraUrl());
   const [presets, setPresets] = useState<ServerPresetDto[]>([]);
+  const [version, setVersion] = useState<string>("…");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void appVersion().then(setVersion).catch(() => setVersion("unknown"));
+  }, []);
 
   useEffect(() => {
     void listServerPresets(network)
@@ -35,6 +41,7 @@ export function SettingsPage() {
           <h2>Settings</h2>
           <p>Network defaults and blockchain backends (Esplora / Sparrow presets).</p>
         </div>
+        <p className="muted">Minisatoshi v{version}</p>
       </header>
 
       <form className="panel form-grid" onSubmit={onSave}>
@@ -44,7 +51,8 @@ export function SettingsPage() {
             value={network}
             onChange={(e) => setNetwork(e.target.value as NetworkName)}
           >
-            <option value="testnet">Testnet</option>
+            <option value="testnet">Testnet3</option>
+            <option value="testnet4">Testnet4</option>
             <option value="signet">Signet</option>
             <option value="regtest">Regtest</option>
             <option value="mainnet">Mainnet</option>
@@ -72,7 +80,7 @@ export function SettingsPage() {
               <div>
                 <strong>{preset.label}</strong>
                 <div className="muted">
-                  {preset.backend} · {preset.network}
+                  {preset.backend} · {formatNetwork(preset.network)}
                 </div>
                 <div className="mono wrap">{preset.url}</div>
               </div>

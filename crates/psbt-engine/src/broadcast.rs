@@ -8,7 +8,5 @@ pub fn broadcast_psbt(psbt: &Psbt, backend: &dyn BlockchainBackend) -> Result<St
     let mut working = psbt.clone();
     let tx = finalize_psbt(&mut working)?;
     let hex = transaction_hex(&tx);
-    backend
-        .broadcast(&hex)
-        .map_err(PsbtError::from)
+    backend.broadcast(&hex).map_err(PsbtError::from)
 }

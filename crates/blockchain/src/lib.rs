@@ -16,8 +16,6 @@ pub use electrum::{default_electrum_url, ElectrumBackend};
 pub use error::ChainError;
 pub use esplora::{default_esplora_url, EsploraBackend};
 pub use query::DescriptorQuery;
-pub use scanner::{build_scan_plan, ScannedAddress, ScanPlan, DEFAULT_GAP_LIMIT};
+pub use scanner::{build_scan_plan, ScanPlan, ScannedAddress, DEFAULT_GAP_LIMIT};
 pub use sparrow::{default_server_presets, export_watch_only_wallet, SparrowWalletExport};
-pub use types::{
-    BackendKind, Balance, ServerPreset, SyncProgress, SyncResult, TxSummary, Utxo,
-};
+pub use types::{BackendKind, Balance, ServerPreset, SyncProgress, SyncResult, TxSummary, Utxo};

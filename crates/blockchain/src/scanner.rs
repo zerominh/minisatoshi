@@ -27,7 +27,14 @@ pub fn build_scan_plan(
     has_activity: impl Fn(&str) -> Result<bool, ChainError>,
     progress: &dyn Fn(SyncProgress),
 ) -> Result<ScanPlan, ChainError> {
-    let receive = discover_chain(policy, descriptor, false, gap_limit, &has_activity, progress)?;
+    let receive = discover_chain(
+        policy,
+        descriptor,
+        false,
+        gap_limit,
+        &has_activity,
+        progress,
+    )?;
     let change = discover_chain(policy, descriptor, true, gap_limit, &has_activity, progress)?;
     Ok(ScanPlan { receive, change })
 }
@@ -127,7 +134,9 @@ mod tests {
         );
         let descriptor = compile_descriptor_from_config(&policy).unwrap();
 
-        let receive_0 = new_receive_address(&policy, &descriptor, 0).unwrap().address;
+        let receive_0 = new_receive_address(&policy, &descriptor, 0)
+            .unwrap()
+            .address;
         let active = |address: &str| Ok(address == receive_0);
 
         let plan = build_scan_plan(&policy, &descriptor, 3, active, &|_| {}).unwrap();

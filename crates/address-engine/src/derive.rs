@@ -32,8 +32,8 @@ pub fn derive_address_from_policy(
     index: u32,
     is_change: bool,
 ) -> Result<DerivedAddress, AddressError> {
-    let desc = compile_descriptor_from_abstract(policy)
-        .map_err(|e| AddressError::Parse(e.to_string()))?;
+    let desc =
+        compile_descriptor_from_abstract(policy).map_err(|e| AddressError::Parse(e.to_string()))?;
     derive_address_from_descriptor(&desc, policy.network, index, is_change)
 }
 
@@ -117,9 +117,10 @@ fn select_chain_descriptor(
             .map_err(|e| AddressError::Derivation(e.to_string()))?;
 
         let chain_index = if is_change { 1 } else { 0 };
-        singles.into_iter().nth(chain_index).ok_or(AddressError::UnsupportedMultipath {
-            is_change,
-        })
+        singles
+            .into_iter()
+            .nth(chain_index)
+            .ok_or(AddressError::UnsupportedMultipath { is_change })
     } else if is_change {
         Err(AddressError::UnsupportedMultipath { is_change: true })
     } else {

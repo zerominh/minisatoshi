@@ -26,9 +26,7 @@ pub fn compile_policy_string(config: &PolicyConfig) -> Result<String, PolicyErro
 }
 
 /// Compile a validated policy configuration into an abstract Miniscript policy AST.
-pub fn compile_abstract_miniscript(
-    config: &PolicyConfig,
-) -> Result<Concrete<String>, PolicyError> {
+pub fn compile_abstract_miniscript(config: &PolicyConfig) -> Result<Concrete<String>, PolicyError> {
     let abstract_policy = compile_abstract_policy_string(config)?;
     abstract_policy
         .parse::<Concrete<String>>()
@@ -78,10 +76,7 @@ fn build_abstract_policy_string(config: &PolicyConfig) -> Result<String, PolicyE
 
     let full = if let Some(fallback) = &config.policy.fallback {
         let blocks = parse_duration(&fallback.after)?;
-        format!(
-            "or({primary},and(older({blocks}),pk({})))",
-            fallback.allow
-        )
+        format!("or({primary},and(older({blocks}),pk({})))", fallback.allow)
     } else {
         primary
     };

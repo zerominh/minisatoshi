@@ -4,15 +4,15 @@ Offline-first desktop app for creating and managing Bitcoin vaults with Miniscri
 
 ## Status
 
-- **Sprint 0** — Monorepo scaffold (Tauri 2 + React)
-- **Sprint 1** — `policy-engine` + `descriptor-engine`
-- **Sprint 2** — `storage` (SQLite) + `wallet-core`
+**v0.1.0** — Sprint 0–8 complete (MVP hardening + release tooling).
+
+See [CHANGELOG.md](CHANGELOG.md) and [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md).
 
 ## Tech stack
 
 - Rust, Tauri 2, React, TypeScript
 - rust-bitcoin, rust-miniscript
-- SQLite (planned, Sprint 2)
+- SQLite (watch-only vault storage)
 
 ## Prerequisites
 
@@ -32,6 +32,16 @@ npm install
 npm run tauri dev
 ```
 
+### Release build
+
+```bash
+cd apps/desktop
+npm ci
+npm run tauri build
+```
+
+Tagging `v*` on GitHub runs [.github/workflows/release.yml](.github/workflows/release.yml) (Windows, macOS, Linux).
+
 ## Project structure
 
 ```text
@@ -42,12 +52,19 @@ minisatoshi/
 │   ├── descriptor-engine/ # Miniscript → descriptor
 │   ├── storage/           # SQLite persistence
 │   ├── wallet-core/       # wallet + vault lifecycle
-│   └── ...                # upcoming modules
-├── docs/DEVELOPMENT_PLAN.md
-└── tests/vectors/
+│   ├── address-engine/
+│   ├── blockchain/        # Esplora / Electrum / Sparrow interop
+│   ├── psbt-engine/
+│   └── vault/
+├── docs/
+│   ├── DEVELOPMENT_PLAN.md
+│   └── policy-format.md
+└── tests/vectors/         # Golden Taproot descriptor fixtures
 ```
 
 ## Policy example
+
+Full field reference: [docs/policy-format.md](docs/policy-format.md).
 
 ```json
 {
@@ -55,9 +72,9 @@ minisatoshi/
   "network": "testnet",
   "script_type": "taproot",
   "keys": [
-    { "id": "A", "role": "investor", "xpub": "tpub...", "fingerprint": "a1b2c3d4" },
-    { "id": "B", "role": "manager",  "xpub": "tpub...", "fingerprint": "e5f6a7b8" },
-    { "id": "C", "role": "recovery", "xpub": "tpub...", "fingerprint": "c9d0e1f2" }
+    { "id": "A", "role": "investor", "xpub": "xpub...", "fingerprint": "a1b2c3d4" },
+    { "id": "B", "role": "manager",  "xpub": "xpub...", "fingerprint": "e5f6a7b8" },
+    { "id": "C", "role": "recovery", "xpub": "xpub...", "fingerprint": "c9d0e1f2" }
   ],
   "policy": {
     "primary": "(A && B) || (A && C)",
@@ -66,9 +83,7 @@ minisatoshi/
 }
 ```
 
-## Development plan
-
-See [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) for the full roadmap.
+Networks: `mainnet` | `testnet` (Testnet3) | `testnet4` | `signet` | `regtest`.
 
 ## License
 

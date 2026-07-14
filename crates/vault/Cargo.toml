@@ -19,4 +19,5 @@ blockchain.workspace = true
 descriptor-engine.workspace = true
 httpmock = "0.8.3"
 policy-engine.workspace = true
+psbt-engine.workspace = true
 tempfile = "3"

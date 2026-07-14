@@ -56,7 +56,9 @@ impl<'a> VaultService<'a> {
         vault_id: &str,
         index: u32,
     ) -> Result<DerivedAddress, VaultError> {
-        Ok(self.store.derive_and_save_receive_address(vault_id, index)?)
+        Ok(self
+            .store
+            .derive_and_save_receive_address(vault_id, index)?)
     }
 
     pub fn new_change_address_at(
@@ -67,17 +69,15 @@ impl<'a> VaultService<'a> {
         Ok(self.store.derive_and_save_change_address(vault_id, index)?)
     }
 
-    pub fn derive_receive_address(
-        vault: &Vault,
-        index: u32,
-    ) -> Result<DerivedAddress, VaultError> {
-        Ok(new_receive_address(&vault.policy, &vault.descriptor, index)?)
+    pub fn derive_receive_address(vault: &Vault, index: u32) -> Result<DerivedAddress, VaultError> {
+        Ok(new_receive_address(
+            &vault.policy,
+            &vault.descriptor,
+            index,
+        )?)
     }
 
-    pub fn derive_change_address(
-        vault: &Vault,
-        index: u32,
-    ) -> Result<DerivedAddress, VaultError> {
+    pub fn derive_change_address(vault: &Vault, index: u32) -> Result<DerivedAddress, VaultError> {
         Ok(new_change_address(&vault.policy, &vault.descriptor, index)?)
     }
 

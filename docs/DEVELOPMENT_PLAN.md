@@ -506,13 +506,14 @@ Address → Amount → Fee → Create PSBT → Export (file / base64 → Sparrow
 
 ### Sprint 8 — Test, hardening, release v0.1.0
 
-- [ ] Integration tests full flow
-- [ ] Test vectors cho Taproot descriptors
-- [ ] Error messages thân thiện (không leak xprv)
-- [ ] App icon, version, release build (Windows + macOS + Linux)
-- [ ] `CHANGELOG.md`, `docs/policy-format.md`
+- [x] Integration tests full flow (`crates/vault/tests/vault_lifecycle.rs`)
+- [x] Test vectors cho Taproot descriptors (`tests/vectors/`)
+- [x] Error messages thân thiện (không leak xprv) — `user_facing_error` + redact
+- [x] App icon, version, release build (Windows + macOS + Linux) — branded icons + `release.yml`
+- [x] `CHANGELOG.md`, `docs/policy-format.md`
 
-**Deliverable:** Release v0.1.0 trên GitHub.
+**Deliverable:** Release v0.1.0 tooling sẵn sàng (tag `v0.1.0` → GitHub Release draft). ✅
+
 
 ---
 
@@ -628,13 +629,13 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Sprint 8: Hardening + release v0.1.0
-  - Integration tests, CHANGELOG, policy-format docs
-  - Friendly errors, icons, Windows/macOS/Linux release builds
+Post-v0.1: Giai đoạn 2 — Policy mở rộng / Miniscript Builder GUI
+  hoặc Giai đoạn 3 — Hardware wallet signing
 ```
 
-Pipeline hiện tại: `Policy → Descriptor → Address → Balance → PSBT → Tauri IPC → UI MVP` ✅ (Sprint 1–7).
-Tiếp theo: release hardening (Sprint 8).
+Pipeline hiện tại: `Policy → Descriptor → Address → Balance → PSBT → Tauri IPC → UI MVP` ✅ (Sprint 1–8).
+v0.1.0 hardening xong; bước kế: mở rộng policy hoặc HW signing.
+
 
 ---
 

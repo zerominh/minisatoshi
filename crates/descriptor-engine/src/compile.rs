@@ -5,10 +5,10 @@ use miniscript::descriptor::{Descriptor, TapTree};
 use miniscript::policy::compiler;
 use miniscript::policy::Concrete;
 use miniscript::{DescriptorPublicKey, Miniscript, Segwitv0, Tap};
-use std::str::FromStr;
 use policy_engine::{
     compile_leaf_policies, compile_miniscript, KeyTranslator, PolicyConfig, ScriptTypeName,
 };
+use std::str::FromStr;
 
 use crate::error::DescriptorError;
 
@@ -50,7 +50,9 @@ pub fn parse_descriptor(
 
 /// Extract the checksum portion from a descriptor (if present).
 pub fn descriptor_checksum(descriptor: &str) -> Option<String> {
-    descriptor.rsplit_once('#').map(|(_, checksum)| checksum.to_string())
+    descriptor
+        .rsplit_once('#')
+        .map(|(_, checksum)| checksum.to_string())
 }
 
 fn compile_taproot(
@@ -79,8 +81,7 @@ fn compile_taproot(
 
 fn combine_taptree(mut leaves: Vec<Arc<Miniscript<String, Tap>>>) -> TapTree<String> {
     let unsatisfiable = Arc::new(
-        Miniscript::<String, Tap>::from_str("0")
-            .expect("unsatisfiable miniscript should parse"),
+        Miniscript::<String, Tap>::from_str("0").expect("unsatisfiable miniscript should parse"),
     );
 
     while leaves.len() > 1 && !leaves.len().is_power_of_two() {
@@ -92,9 +93,7 @@ fn combine_taptree(mut leaves: Vec<Arc<Miniscript<String, Tap>>>) -> TapTree<Str
         let mut next = Vec::with_capacity(level.len() / 2);
         let mut iter = level.into_iter();
         while let (Some(left), Some(right)) = (iter.next(), iter.next()) {
-            next.push(
-                TapTree::combine(left, right).expect("tap tree within depth limit"),
-            );
+            next.push(TapTree::combine(left, right).expect("tap tree within depth limit"));
         }
         level = next;
     }
@@ -149,7 +148,13 @@ mod tests {
     #[test]
     fn abc_preset_compiles_to_taproot_descriptor() {
         let keys = sample_keys();
-        let config = abc_preset(keys[0].clone(), keys[1].clone(), keys[2].clone(), 4, NetworkName::Testnet);
+        let config = abc_preset(
+            keys[0].clone(),
+            keys[1].clone(),
+            keys[2].clone(),
+            4,
+            NetworkName::Testnet,
+        );
         let descriptor = compile_descriptor_from_config(&config).unwrap();
 
         assert!(descriptor.starts_with("tr("));
@@ -158,9 +163,38 @@ mod tests {
     }
 
     #[test]
+    fn abc_preset_matches_golden_vector_files() {
+        let keys = sample_keys();
+        let config = abc_preset(
+            keys[0].clone(),
+            keys[1].clone(),
+            keys[2].clone(),
+            4,
+            NetworkName::Testnet,
+        );
+        let descriptor = compile_descriptor_from_config(&config).unwrap();
+        let expected =
+            include_str!("../../../tests/vectors/policy_abc_expected_descriptor.txt").trim();
+        assert_eq!(descriptor, expected);
+
+        let json: PolicyConfig = serde_json::from_str(include_str!(
+            "../../../tests/vectors/policy_abc_testnet.json"
+        ))
+        .unwrap();
+        let from_json = compile_descriptor_from_config(&json).unwrap();
+        assert_eq!(from_json, expected);
+    }
+
+    #[test]
     fn descriptor_roundtrip_parse() {
         let keys = sample_keys();
-        let config = abc_preset(keys[0].clone(), keys[1].clone(), keys[2].clone(), 4, NetworkName::Testnet);
+        let config = abc_preset(
+            keys[0].clone(),
+            keys[1].clone(),
+            keys[2].clone(),
+            4,
+            NetworkName::Testnet,
+        );
         let descriptor = compile_descriptor_from_abstract(&config).unwrap();
         descriptor.sanity_check().unwrap();
         assert!(matches!(descriptor, Descriptor::Tr(_)));

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { createWallet, formatError, listWallets } from "../lib/api";
 import {
+  formatNetwork,
   getActiveWalletId,
   getPreferredNetwork,
   setActiveWalletId,
@@ -77,7 +78,8 @@ export function WalletsPage() {
             value={network}
             onChange={(e) => setNetwork(e.target.value as NetworkName)}
           >
-            <option value="testnet">Testnet</option>
+            <option value="testnet">Testnet3</option>
+            <option value="testnet4">Testnet4</option>
             <option value="signet">Signet</option>
             <option value="regtest">Regtest</option>
             <option value="mainnet">Mainnet</option>
@@ -101,7 +103,7 @@ export function WalletsPage() {
                 <div>
                   <strong>{wallet.name}</strong>
                   <div className="muted">
-                    {wallet.network} · {wallet.vaultCount} vault
+                    {formatNetwork(wallet.network)} · {wallet.vaultCount} vault
                     {wallet.vaultCount === 1 ? "" : "s"}
                   </div>
                 </div>

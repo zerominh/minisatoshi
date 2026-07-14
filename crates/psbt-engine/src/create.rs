@@ -1,10 +1,10 @@
-use std::collections::BTreeMap;
-use std::str::FromStr;
 use bitcoin::absolute::LockTime;
 use bitcoin::psbt::Psbt;
 use bitcoin::transaction::Version;
 use bitcoin::{Address, Amount, OutPoint, Sequence, TxIn, TxOut, Txid};
 use miniscript::psbt::PsbtExt;
+use std::collections::BTreeMap;
+use std::str::FromStr;
 use wallet_core::Vault;
 
 use crate::descriptor::definite_descriptor_at;
@@ -51,11 +51,8 @@ pub fn create_psbt(
         })?;
 
     if change_amount > 546 {
-        let change_address = address_engine::new_change_address(
-            &vault.policy,
-            &vault.descriptor,
-            change_index,
-        )?;
+        let change_address =
+            address_engine::new_change_address(&vault.policy, &vault.descriptor, change_index)?;
         let address = parse_address(&change_address.address, network)?;
         outputs.push(TxOut {
             value: Amount::from_sat(change_amount),
@@ -134,7 +131,8 @@ fn estimate_vbytes(input_count: usize, output_count: usize) -> usize {
 mod tests {
     use policy_engine::{
         test_vectors::TEST_FP, test_vectors::TEST_XPUB_A, test_vectors::TEST_XPUB_B, KeyConfig,
-        KeyRole, NetworkName, PolicyConfig, PolicyExpression, ScriptTypeName, POLICY_SCHEMA_VERSION,
+        KeyRole, NetworkName, PolicyConfig, PolicyExpression, ScriptTypeName,
+        POLICY_SCHEMA_VERSION,
     };
     use wallet_core::Vault;
 

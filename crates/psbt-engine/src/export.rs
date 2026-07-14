@@ -28,7 +28,8 @@ mod tests {
     use crate::types::{CreatePsbtOptions, FeeRate, PsbtRecipient, SpendingUtxo};
     use policy_engine::{
         test_vectors::TEST_FP, test_vectors::TEST_XPUB_A, test_vectors::TEST_XPUB_B, KeyConfig,
-        KeyRole, NetworkName, PolicyConfig, PolicyExpression, ScriptTypeName, POLICY_SCHEMA_VERSION,
+        KeyRole, NetworkName, PolicyConfig, PolicyExpression, ScriptTypeName,
+        POLICY_SCHEMA_VERSION,
     };
     use wallet_core::Vault;
 

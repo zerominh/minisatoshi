@@ -203,6 +203,8 @@ pub fn default_esplora_url(network: NetworkName) -> &'static str {
     match network {
         NetworkName::Mainnet => "https://blockstream.info/api",
         NetworkName::Testnet => "https://blockstream.info/testnet/api",
+        // Blockstream does not host a public testnet4 Esplora yet.
+        NetworkName::Testnet4 => "https://mempool.space/testnet4/api",
         NetworkName::Signet => "https://blockstream.info/signet/api",
         NetworkName::Regtest => "http://127.0.0.1:3002",
     }
@@ -220,12 +222,7 @@ fn net_amount_for_address(tx: &EsploraTx, address: &str) -> i64 {
         }
     }
     for vin in &tx.vin {
-        if vin
-            .prevout
-            .scriptpubkey_address
-            .as_deref()
-            == Some(address)
-        {
+        if vin.prevout.scriptpubkey_address.as_deref() == Some(address) {
             net -= vin.prevout.value as i64;
         }
     }
@@ -338,8 +335,7 @@ mod tests {
             .address;
 
         server.mock(|when, then| {
-            when.method(GET)
-                .path(format!("/address/{address}"));
+            when.method(GET).path(format!("/address/{address}"));
             then.status(200)
                 .header("content-type", "application/json")
                 .body(r#"{"chain_stats":{"tx_count":1},"mempool_stats":{"tx_count":0}}"#);

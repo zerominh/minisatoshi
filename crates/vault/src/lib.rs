@@ -9,7 +9,7 @@ pub use service::VaultService;
 pub use types::VaultWithAddress;
 
 pub use blockchain::{
-    export_watch_only_wallet, default_server_presets, BackendKind, Balance, BlockchainBackend,
+    default_server_presets, export_watch_only_wallet, BackendKind, Balance, BlockchainBackend,
     ChainError, DescriptorQuery, EsploraBackend, ServerPreset, SparrowWalletExport, SyncProgress,
     SyncResult, TxSummary, Utxo,
 };
@@ -87,8 +87,8 @@ mod tests {
 
     #[test]
     fn vault_sync_via_esplora_mock() {
-        use httpmock::prelude::*;
         use blockchain::EsploraBackend;
+        use httpmock::prelude::*;
 
         let server = MockServer::start();
         server.mock(|when, then| {
@@ -121,15 +121,16 @@ mod tests {
             4,
             NetworkName::Testnet,
         );
-        let vault = service
-            .create_vault(&wallet.id, "ABC", policy)
-            .unwrap();
+        let vault = service.create_vault(&wallet.id, "ABC", policy).unwrap();
 
         let backend = EsploraBackend::new(server.base_url())
             .unwrap()
             .with_gap_limit(2);
         let balance = service.vault_balance(&vault.id, &backend).unwrap();
         assert_eq!(balance.confirmed_sats, 0);
-        assert!(service.vault_history(&vault.id, &backend).unwrap().is_empty());
+        assert!(service
+            .vault_history(&vault.id, &backend)
+            .unwrap()
+            .is_empty());
     }
 }

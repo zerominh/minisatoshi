@@ -6,8 +6,8 @@ use blockchain::{
 use descriptor_engine::compile_descriptor_from_config;
 use policy_engine::{NetworkName, PolicyConfig};
 use psbt_engine::{
-    create_psbt as build_psbt, export_psbt, CreatePsbtOptions, ExportFormat, FeeRate, PsbtRecipient,
-    SpendingUtxo,
+    create_psbt as build_psbt, export_psbt, CreatePsbtOptions, ExportFormat, FeeRate,
+    PsbtRecipient, SpendingUtxo,
 };
 use tauri::State;
 use vault::VaultService;
@@ -17,13 +17,14 @@ use crate::dto::{
     CreateWalletRequest, PsbtDto, ServerPresetDto, SparrowExportDto, SyncResultDto, VaultDto,
     VaultSummaryDto, WalletDto, WalletSummaryDto,
 };
+use crate::error::user_facing_error;
 use crate::state::AppState;
 
 #[tauri::command]
 pub fn compile_vault_descriptor(config: PolicyConfig) -> Result<CompileVaultResponse, String> {
     let policy_string =
-        policy_engine::compile_abstract_policy_string(&config).map_err(|e| e.to_string())?;
-    let descriptor = compile_descriptor_from_config(&config).map_err(|e| e.to_string())?;
+        policy_engine::compile_abstract_policy_string(&config).map_err(user_facing_error)?;
+    let descriptor = compile_descriptor_from_config(&config).map_err(user_facing_error)?;
 
     Ok(CompileVaultResponse {
         descriptor,
@@ -40,7 +41,7 @@ pub fn create_wallet(
         store
             .create_wallet(&request.name, request.network)
             .map(WalletDto::from)
-            .map_err(|e| e.to_string())
+            .map_err(user_facing_error)
     })
 }
 
@@ -50,7 +51,7 @@ pub fn list_wallets(state: State<'_, AppState>) -> Result<Vec<WalletSummaryDto>,
         store
             .list_wallets()
             .map(|wallets| wallets.into_iter().map(WalletSummaryDto::from).collect())
-            .map_err(|e| e.to_string())
+            .map_err(user_facing_error)
     })
 }
 
@@ -64,7 +65,7 @@ pub fn create_vault(
         service
             .create_vault_with_receive_address(&request.wallet_id, &request.name, request.policy)
             .map(|result| VaultDto::from(result.vault))
-            .map_err(|e| e.to_string())
+            .map_err(user_facing_error)
     })
 }
 
@@ -78,7 +79,7 @@ pub fn list_vaults(
         service
             .list_vaults(&wallet_id)
             .map(|vaults| vaults.into_iter().map(VaultSummaryDto::from).collect())
-            .map_err(|e| e.to_string())
+            .map_err(user_facing_error)
     })
 }
 
@@ -89,7 +90,7 @@ pub fn get_vault(state: State<'_, AppState>, vault_id: String) -> Result<VaultDt
         service
             .get_vault(&vault_id)
             .map(VaultDto::from)
-            .map_err(|e| e.to_string())
+            .map_err(user_facing_error)
     })
 }
 
@@ -103,7 +104,7 @@ pub fn new_receive_address(
         service
             .new_receive_address(&vault_id)
             .map(AddressDto::from)
-            .map_err(|e| e.to_string())
+            .map_err(user_facing_error)
     })
 }
 
@@ -115,17 +116,15 @@ pub fn get_balance(
 ) -> Result<BalanceDto, String> {
     state.with_store(|store| {
         let service = VaultService::new(store);
-        let vault = service.get_vault(&vault_id).map_err(|e| e.to_string())?;
+        let vault = service.get_vault(&vault_id).map_err(user_facing_error)?;
         let backend = match esplora_url {
-            Some(url) => EsploraBackend::new(url).map_err(|e| e.to_string())?,
-            None => {
-                EsploraBackend::for_network(vault.policy.network).map_err(|e| e.to_string())?
-            }
+            Some(url) => EsploraBackend::new(url).map_err(user_facing_error)?,
+            None => EsploraBackend::for_network(vault.policy.network).map_err(user_facing_error)?,
         };
         service
             .vault_balance(&vault_id, &backend)
             .map(BalanceDto::from)
-            .map_err(|e| e.to_string())
+            .map_err(user_facing_error)
     })
 }
 
@@ -137,17 +136,15 @@ pub fn sync_vault(
 ) -> Result<SyncResultDto, String> {
     state.with_store(|store| {
         let service = VaultService::new(store);
-        let vault = service.get_vault(&vault_id).map_err(|e| e.to_string())?;
+        let vault = service.get_vault(&vault_id).map_err(user_facing_error)?;
         let backend = match esplora_url {
-            Some(url) => EsploraBackend::new(url).map_err(|e| e.to_string())?,
-            None => {
-                EsploraBackend::for_network(vault.policy.network).map_err(|e| e.to_string())?
-            }
+            Some(url) => EsploraBackend::new(url).map_err(user_facing_error)?,
+            None => EsploraBackend::for_network(vault.policy.network).map_err(user_facing_error)?,
         };
         service
             .sync_vault(&vault_id, &backend, &|_| {})
             .map(SyncResultDto::from)
-            .map_err(|e| e.to_string())
+            .map_err(user_facing_error)
     })
 }
 
@@ -160,7 +157,7 @@ pub fn create_psbt(
         let service = VaultService::new(store);
         let vault = service
             .get_vault(&request.vault_id)
-            .map_err(|e| e.to_string())?;
+            .map_err(user_facing_error)?;
 
         let recipients: Vec<PsbtRecipient> = request
             .recipients
@@ -202,12 +199,11 @@ pub fn create_psbt(
                 change_index: request.change_index,
             },
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(user_facing_error)?;
 
-        let base64 = String::from_utf8(
-            export_psbt(&psbt, ExportFormat::Base64).map_err(|e| e.to_string())?,
-        )
-        .map_err(|e| e.to_string())?;
+        let base64 =
+            String::from_utf8(export_psbt(&psbt, ExportFormat::Base64).map_err(user_facing_error)?)
+                .map_err(user_facing_error)?;
 
         Ok(PsbtDto {
             base64,
@@ -224,8 +220,8 @@ pub fn export_sparrow_wallet(
 ) -> Result<SparrowExportDto, String> {
     state.with_store(|store| {
         let service = VaultService::new(store);
-        let vault = service.get_vault(&vault_id).map_err(|e| e.to_string())?;
-        let exported = export_watch_only_wallet(&vault).map_err(|e| e.to_string())?;
+        let vault = service.get_vault(&vault_id).map_err(user_facing_error)?;
+        let exported = export_watch_only_wallet(&vault).map_err(user_facing_error)?;
         Ok(SparrowExportDto {
             name: exported.name,
             descriptor: exported.descriptor,
@@ -250,4 +246,9 @@ pub fn list_server_presets(network: NetworkName) -> Result<Vec<ServerPresetDto>,
             network: preset.network,
         })
         .collect())
+}
+
+#[tauri::command]
+pub fn app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }

@@ -27,12 +27,29 @@ export function getPreferredNetwork(): NetworkName {
   if (
     value === "mainnet" ||
     value === "testnet" ||
+    value === "testnet4" ||
     value === "signet" ||
     value === "regtest"
   ) {
     return value;
   }
   return "testnet";
+}
+
+/** Human-readable network label (Testnet3 vs Testnet4). */
+export function formatNetwork(network: NetworkName): string {
+  switch (network) {
+    case "testnet":
+      return "Testnet3";
+    case "testnet4":
+      return "Testnet4";
+    case "mainnet":
+      return "Mainnet";
+    case "signet":
+      return "Signet";
+    case "regtest":
+      return "Regtest";
+  }
 }
 
 export function setPreferredNetwork(network: NetworkName) {

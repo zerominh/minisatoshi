@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatError, listVaults, listWallets } from "../lib/api";
-import { getActiveWalletId, setActiveWalletId } from "../lib/settings";
+import { formatNetwork, getActiveWalletId, setActiveWalletId } from "../lib/settings";
 import type { VaultSummaryDto, WalletSummaryDto } from "../lib/types";
 
 export function VaultsPage() {
@@ -72,7 +72,7 @@ export function VaultsPage() {
               >
                 {wallets.map((wallet) => (
                   <option key={wallet.id} value={wallet.id}>
-                    {wallet.name} ({wallet.network})
+                    {wallet.name} ({formatNetwork(wallet.network)})
                   </option>
                 ))}
               </select>

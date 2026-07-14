@@ -53,7 +53,10 @@ pub enum KeyRole {
 #[serde(rename_all = "lowercase")]
 pub enum NetworkName {
     Mainnet,
+    /// Classic Bitcoin testnet (testnet3). Serialized as `"testnet"`.
     Testnet,
+    /// Bitcoin testnet4. Serialized as `"testnet4"`.
+    Testnet4,
     Signet,
     Regtest,
 }
@@ -70,6 +73,7 @@ impl NetworkName {
         match self {
             Self::Mainnet => bitcoin::Network::Bitcoin,
             Self::Testnet => bitcoin::Network::Testnet,
+            Self::Testnet4 => bitcoin::Network::Testnet4,
             Self::Signet => bitcoin::Network::Signet,
             Self::Regtest => bitcoin::Network::Regtest,
         }

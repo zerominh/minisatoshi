@@ -38,12 +38,18 @@ impl Signer for SoftwareSigner {
     fn sign_psbt(&self, psbt: &mut Psbt) -> Result<usize, PsbtError> {
         let secp = Secp256k1::new();
         let signed = match &self.key {
-            SignerKey::Single(key) => psbt
-                .sign(key, &secp)
-                .map_err(|(_, errors)| PsbtError::Signing(format!("{errors:?}")))?,
-            SignerKey::Map(map) => psbt
-                .sign(map, &secp)
-                .map_err(|(_, errors)| PsbtError::Signing(format!("{errors:?}")))?,
+            SignerKey::Single(key) => psbt.sign(key, &secp).map_err(|(_, errors)| {
+                PsbtError::Signing(format!(
+                    "could not sign one or more inputs ({} failure(s))",
+                    errors.len()
+                ))
+            })?,
+            SignerKey::Map(map) => psbt.sign(map, &secp).map_err(|(_, errors)| {
+                PsbtError::Signing(format!(
+                    "could not sign one or more inputs ({} failure(s))",
+                    errors.len()
+                ))
+            })?,
         };
         Ok(signed.len())
     }

@@ -1,6 +1,7 @@
 /** Types mirrored from apps/desktop/src-tauri/src/dto.rs (camelCase serde). */
 
-export type NetworkName = "mainnet" | "testnet" | "signet" | "regtest";
+/** `testnet` = classic testnet3; `testnet4` = Bitcoin testnet4. */
+export type NetworkName = "mainnet" | "testnet" | "testnet4" | "signet" | "regtest";
 export type ScriptTypeName = "taproot" | "wsh";
 export type KeyRole = "investor" | "manager" | "recovery" | "cosigner" | "other";
 

@@ -7,6 +7,7 @@ import {
   listWallets,
 } from "../lib/api";
 import {
+  formatNetwork,
   getActiveWalletId,
   getPreferredNetwork,
   setActiveWalletId,
@@ -215,7 +216,7 @@ export function NewVaultPage() {
                     </option>
                     {wallets.map((wallet) => (
                       <option key={wallet.id} value={wallet.id}>
-                        {wallet.name} ({wallet.network})
+                        {wallet.name} ({formatNetwork(wallet.network)})
                       </option>
                     ))}
                   </select>

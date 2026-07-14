@@ -4598,6 +4598,7 @@ dependencies = [
  "descriptor-engine",
  "httpmock",
  "policy-engine",
+ "psbt-engine",
  "storage",
  "tempfile",
  "thiserror 2.0.18",

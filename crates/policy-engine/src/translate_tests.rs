@@ -11,7 +11,11 @@ fn descriptor_key_expression_parses_for_test_vectors() {
     for key in sample_keys() {
         let expr = descriptor_key_expression(&key).unwrap();
         let parsed = DescriptorPublicKey::from_str(&expr);
-        assert!(parsed.is_ok(), "failed for {}: {expr} => {parsed:?}", key.id);
+        assert!(
+            parsed.is_ok(),
+            "failed for {}: {expr} => {parsed:?}",
+            key.id
+        );
     }
 }
 

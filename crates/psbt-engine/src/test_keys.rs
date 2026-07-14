@@ -23,9 +23,7 @@ pub fn key_config_from_tprv(id: &str, role: KeyRole, tprv: &str) -> KeyConfig {
         .next()
         .unwrap_or("00000000")
         .to_string();
-    let origin_path = meta
-        .split_once('/')
-        .map(|(_, path)| path.to_string());
+    let origin_path = meta.split_once('/').map(|(_, path)| path.to_string());
     let xpub = remainder
         .split('/')
         .next()
