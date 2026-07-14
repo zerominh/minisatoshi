@@ -284,4 +284,107 @@ mod integration_tests {
 
         finalize_psbt(&mut psbt).expect("finalize abc hot-style");
     }
+
+    /// BIP-86 hot singlesig: receive address matches BIP vector; create → sign (key-path) → finalize.
+    #[test]
+    fn bip86_hot_singlesig_receive_send_finalize() {
+        let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let (mut key, secret) = hot_style_secret(mnemonic, NetworkName::Mainnet);
+        key.id = "A".into();
+
+        let policy = PolicyConfig {
+            version: POLICY_SCHEMA_VERSION,
+            network: NetworkName::Mainnet,
+            script_type: ScriptTypeName::Taproot,
+            keys: vec![key],
+            policy: PolicyExpression {
+                primary: "A".into(),
+                fallback: None,
+                fallbacks: vec![],
+            },
+        };
+        let descriptor = descriptor_engine::compile_descriptor_from_config(&policy).unwrap();
+        assert!(
+            !descriptor.contains(descriptor_engine::NUMS_UNSPENDABLE_KEY),
+            "BIP-86 must be key-path tr(xpub), not NUMS script tree"
+        );
+        assert!(!descriptor.contains('{'), "no script tree for singlesig");
+
+        let vault = Vault {
+            id: "v-hot".into(),
+            wallet_id: "w1".into(),
+            name: "bip86".into(),
+            policy,
+            descriptor,
+            script_type: ScriptTypeName::Taproot,
+            created_at: 0,
+        };
+
+        let receive0 =
+            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+        assert_eq!(
+            receive0.address,
+            "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr",
+            "BIP-86 receive m/86'/0'/0'/0/0"
+        );
+        let receive1 =
+            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+        assert_eq!(
+            receive1.address,
+            "bc1p4qhjn9zdvkux4e44uhx8tc55attvtyu358kutcqkudyccelu0was9fqzwh",
+            "BIP-86 receive m/86'/0'/0'/0/1"
+        );
+        let change0 =
+            address_engine::new_change_address(&vault.policy, &vault.descriptor, 0).unwrap();
+        assert_eq!(
+            change0.address,
+            "bc1p3qkhfews2uk44qtvauqyr2ttdsw7svhkl9nkm9s9c3x4ax5h60wqwruhk7",
+            "BIP-86 change m/86'/0'/0'/1/0"
+        );
+
+        // Spend from receive0 → receive1 (simulates Send), sign with hot secret, finalize.
+        let mut psbt = create_psbt(
+            &vault,
+            &[PsbtRecipient {
+                address: receive1.address.clone(),
+                amount_sats: 50_000,
+            }],
+            FeeRate::new(1),
+            &[SpendingUtxo::new(
+                blockchain::Utxo {
+                    txid: "11".repeat(32),
+                    vout: 0,
+                    value_sats: 100_000,
+                    address: receive0.address.clone(),
+                    confirmed: true,
+                    block_height: Some(1),
+                    derivation_index: 0,
+                    is_change: false,
+                },
+                0,
+                false,
+            )],
+            CreatePsbtOptions::default(),
+        )
+        .expect("create singlesig PSBT");
+
+        let progress = sign_psbt(
+            &mut psbt,
+            &SoftwareSigner::from_secret(DescriptorSecretKey::from_str(&secret).unwrap()),
+        )
+        .expect("sign BIP-86 key-path");
+        assert_eq!(progress.signed_inputs, 1);
+        assert!(
+            psbt.inputs[0].tap_key_sig.is_some(),
+            "BIP-86 spend must produce tap_key_sig (key-path)"
+        );
+
+        let tx = finalize_psbt(&mut psbt).expect("finalize BIP-86 send");
+        assert_eq!(tx.input.len(), 1);
+        assert!(!tx.output.is_empty());
+        assert!(
+            tx.input[0].witness.len() >= 1,
+            "finalized taproot key-path witness"
+        );
+    }
 }
