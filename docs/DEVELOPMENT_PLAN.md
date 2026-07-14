@@ -643,37 +643,12 @@ Module: `policy_engine::templates` + `apps/desktop` Create Vault wizard.
 
 Mở rộng những gì `psbt-engine` đã có (`SoftwareSigner`, `sign_psbt`, `finalize`) lên Tauri + Send flow.
 
-**API / commands**
+- [x] Tauri: `sign_psbt_software`, `combine_psbts`, `finalize_psbt_cmd`, `broadcast_psbt_cmd`
+- [x] Mainnet hot-key gate (`allowMainnetHotKeys`)
+- [x] Send UI: sign → combine cosigner → finalize → broadcast + optional BIP68 sequence
+- [x] Unit: reject mainnet hot keys by default; existing `two_of_two_sign_combine_finalize`
 
-```rust
-#[tauri::command]
-fn sign_psbt_software(psbt_base64: String, secret_key: String) -> Result<PsbtDto, String>;
-
-#[tauri::command]
-fn combine_psbts(parts: Vec<String>) -> Result<PsbtDto, String>;
-
-#[tauri::command]
-fn finalize_psbt(psbt_base64: String) -> Result<FinalizedTxDto, String>;
-// FinalizedTxDto { hex, txid, fully_signed: bool }
-```
-
-**UI (`/vaults/:id/send` mở rộng)**
-
-```text
-Create PSBT → Sign (paste xprv / descriptor secret — testnet only toggle)
-  → Import cosigner PSBT → Combine → Finalize → Copy hex / Broadcast
-```
-
-- Multi-signer: export partial PSBT after mỗi lần ký (file + base64).
-- Sequence / timelock path: UI chọn spending path (primary vs recovery) → set `input_sequence` / hiện rõ leaf đang dùng.
-
-**Tests**
-
-- 2-of-2 create → sign A → sign B → combine → finalize (unit + lifecycle).
-- Reject sign trên mainnet khi chưa bật “allow hot keys”.
-- Redact secrets trong error path.
-
-**Deliverable:** End-to-end chi tiêu testnet vault bằng software keys trong app (không HW).
+**Deliverable:** End-to-end chi tiêu testnet vault bằng software keys trong app (không HW). ✅
 
 ---
 
@@ -981,12 +956,13 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Tiếp theo: Giai đoạn 3 — Sprint 9 (software sign UI) → Sprint 10–11 (HWI + Coldcard/Ledger)
-  → Giai đoạn 4 interop/backup → Giai đoạn 5 chỉ khi có nhu cầu org
+Giai đoạn 3: Sprint 9 software sign ✅
+  → Sprint 10–11 HWI + Coldcard/Ledger
+  → Sprint 12 UX hardening
 ```
 
-Pipeline hiện tại: `Policy → Descriptor → Address → Balance → PSBT → Tauri IPC → UI MVP` ✅ (Sprint 1–8) + GĐ2 templates ✅.
-Bước kế: **Sprint 9 — ký software + combine/finalize trong app**.
+Pipeline: Policy → Descriptor → Address → Balance → PSBT → **Sign/Combine/Finalize/Broadcast** → UI ✅ (Sprint 9).
+Bước kế: **Sprint 10 — HWI discovery**.
 
 ---
 

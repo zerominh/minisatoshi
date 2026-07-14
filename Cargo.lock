@@ -2176,8 +2176,10 @@ name = "minisatoshi-desktop"
 version = "0.1.0"
 dependencies = [
  "address-engine",
+ "bitcoin",
  "blockchain",
  "descriptor-engine",
+ "miniscript",
  "policy-engine",
  "psbt-engine",
  "serde",

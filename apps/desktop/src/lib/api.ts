@@ -6,16 +6,21 @@ import type {
   CreatePsbtRequest,
   CreateVaultRequest,
   CreateWalletRequest,
+  FinalizedTxDto,
   NetworkName,
   PolicyConfig,
   PsbtDto,
   ServerPresetDto,
+  SignPsbtRequest,
+  SignedPsbtDto,
   SparrowExportDto,
   SyncResultDto,
   VaultDto,
   VaultSummaryDto,
   WalletDto,
   WalletSummaryDto,
+  BroadcastTxRequest,
+  CombinePsbtRequest,
 } from "./types";
 
 export async function compileVaultDescriptor(
@@ -74,6 +79,30 @@ export async function createPsbt(
   request: CreatePsbtRequest,
 ): Promise<PsbtDto> {
   return invoke("create_psbt", { request });
+}
+
+export async function signPsbtSoftware(
+  request: SignPsbtRequest,
+): Promise<SignedPsbtDto> {
+  return invoke("sign_psbt_software", { request });
+}
+
+export async function combinePsbts(
+  request: CombinePsbtRequest,
+): Promise<PsbtDto> {
+  return invoke("combine_psbts", { request });
+}
+
+export async function finalizePsbt(
+  psbtBase64: string,
+): Promise<FinalizedTxDto> {
+  return invoke("finalize_psbt_cmd", { psbtBase64 });
+}
+
+export async function broadcastPsbt(
+  request: BroadcastTxRequest,
+): Promise<string> {
+  return invoke("broadcast_psbt_cmd", { request });
 }
 
 export async function exportSparrowWallet(

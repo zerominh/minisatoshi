@@ -4,9 +4,10 @@ mod error;
 mod state;
 
 use commands::{
-    app_version, compile_vault_descriptor, create_psbt, create_vault, create_wallet,
-    export_sparrow_wallet, get_balance, get_vault, list_server_presets, list_vaults, list_wallets,
-    new_receive_address, save_text_file, sync_vault,
+    app_version, broadcast_psbt_cmd, combine_psbts, compile_vault_descriptor, create_psbt,
+    create_vault, create_wallet, export_sparrow_wallet, finalize_psbt_cmd, get_balance, get_vault,
+    list_server_presets, list_vaults, list_wallets, new_receive_address, save_text_file,
+    sign_psbt_software, sync_vault,
 };
 use state::AppState;
 use tauri::Manager;
@@ -39,6 +40,10 @@ pub fn run() {
             get_balance,
             sync_vault,
             create_psbt,
+            sign_psbt_software,
+            combine_psbts,
+            finalize_psbt_cmd,
+            broadcast_psbt_cmd,
             export_sparrow_wallet,
             list_server_presets,
             app_version,

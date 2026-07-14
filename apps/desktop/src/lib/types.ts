@@ -138,6 +138,38 @@ export interface PsbtDto {
   outputCount: number;
 }
 
+export interface SignPsbtRequest {
+  psbtBase64: string;
+  secretKey: string;
+  network: NetworkName;
+  allowMainnetHotKeys?: boolean;
+}
+
+export interface SignedPsbtDto {
+  base64: string;
+  inputCount: number;
+  outputCount: number;
+  signedInputs: number;
+  totalInputs: number;
+}
+
+export interface CombinePsbtRequest {
+  parts: string[];
+}
+
+export interface FinalizedTxDto {
+  hex: string;
+  txid: string;
+  fullySigned: boolean;
+}
+
+export interface BroadcastTxRequest {
+  vaultId: string;
+  psbtBase64?: string | null;
+  txHex?: string | null;
+  esploraUrl?: string | null;
+}
+
 export interface SparrowExportDto {
   name: string;
   descriptor: string;

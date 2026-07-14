@@ -124,6 +124,49 @@ pub struct PsbtDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SignPsbtRequest {
+    pub psbt_base64: String,
+    pub secret_key: String,
+    pub network: NetworkName,
+    #[serde(default)]
+    pub allow_mainnet_hot_keys: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignedPsbtDto {
+    pub base64: String,
+    pub input_count: usize,
+    pub output_count: usize,
+    pub signed_inputs: usize,
+    pub total_inputs: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CombinePsbtRequest {
+    pub parts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FinalizedTxDto {
+    pub hex: String,
+    pub txid: String,
+    pub fully_signed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BroadcastTxRequest {
+    pub vault_id: String,
+    pub psbt_base64: Option<String>,
+    pub tx_hex: Option<String>,
+    pub esplora_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SparrowExportDto {
     pub name: String,
     pub descriptor: String,
