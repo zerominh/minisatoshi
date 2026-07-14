@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { formatError, getVault, syncVault } from "../lib/api";
+import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
 import { formatTimelockLabel } from "../lib/duration";
 import { formatNetwork, formatSats, getEsploraUrl } from "../lib/settings";
 import type { SyncResultDto, VaultDto } from "../lib/types";
@@ -10,6 +11,7 @@ export function VaultDetailPage() {
   const [vault, setVault] = useState<VaultDto | null>(null);
   const [sync, setSync] = useState<SyncResultDto | null>(null);
   const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,6 +30,25 @@ export function VaultDetailPage() {
       setError(formatError(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onSaveDescriptorFile() {
+    if (!vault) return;
+    setError(null);
+    try {
+      const filename = `${sanitizedFilename(vault.name)}-descriptor.txt`;
+      const path = await saveTextFileWithDialog(
+        filename,
+        `${vault.descriptor}\n`,
+      );
+      if (path) {
+        setMessage(
+          `Saved to ${path} — for Liana / Nunchuk / Bitcoin Core (Sparrow cannot import Miniscript vaults)`,
+        );
+      }
+    } catch (err) {
+      setError(formatError(err));
     }
   }
 
@@ -57,6 +78,7 @@ export function VaultDetailPage() {
       </header>
 
       {error ? <pre className="error">{error}</pre> : null}
+      {message ? <p className="status">{message}</p> : null}
 
       <div className="grid-2">
         <div className="panel">
@@ -90,6 +112,14 @@ export function VaultDetailPage() {
       <div className="panel">
         <h3>Descriptor</h3>
         <p className="mono wrap">{vault.descriptor}</p>
+        <div className="row-actions">
+          <button
+            type="button"
+            onClick={() => void onSaveDescriptorFile()}
+          >
+            Save descriptor file
+          </button>
+        </div>
       </div>
 
       <div className="grid-2">

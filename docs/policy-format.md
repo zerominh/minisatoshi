@@ -24,7 +24,7 @@ Each entry in `keys`:
 | `role` | string | `investor` \| `manager` \| `recovery` \| `cosigner` \| `other` |
 | `xpub` | string | Extended public key (`xpub` / `tpub`) |
 | `fingerprint` | string | 8-hex BIP32 master fingerprint |
-| `origin_path` | string? | Optional origin, e.g. `86'/0'/0'` |
+| `origin_path` | string? | Account path without master `m/`, e.g. `86'/1'/0'`. A leading `m/` / `M/` is stripped automatically. |
 
 Watch-only only: never put `xprv` / `tprv` in a policy document.
 

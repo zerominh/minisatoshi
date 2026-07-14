@@ -252,3 +252,31 @@ pub fn list_server_presets(network: NetworkName) -> Result<Vec<ServerPresetDto>,
 pub fn app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
+
+/// Native Save As dialog, then write UTF-8 text to the chosen path.
+/// Returns `None` if the user cancelled.
+#[tauri::command]
+pub fn save_text_file(
+    app: tauri::AppHandle,
+    default_filename: String,
+    contents: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let chosen = app
+        .dialog()
+        .file()
+        .set_file_name(&default_filename)
+        .add_filter("Descriptor / Text", &["txt"])
+        .blocking_save_file();
+
+    let Some(file_path) = chosen else {
+        return Ok(None);
+    };
+
+    let path = file_path
+        .into_path()
+        .map_err(|e| format!("invalid save path: {e}"))?;
+    std::fs::write(&path, contents).map_err(|e| format!("failed to write file: {e}"))?;
+    Ok(Some(path.display().to_string()))
+}

@@ -8,6 +8,7 @@ import {
   newReceiveAddress,
 } from "../lib/api";
 import { copyText } from "../lib/settings";
+import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
 import type { AddressDto, SparrowExportDto, VaultDto } from "../lib/types";
 
 export function ReceivePage() {
@@ -59,6 +60,25 @@ export function ReceivePage() {
     }
   }
 
+  async function onSaveDescriptorFile() {
+    if (!vault) return;
+    setError(null);
+    try {
+      const filename = `${sanitizedFilename(vault.name)}-descriptor.txt`;
+      const path = await saveTextFileWithDialog(
+        filename,
+        `${vault.descriptor}\n`,
+      );
+      if (path) {
+        setMessage(
+          `Saved to ${path} — for Liana / Nunchuk / Bitcoin Core (Sparrow cannot import Miniscript vaults)`,
+        );
+      }
+    } catch (err) {
+      setError(formatError(err));
+    }
+  }
+
   return (
     <section>
       <header className="page-header">
@@ -102,7 +122,12 @@ export function ReceivePage() {
         </div>
 
         <div className="panel">
-          <h3>Descriptor / Sparrow</h3>
+          <h3>Descriptor backup</h3>
+          <p className="muted">
+            Sparrow cannot import this Miniscript vault. Fund by sending to the
+            address on the left. Use Liana, Nunchuk, or Bitcoin Core to watch the
+            full policy.
+          </p>
           {vault ? (
             <>
               <p className="mono wrap">{vault.descriptor}</p>
@@ -114,8 +139,14 @@ export function ReceivePage() {
                 >
                   Copy descriptor
                 </button>
+                <button
+                  type="button"
+                  onClick={() => void onSaveDescriptorFile()}
+                >
+                  Save descriptor file
+                </button>
                 <button type="button" onClick={() => void onSparrowExport()}>
-                  Export for Sparrow
+                  Compatibility notes
                 </button>
               </div>
             </>
@@ -126,9 +157,9 @@ export function ReceivePage() {
               <button
                 type="button"
                 className="secondary"
-                onClick={() => void onCopy(sparrow.descriptor, "Sparrow export")}
+                onClick={() => void onCopy(sparrow.descriptor, "descriptor")}
               >
-                Copy Sparrow package descriptor
+                Copy descriptor
               </button>
             </div>
           ) : null}

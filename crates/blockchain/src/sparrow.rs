@@ -138,8 +138,10 @@ pub fn default_server_presets(network: NetworkName) -> Vec<ServerPreset> {
 
 fn sparrow_import_instructions(network: NetworkName) -> String {
     format!(
-        "In Sparrow: File → New Wallet → Import Wallet → Descriptor → paste the descriptor below. \
-         Choose network {:?}, then connect using one of the recommended server presets.",
+        "Sparrow does not import Miniscript / Taproot script-path vaults (inheritance timelocks). \
+         To fund: copy a receive address from Minisatoshi and send from Sparrow (network {:?}). \
+         To watch the full vault policy, use Liana, Nunchuk, or Bitcoin Core instead. \
+         The descriptor below is still useful as a backup / for those wallets.",
         network
     )
 }

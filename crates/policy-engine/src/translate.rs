@@ -23,11 +23,33 @@ pub fn translate_policy_keys(
 
 pub fn descriptor_key_expression(key: &KeyConfig) -> Result<String, PolicyError> {
     let base = match key.origin_path.as_deref().filter(|path| !path.is_empty()) {
-        Some(path) => format!("[{}/{}]{}", key.fingerprint, path, key.xpub),
+        Some(path) => {
+            let path = normalize_origin_path(path);
+            if path.is_empty() {
+                key.xpub.clone()
+            } else {
+                format!("[{}/{}]{}", key.fingerprint, path, key.xpub)
+            }
+        }
         None => key.xpub.clone(),
     };
 
     Ok(format!("{base}/<0;1>/*"))
+}
+
+/// Descriptor origins use `[fingerprint/86'/0'/0']` — strip BIP32 `m/` / `M/` prefix if present.
+fn normalize_origin_path(path: &str) -> String {
+    let trimmed = path.trim().trim_start_matches('/').to_string();
+    let without_m = if let Some(rest) = trimmed.strip_prefix("m/") {
+        rest
+    } else if let Some(rest) = trimmed.strip_prefix("M/") {
+        rest
+    } else if trimmed == "m" || trimmed == "M" {
+        ""
+    } else {
+        trimmed.as_str()
+    };
+    without_m.trim_start_matches('/').to_string()
 }
 
 impl Translator<String> for KeyTranslator<'_> {

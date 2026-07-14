@@ -186,7 +186,7 @@ export function NewVaultPage() {
             onChange={(e) =>
               setKey({ ...key, origin_path: e.target.value.trim() })
             }
-            placeholder="86'/0'/0'"
+            placeholder="86'/1'/0' (or m/86'/1'/0')"
           />
         </label>
       </div>

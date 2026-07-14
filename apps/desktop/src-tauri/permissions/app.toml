@@ -14,5 +14,6 @@ commands.allow = [
   "create_psbt",
   "export_sparrow_wallet",
   "list_server_presets",
-  "app_version"
+  "app_version",
+  "save_text_file"
 ]

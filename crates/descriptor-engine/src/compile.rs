@@ -269,4 +269,47 @@ mod tests {
         assert!(descriptor.starts_with("wsh("));
         assert!(descriptor.contains('#'));
     }
+
+    #[test]
+    fn origin_path_m_prefix_from_hardware_wallet_compiles() {
+        let config = PolicyConfig {
+            version: 1,
+            network: NetworkName::Testnet,
+            script_type: ScriptTypeName::Taproot,
+            keys: vec![
+                KeyConfig {
+                    id: "A".into(),
+                    role: KeyRole::Investor,
+                    xpub: "tpubDDo3KgGaeh7ZqXfwnzK5SFu6o7gDjZT2bixwCJnuFouD7c1CYsavRAEJ9pJiUXCtF6jinBUDcoHnVcnboiyWXAkvQGVfgjTVv88zrgZT2aW".into(),
+                    fingerprint: "c0a7b76c".into(),
+                    origin_path: Some("m/86'/1'/0'".into()),
+                },
+                KeyConfig {
+                    id: "B".into(),
+                    role: KeyRole::Manager,
+                    xpub: "tpubDCks4R9bRfs83gbXgo2KnrJiLFAc2i3epsgD2JEXfE42FGy96SbhrDib4CmfGrgeQRQbxwXUNzNoQkwQmVoSCq9a1mggS6FfcfDs7rpF6j8".into(),
+                    fingerprint: "60ca2e86".into(),
+                    origin_path: Some("m/86'/1'/0'".into()),
+                },
+                KeyConfig {
+                    id: "C".into(),
+                    role: KeyRole::Recovery,
+                    xpub: "tpubDCkqutoxx7uej1nzg8f8qmxYntcGG24Uq1VuSLTgCccwQBk5nTSrrnpyFiJTy4LarJWM21a7cqGgN7APPNXbJBQqDrvqjoTk5VmUahjZvSg".into(),
+                    fingerprint: "efba9b93".into(),
+                    origin_path: Some("m/86'/1'/0'".into()),
+                },
+            ],
+            policy: PolicyExpression {
+                primary: "(A && B) || (A && C)".into(),
+                fallback: Some(FallbackPolicy {
+                    after: "1d".into(),
+                    allow: "A".into(),
+                }),
+            },
+        };
+        let descriptor = compile_descriptor_from_config(&config).unwrap();
+        assert!(descriptor.starts_with("tr("));
+        assert!(descriptor.contains("[60ca2e86/86'/1'/0']"));
+        assert!(!descriptor.contains("/m/"));
+    }
 }

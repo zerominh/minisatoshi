@@ -19,6 +19,41 @@ fn descriptor_key_expression_parses_for_test_vectors() {
     }
 }
 
+#[test]
+fn origin_path_with_m_prefix_normalizes() {
+    let key = KeyConfig {
+        id: "B".into(),
+        role: KeyRole::Manager,
+        xpub: TEST_XPUB_B.into(),
+        fingerprint: TEST_FP.into(),
+        origin_path: Some("m/86'/1'/0'".into()),
+    };
+    let expr = descriptor_key_expression(&key).unwrap();
+    assert!(
+        expr.starts_with(&format!("[{}/86'/1'/0']", TEST_FP)),
+        "expected stripped m/ prefix, got {expr}"
+    );
+    assert!(
+        !expr.contains("/m/"),
+        "raw m/ must not appear in origin: {expr}"
+    );
+    DescriptorPublicKey::from_str(&expr).unwrap_or_else(|e| panic!("{expr} => {e}"));
+}
+
+#[test]
+fn origin_path_with_capital_m_prefix_normalizes() {
+    let key = KeyConfig {
+        id: "A".into(),
+        role: KeyRole::Investor,
+        xpub: TEST_XPUB_A.into(),
+        fingerprint: "78412e3a".into(),
+        origin_path: Some("M/86'/1'/0'".into()),
+    };
+    let expr = descriptor_key_expression(&key).unwrap();
+    assert!(expr.contains("[78412e3a/86'/1'/0']"));
+    DescriptorPublicKey::from_str(&expr).unwrap();
+}
+
 fn sample_keys() -> [KeyConfig; 3] {
     [
         KeyConfig {

@@ -6,7 +6,7 @@ mod state;
 use commands::{
     app_version, compile_vault_descriptor, create_psbt, create_vault, create_wallet,
     export_sparrow_wallet, get_balance, get_vault, list_server_presets, list_vaults, list_wallets,
-    new_receive_address, sync_vault,
+    new_receive_address, save_text_file, sync_vault,
 };
 use state::AppState;
 use tauri::Manager;
@@ -15,6 +15,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -41,6 +42,7 @@ pub fn run() {
             export_sparrow_wallet,
             list_server_presets,
             app_version,
+            save_text_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
