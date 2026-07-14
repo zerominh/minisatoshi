@@ -18,6 +18,8 @@ commands.allow = [
   "hw_sign_psbt",
   "get_hwi_status",
   "ensure_hwi_installed",
+  "prepare_hw_registration",
+  "hw_register_vault",
   "combine_psbts",
   "finalize_psbt_cmd",
   "broadcast_psbt_cmd",

@@ -1,15 +1,36 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { formatError, getVault, syncVault } from "../lib/api";
+import {
+  formatError,
+  getVault,
+  hwRegisterVault,
+  prepareHwRegistration,
+  syncVault,
+} from "../lib/api";
 import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
 import { formatTimelockLabel } from "../lib/duration";
-import { formatNetwork, formatSats, getEsploraUrl } from "../lib/settings";
-import type { SyncResultDto, VaultDto } from "../lib/types";
+import {
+  formatNetwork,
+  formatSats,
+  getEsploraUrl,
+  getHwFingerprint,
+  getHwiPath,
+  setHwFingerprint,
+} from "../lib/settings";
+import type {
+  RegistrationPackageDto,
+  SyncResultDto,
+  VaultDto,
+} from "../lib/types";
 
 export function VaultDetailPage() {
   const { id = "" } = useParams();
   const [vault, setVault] = useState<VaultDto | null>(null);
   const [sync, setSync] = useState<SyncResultDto | null>(null);
+  const [registration, setRegistration] =
+    useState<RegistrationPackageDto | null>(null);
+  const [regFingerprint, setRegFingerprint] = useState(getHwFingerprint());
+  const [cosignerHints, setCosignerHints] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +68,77 @@ export function VaultDetailPage() {
           `Saved to ${path} — for Liana / Nunchuk / Bitcoin Core (Sparrow cannot import Miniscript vaults)`,
         );
       }
+    } catch (err) {
+      setError(formatError(err));
+    }
+  }
+
+  async function onPrepareRegistration() {
+    setBusy(true);
+    setError(null);
+    try {
+      const pkg = await prepareHwRegistration(id);
+      setRegistration(pkg);
+      setMessage(
+        "Registration package ready — export for Coldcard/Ledger or try Register on device.",
+      );
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRegisterOnDevice() {
+    if (!regFingerprint.trim()) {
+      setError("Enter a device fingerprint (from Settings → Signing devices).");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      setHwFingerprint(regFingerprint.trim());
+      const result = await hwRegisterVault({
+        vaultId: id,
+        fingerprint: regFingerprint.trim(),
+        hwiPath: getHwiPath() || null,
+      });
+      setRegistration(result.package);
+      setCosignerHints(result.cosignerHints);
+      setMessage(result.message);
+      if (!result.ok) {
+        setError(result.message);
+      }
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSaveColdcardFile() {
+    if (!registration) return;
+    try {
+      const filename = `${sanitizedFilename(registration.vaultName)}-coldcard.txt`;
+      const path = await saveTextFileWithDialog(
+        filename,
+        registration.coldcardSdText,
+      );
+      if (path) setMessage(`Coldcard MicroSD file saved to ${path}`);
+    } catch (err) {
+      setError(formatError(err));
+    }
+  }
+
+  async function onSaveBip388File() {
+    if (!registration) return;
+    try {
+      const filename = `${sanitizedFilename(registration.vaultName)}-bip388.json`;
+      const path = await saveTextFileWithDialog(
+        filename,
+        `${JSON.stringify(registration.bip388, null, 2)}\n`,
+      );
+      if (path) setMessage(`BIP-388 policy saved to ${path}`);
     } catch (err) {
       setError(formatError(err));
     }
@@ -113,13 +205,96 @@ export function VaultDetailPage() {
         <h3>Descriptor</h3>
         <p className="mono wrap">{vault.descriptor}</p>
         <div className="row-actions">
-          <button
-            type="button"
-            onClick={() => void onSaveDescriptorFile()}
-          >
+          <button type="button" onClick={() => void onSaveDescriptorFile()}>
             Save descriptor file
           </button>
         </div>
+      </div>
+
+      <div className="panel form-grid">
+        <h3>Register on hardware</h3>
+        <p className="muted">
+          Map this vault to a BIP-388 wallet policy (Ledger) and Coldcard
+          MicroSD text before the first hardware co-sign. See{" "}
+          <span className="mono">docs/hardware-signing.md</span>.
+        </p>
+        <div className="row-actions">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void onPrepareRegistration()}
+          >
+            Prepare registration package
+          </button>
+        </div>
+        {registration ? (
+          <>
+            <label>
+              BIP-388 policy template
+              <textarea
+                className="mono"
+                rows={4}
+                readOnly
+                value={registration.bip388.policy}
+              />
+            </label>
+            <label>
+              Device fingerprint
+              <input
+                className="mono"
+                value={regFingerprint}
+                onChange={(e) => setRegFingerprint(e.target.value)}
+                placeholder="from Settings → Signing devices"
+              />
+            </label>
+            <div className="row-actions">
+              <button
+                type="button"
+                disabled={busy || !regFingerprint.trim()}
+                onClick={() => void onRegisterOnDevice()}
+              >
+                Register on device
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => void onSaveColdcardFile()}
+              >
+                Save Coldcard MicroSD file
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => void onSaveBip388File()}
+              >
+                Save BIP-388 JSON
+              </button>
+            </div>
+            {cosignerHints.length > 0 ? (
+              <div>
+                <h4>Primary path cosigners</h4>
+                <ul className="list compact">
+                  {cosignerHints.map((hint) => (
+                    <li key={hint}>{hint}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <div>
+              <h4>Vendor notes</h4>
+              {registration.vendors.map((vendor) => (
+                <div key={vendor.deviceType} className="muted">
+                  <strong>{vendor.title}</strong>
+                  <ul className="list compact">
+                    {vendor.instructions.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
       </div>
 
       <div className="grid-2">

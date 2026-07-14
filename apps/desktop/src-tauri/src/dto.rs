@@ -184,6 +184,25 @@ pub struct HwStatusDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct HwRegisterRequest {
+    pub vault_id: String,
+    pub fingerprint: String,
+    #[serde(default)]
+    pub hwi_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HwRegisterResultDto {
+    pub ok: bool,
+    pub message: String,
+    pub hmac: Option<String>,
+    pub package: signing_devices::RegistrationPackage,
+    pub cosigner_hints: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SignedPsbtDto {
     pub base64: String,
     pub input_count: usize,

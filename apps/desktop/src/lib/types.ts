@@ -183,6 +183,44 @@ export interface HwStatusDto {
   message?: string | null;
 }
 
+export interface Bip388PolicyDto {
+  name: string;
+  policy: string;
+  keys: string[];
+}
+
+export interface VendorRegistrationDto {
+  deviceType: string;
+  title: string;
+  body: string;
+  instructions: string[];
+}
+
+export interface RegistrationPackageDto {
+  vaultName: string;
+  network: string;
+  descriptor: string;
+  bip388: Bip388PolicyDto;
+  coldcardSdText: string;
+  ledgerHmac?: string | null;
+  vendors: VendorRegistrationDto[];
+  hwiRegisterpolicySupported: boolean;
+}
+
+export interface HwRegisterRequest {
+  vaultId: string;
+  fingerprint: string;
+  hwiPath?: string | null;
+}
+
+export interface HwRegisterResultDto {
+  ok: boolean;
+  message: string;
+  hmac?: string | null;
+  package: RegistrationPackageDto;
+  cosignerHints: string[];
+}
+
 export interface SignedPsbtDto {
   base64: string;
   inputCount: number;

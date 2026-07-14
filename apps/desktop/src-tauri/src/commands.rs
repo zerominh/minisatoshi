@@ -20,14 +20,16 @@ use vault::VaultService;
 use crate::dto::{
     AddressDto, BalanceDto, BroadcastTxRequest, CombinePsbtRequest, CompileVaultResponse,
     CreatePsbtRequest, CreateVaultRequest, CreateWalletRequest, FinalizedTxDto, HwDeviceDto,
-    HwGetXpubRequest, HwSignPsbtRequest, HwStatusDto, HwXpubDto, PsbtDto, ServerPresetDto,
-    SignPsbtRequest, SignedPsbtDto, SparrowExportDto, SyncResultDto, VaultDto, VaultSummaryDto,
-    WalletDto, WalletSummaryDto,
+    HwGetXpubRequest, HwSignPsbtRequest, HwStatusDto, HwRegisterRequest, HwRegisterResultDto,
+    HwXpubDto, PsbtDto, ServerPresetDto, SignPsbtRequest, SignedPsbtDto, SparrowExportDto,
+    SyncResultDto, VaultDto, VaultSummaryDto, WalletDto, WalletSummaryDto,
 };
 use crate::error::user_facing_error;
 use crate::state::AppState;
 use signing_devices::{
-    ensure_hwi, find_hwi, parse_derivation_path, DeviceInfo, HwiClient, HwiSource, PINNED_HWI_VERSION,
+    build_registration_package, ensure_hwi, find_hwi, hwi_chain, parse_derivation_path,
+    primary_cosigner_hints, DeviceInfo, HwiClient, HwiSource, RegistrationPackage,
+    PINNED_HWI_VERSION,
 };
 
 #[tauri::command]
@@ -339,6 +341,7 @@ fn hwi_client(
     state: &AppState,
     hwi_path: Option<&str>,
     auto_install: bool,
+    network: Option<NetworkName>,
 ) -> Result<HwiClient, String> {
     let preferred = hwi_path
         .map(str::trim)
@@ -353,7 +356,11 @@ fn hwi_client(
             )
         })?
     };
-    Ok(HwiClient::with_binary(resolved.path))
+    let mut client = HwiClient::with_binary(resolved.path);
+    if let Some(network) = network {
+        client = client.with_chain(hwi_chain(network));
+    }
+    Ok(client)
 }
 
 fn device_to_dto(d: DeviceInfo) -> HwDeviceDto {
@@ -456,7 +463,7 @@ pub fn list_hw_devices(
     state: State<'_, AppState>,
     hwi_path: Option<String>,
 ) -> Result<Vec<HwDeviceDto>, String> {
-    let client = hwi_client(&state, hwi_path.as_deref(), true)?;
+    let client = hwi_client(&state, hwi_path.as_deref(), true, None)?;
     let devices = client.enumerate().map_err(user_facing_error)?;
     Ok(devices.into_iter().map(device_to_dto).collect())
 }
@@ -467,7 +474,7 @@ pub fn hw_get_xpub(
     state: State<'_, AppState>,
     request: HwGetXpubRequest,
 ) -> Result<HwXpubDto, String> {
-    let client = hwi_client(&state, request.hwi_path.as_deref(), true)?;
+    let client = hwi_client(&state, request.hwi_path.as_deref(), true, None)?;
     let path = parse_derivation_path(&request.derivation_path).map_err(user_facing_error)?;
     let xpub = client
         .get_xpub(request.fingerprint.trim(), &path)
@@ -485,7 +492,7 @@ pub fn hw_sign_psbt(
     state: State<'_, AppState>,
     request: HwSignPsbtRequest,
 ) -> Result<SignedPsbtDto, String> {
-    let client = hwi_client(&state, request.hwi_path.as_deref(), true)?;
+    let client = hwi_client(&state, request.hwi_path.as_deref(), true, None)?;
     let signed_b64 = client
         .sign_psbt(request.fingerprint.trim(), &request.psbt_base64)
         .map_err(user_facing_error)?;
@@ -497,6 +504,87 @@ pub fn hw_sign_psbt(
         signed_inputs: count_signed_inputs(&psbt),
         total_inputs: psbt.inputs.len(),
     })
+}
+
+/// Build BIP-388 / Coldcard / Ledger registration materials for a vault.
+#[tauri::command]
+pub fn prepare_hw_registration(
+    state: State<'_, AppState>,
+    vault_id: String,
+) -> Result<RegistrationPackage, String> {
+    state.with_store(|store| {
+        let service = VaultService::new(store);
+        let vault = service.get_vault(&vault_id).map_err(user_facing_error)?;
+        build_registration_package(&vault.name, &vault.policy, &vault.descriptor)
+            .map_err(user_facing_error)
+    })
+}
+
+/// Attempt on-device registration (HWI `registerpolicy` when available).
+#[tauri::command]
+pub fn hw_register_vault(
+    state: State<'_, AppState>,
+    request: HwRegisterRequest,
+) -> Result<HwRegisterResultDto, String> {
+    let (mut package, network, cosigner_hints) = state.with_store(|store| {
+        let service = VaultService::new(store);
+        let vault = service
+            .get_vault(&request.vault_id)
+            .map_err(user_facing_error)?;
+        let package =
+            build_registration_package(&vault.name, &vault.policy, &vault.descriptor)
+                .map_err(user_facing_error)?;
+        Ok((
+            package,
+            vault.policy.network,
+            primary_cosigner_hints(&vault.policy),
+        ))
+    })?;
+
+    let client = hwi_client(
+        &state,
+        request.hwi_path.as_deref(),
+        true,
+        Some(network),
+    )?;
+    let keys_json = serde_json::to_string(&package.bip388.keys).map_err(user_facing_error)?;
+
+    match client.register_policy(
+        request.fingerprint.trim(),
+        &package.bip388.name,
+        &package.bip388.policy,
+        &keys_json,
+    ) {
+        Ok(hmac) => {
+            package.ledger_hmac = hmac.clone();
+            package.hwi_registerpolicy_supported = true;
+            Ok(HwRegisterResultDto {
+                ok: true,
+                message: "Wallet policy registered on device — confirm remaining prompts on the hardware screen.".into(),
+                hmac,
+                package,
+                cosigner_hints,
+            })
+        }
+        Err(err) => {
+            let msg = err.to_string();
+            let unsupported = msg.to_ascii_lowercase().contains("registerpolicy")
+                || msg.to_ascii_lowercase().contains("unsupported");
+            if unsupported {
+                Ok(HwRegisterResultDto {
+                    ok: false,
+                    message: format!(
+                        "On-device registerpolicy unavailable ({msg}). Export BIP-388 / Coldcard files from the package, then register via firmware flow or first co-sign."
+                    ),
+                    hmac: None,
+                    package,
+                    cosigner_hints,
+                })
+            } else {
+                Err(user_facing_error(err))
+            }
+        }
+    }
 }
 
 #[tauri::command]

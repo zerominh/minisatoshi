@@ -25,7 +25,10 @@ import type {
   HwGetXpubRequest,
   HwSignPsbtRequest,
   HwStatusDto,
+  HwRegisterRequest,
+  HwRegisterResultDto,
   HwXpubDto,
+  RegistrationPackageDto,
 } from "./types";
 
 export async function compileVaultDescriptor(
@@ -120,6 +123,18 @@ export async function ensureHwiInstalled(
   hwiPath?: string | null,
 ): Promise<HwStatusDto> {
   return invoke("ensure_hwi_installed", { hwiPath: hwiPath ?? null });
+}
+
+export async function prepareHwRegistration(
+  vaultId: string,
+): Promise<RegistrationPackageDto> {
+  return invoke("prepare_hw_registration", { vaultId });
+}
+
+export async function hwRegisterVault(
+  request: HwRegisterRequest,
+): Promise<HwRegisterResultDto> {
+  return invoke("hw_register_vault", { request });
 }
 
 export async function combinePsbts(

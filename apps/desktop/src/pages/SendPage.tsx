@@ -104,7 +104,7 @@ export function SendPage() {
         inputSequence: seq ?? null,
       });
       setPsbt(result);
-      setMessage("Unsigned PSBT ready — sign below (software / cosigner).");
+      setMessage("Unsigned PSBT ready — sign with A then B (or hardware), then combine.");
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -326,9 +326,22 @@ export function SendPage() {
           <h3>4. Sign / combine</h3>
           <p className="muted">
             {psbt.inputCount} in / {psbt.outputCount} out · BIP174 base64.
-            Software keys are for testnet/dev — mainnet requires explicit
-            allow.
+            Multi-device: sign on each cosigner (e.g. Ledger A + Coldcard B),
+            then Combine. Register the vault on each device first (Vault →
+            Register on hardware).
           </p>
+          {vault ? (
+            <ul className="list compact">
+              {vault.policy.keys.map((key) => (
+                <li key={key.id}>
+                  <span className="mono">
+                    {key.id} · {key.fingerprint}
+                  </span>{" "}
+                  <span className="muted">({key.role})</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <textarea className="mono" rows={5} readOnly value={psbt.base64} />
           <div className="row-actions">
             <button

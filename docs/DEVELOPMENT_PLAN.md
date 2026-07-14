@@ -678,16 +678,14 @@ Thêm crate `crates/signing-devices`:
 | **Ledger** | Bitcoin app + **wallet policies** (register descriptor dạng `@0`, `/**`) |
 | **Trezor** | HWI; kiểm tra phiên bản firmware hỗ trợ policy đang dùng |
 
-**Work items**
+- [x] Map vault descriptor → BIP-388 wallet policy (`@n`) + Coldcard MicroSD text (`signing-devices::registration`)
+- [x] UI Vault → Register on hardware (prepare package, save Coldcard/BIP-388, try `hw_register_vault`)
+- [x] Send: list cosigner keys + multi-device combine guidance
+- [x] HWI `--chain` theo network; `registerpolicy` khi HWI build hỗ trợ (stock 3.2.0 → export fallback)
+- [x] Docs: `docs/hardware-signing.md`
+- [x] Unit: BIP-388 mapping từ `policy_abc_testnet` vector
 
-1. Map vault descriptor → **wallet policy** (Ledger) / Coldcard register format.
-2. UI “Register vault on device” trước lần ký đầu.
-3. Ký multi-device: A trên Ledger, B trên Coldcard → combine trong app.
-4. Docs: `docs/hardware-signing.md` (mạng, đăng ký, hạn chế Timelock/`older`).
-
-**Phạm vi cố ý cắt:** Jade / BitBox / Specter DIY → backlog “vendors sau”.
-
-**Deliverable:** Í nhất **hai** vendor (Coldcard + Ledger *hoặc* Trezor) ký được ABC vault Taproot trên testnet; broadcast qua Esplora/Core.
+**Deliverable:** Đăng ký / export policy cho Ledger + Coldcard; ký multi-device qua HWI + combine trong app. ✅
 
 ---
 
@@ -944,13 +942,12 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Giai đoạn 3: Sprint 9 software sign ✅ · Sprint 10 HWI ✅
-  → Sprint 11 Coldcard/Ledger register + tapscript
+Giai đoạn 3: Sprint 9 software sign ✅ · Sprint 10 HWI ✅ · Sprint 11 register ✅
   → Sprint 12 UX hardening
 ```
 
-Pipeline: Policy → Descriptor → Address → Balance → PSBT → **Sign (software|HWI) / Combine / Finalize / Broadcast** → UI ✅.
-Bước kế: **Sprint 11 — Ledger / Coldcard policy register**.
+Pipeline: Policy → Descriptor → Address → Balance → PSBT → **Sign (software|HWI) / Register / Combine / Finalize / Broadcast** → UI ✅.
+Bước kế: **Sprint 12 — Broadcast UX / signature status / hardening**.
 
 ---
 

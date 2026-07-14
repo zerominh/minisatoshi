@@ -7,8 +7,8 @@ use commands::{
     app_version, broadcast_psbt_cmd, combine_psbts, compile_vault_descriptor, create_psbt,
     create_vault, create_wallet, export_sparrow_wallet, finalize_psbt_cmd, get_balance, get_vault,
     hw_get_xpub, hw_sign_psbt, list_hw_devices, list_server_presets, list_vaults, list_wallets,
-    new_receive_address, save_text_file, sign_psbt_software, sync_vault, ensure_hwi_installed,
-    get_hwi_status,
+    new_receive_address, prepare_hw_registration, save_text_file, sign_psbt_software, sync_vault,
+    ensure_hwi_installed, get_hwi_status, hw_register_vault,
 };
 use state::AppState;
 use tauri::Manager;
@@ -47,6 +47,8 @@ pub fn run() {
             hw_sign_psbt,
             get_hwi_status,
             ensure_hwi_installed,
+            prepare_hw_registration,
+            hw_register_vault,
             combine_psbts,
             finalize_psbt_cmd,
             broadcast_psbt_cmd,

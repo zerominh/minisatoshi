@@ -15,12 +15,15 @@ use crate::HardwareSigner;
 #[derive(Debug, Clone)]
 pub struct HwiConfig {
     pub binary: PathBuf,
+    /// HWI `--chain` value: `main`, `test`, `testnet4`, `signet`, `regtest`.
+    pub chain: Option<String>,
 }
 
 impl Default for HwiConfig {
     fn default() -> Self {
         Self {
             binary: PathBuf::from(std::env::var("HWI_PATH").unwrap_or_else(|_| "hwi".into())),
+            chain: None,
         }
     }
 }
@@ -38,7 +41,13 @@ impl HwiClient {
     pub fn with_binary(path: impl AsRef<Path>) -> Self {
         Self::new(HwiConfig {
             binary: path.as_ref().to_path_buf(),
+            chain: None,
         })
+    }
+
+    pub fn with_chain(mut self, chain: impl Into<String>) -> Self {
+        self.config.chain = Some(chain.into());
+        self
     }
 
     pub fn binary_path(&self) -> &Path {
@@ -83,8 +92,81 @@ impl HwiClient {
             .ok_or_else(|| SignError::Hwi("signtx missing psbt field".into()))
     }
 
+    /// Try HWI `registerpolicy` (available on some builds; not stock 3.2.0).
+    /// Returns HMAC / proof string when the device provides one.
+    pub fn register_policy(
+        &self,
+        fingerprint: &str,
+        name: &str,
+        policy: &str,
+        keys_json: &str,
+    ) -> Result<Option<String>, SignError> {
+        let stdout = self.run_raw(&[
+            "--fingerprint",
+            fingerprint,
+            "registerpolicy",
+            "--name",
+            name,
+            "--policy",
+            policy,
+            "--keys",
+            keys_json,
+        ])?;
+        let value: Value =
+            serde_json::from_str(stdout.trim()).map_err(|e| SignError::Parse(e.to_string()))?;
+        if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
+            let lower = err.to_ascii_lowercase();
+            if lower.contains("invalid choice")
+                || lower.contains("unknown")
+                || lower.contains("unrecognized")
+            {
+                return Err(SignError::Unsupported(
+                    "this HWI build has no registerpolicy — export BIP-388 / Coldcard files instead"
+                        .into(),
+                ));
+            }
+            return Err(map_hwi_error(err));
+        }
+        let hmac = value
+            .get("hmac")
+            .or_else(|| value.get("hmac_b64"))
+            .or_else(|| value.get("registration"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+        Ok(hmac)
+    }
+
+    /// Display an address for `--desc` (device confirmation / soft register path).
+    pub fn display_address_desc(
+        &self,
+        fingerprint: &str,
+        descriptor: &str,
+    ) -> Result<String, SignError> {
+        let stdout = self.run_raw(&[
+            "--fingerprint",
+            fingerprint,
+            "displayaddress",
+            "--desc",
+            descriptor.trim(),
+        ])?;
+        let value: Value =
+            serde_json::from_str(stdout.trim()).map_err(|e| SignError::Parse(e.to_string()))?;
+        if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
+            return Err(map_hwi_error(err));
+        }
+        value
+            .get("address")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .ok_or_else(|| SignError::Hwi("displayaddress missing address".into()))
+    }
+
     fn run_raw(&self, args: &[&str]) -> Result<String, SignError> {
-        let output = Command::new(&self.config.binary)
+        let mut cmd = Command::new(&self.config.binary);
+        if let Some(chain) = &self.config.chain {
+            cmd.arg("--chain").arg(chain);
+        }
+        let output = cmd
             .args(args)
             .output()
             .map_err(|e| SignError::Binary(format!("{}: {e}", self.config.binary.display())))?;
@@ -146,6 +228,14 @@ impl HardwareSigner for HwiDeviceSigner {
 
     fn get_xpub(&self, path: &DerivationPath) -> Result<String, SignError> {
         self.client.get_xpub(&self.fingerprint, path)
+    }
+
+    fn register_policy(&self, descriptor: &str) -> Result<(), SignError> {
+        // Soft path: ask device to display address derived from desc (confirms recognition).
+        let _addr = self
+            .client
+            .display_address_desc(&self.fingerprint, descriptor)?;
+        Ok(())
     }
 
     fn sign_psbt(&self, psbt_base64: &str) -> Result<String, SignError> {
