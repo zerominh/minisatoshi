@@ -13,6 +13,7 @@ blockchain.workspace = true
 descriptor-engine.workspace = true
 miniscript.workspace = true
 policy-engine.workspace = true
+serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 wallet-core.workspace = true
 

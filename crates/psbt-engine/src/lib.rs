@@ -8,6 +8,7 @@ mod error;
 mod export;
 mod finalize;
 mod sign;
+mod status;
 #[cfg(test)]
 mod test_keys;
 mod types;
@@ -19,6 +20,10 @@ pub use error::PsbtError;
 pub use export::{export_psbt, import_psbt_base64};
 pub use finalize::{extract_transaction, finalize_psbt, transaction_bytes, transaction_hex};
 pub use sign::{sign_psbt, Signer, SoftwareSigner};
+pub use status::{
+    analyze_signing_status, signed_fingerprints, KeySignStatus, KeyStatus, PathStatus,
+    SigningStatus,
+};
 pub use types::{
     CreatePsbtOptions, ExportFormat, FeeRate, Psbt, PsbtRecipient, SignProgress, SpendingUtxo,
     VaultPsbt,

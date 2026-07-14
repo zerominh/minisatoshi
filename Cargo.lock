@@ -2851,6 +2851,7 @@ dependencies = [
  "descriptor-engine",
  "miniscript",
  "policy-engine",
+ "serde",
  "tempfile",
  "thiserror 2.0.18",
  "wallet-core",

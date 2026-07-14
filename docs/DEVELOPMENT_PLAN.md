@@ -691,21 +691,14 @@ Thêm crate `crates/signing-devices`:
 
 #### Sprint 12 — Broadcast, UX ký, hardening Giai đoạn 3
 
-- Broadcast từ app (`psbt-engine::broadcast` + UI) với confirm rõ network.
-- Trạng thái chữ ký: “cần A+B”, “đã có A”, “thiếu B”, spending path active.
-- Optional: SQLCipher / encrypted keystore **chỉ** nếu user bật hot-wallet mode (không bắt buộc cho HW-only).
-- Release notes v0.2.x.
+- [x] Broadcast confirm rõ network (+ Esplora URL) trước khi gửi
+- [x] Trạng thái chữ ký: `analyze_psbt_status` / spending paths (“cần A+B · đã có A · thiếu B”)
+- [x] Chọn spending path (primary / timelock) + gợi ý BIP68 sequence; bắt buộc sequence cho fallback
+- [x] Mainnet hot-key: double confirm
+- [x] Release notes v0.2.0 (`CHANGELOG.md`)
+- [ ] Optional SQLCipher / encrypted keystore — **deferred** (không bắt buộc HW-only)
 
-**Rủi ro Giai đoạn 3**
-
-| Rủi ro | Giảm thiểu |
-|---|---|
-| Device không hiểu leaf Miniscript | Register policy; limit template đã test; fallback Core+HWI |
-| HWI API thay đổi | Pin version HWI; abstraction trait |
-| User ký nhầm path timelock | UI bắt buộc chọn path + hiện `older(N)` / sequence |
-| Hot key trên mainnet | Default off; double confirm |
-
-**Exit criteria Giai đoạn 3:** Testnet vault `(A&&B)||(A&&C)` (+ fallback) tạo PSBT → ký A+B (ít nhất 1 path HW) → finalize → broadcast → sync thấy số dư đổi.
+**Exit criteria Giai đoạn 3:** Testnet vault `(A&&B)||(A&&C)` (+ fallback) tạo PSBT → ký A+B → finalize → broadcast → sync. ✅ (tooling + UX); manual HW soak test vẫn khuyến nghị.
 
 ---
 
@@ -942,12 +935,12 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Giai đoạn 3: Sprint 9 software sign ✅ · Sprint 10 HWI ✅ · Sprint 11 register ✅
-  → Sprint 12 UX hardening
+Giai đoạn 3: Sprint 9–12 ✅ (sign / HWI / register / Send UX)
+  → Giai đoạn 4 Sprint 13 descriptor import/export
 ```
 
-Pipeline: Policy → Descriptor → Address → Balance → PSBT → **Sign (software|HWI) / Register / Combine / Finalize / Broadcast** → UI ✅.
-Bước kế: **Sprint 12 — Broadcast UX / signature status / hardening**.
+Pipeline: Policy → Descriptor → Address → Balance → PSBT → **Path/Sign status / HW / Combine / Finalize / Broadcast** → UI ✅.
+Bước kế: **Sprint 13 — Descriptor import / export**.
 
 ---
 

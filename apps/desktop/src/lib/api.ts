@@ -29,6 +29,9 @@ import type {
   HwRegisterResultDto,
   HwXpubDto,
   RegistrationPackageDto,
+  AnalyzePsbtRequest,
+  SigningStatusDto,
+  SpendingPathDto,
 } from "./types";
 
 export async function compileVaultDescriptor(
@@ -135,6 +138,18 @@ export async function hwRegisterVault(
   request: HwRegisterRequest,
 ): Promise<HwRegisterResultDto> {
   return invoke("hw_register_vault", { request });
+}
+
+export async function listSpendingPaths(
+  vaultId: string,
+): Promise<SpendingPathDto[]> {
+  return invoke("list_spending_paths", { vaultId });
+}
+
+export async function analyzePsbtStatus(
+  request: AnalyzePsbtRequest,
+): Promise<SigningStatusDto> {
+  return invoke("analyze_psbt_status", { request });
 }
 
 export async function combinePsbts(

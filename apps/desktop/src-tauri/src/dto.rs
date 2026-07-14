@@ -203,6 +203,15 @@ pub struct HwRegisterResultDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AnalyzePsbtRequest {
+    pub vault_id: String,
+    pub psbt_base64: String,
+    #[serde(default)]
+    pub active_path_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SignedPsbtDto {
     pub base64: String,
     pub input_count: usize,

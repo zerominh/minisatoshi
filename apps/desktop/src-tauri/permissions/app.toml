@@ -13,6 +13,8 @@ commands.allow = [
   "sync_vault",
   "create_psbt",
   "sign_psbt_software",
+  "list_spending_paths",
+  "analyze_psbt_status",
   "list_hw_devices",
   "hw_get_xpub",
   "hw_sign_psbt",

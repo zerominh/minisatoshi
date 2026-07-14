@@ -221,6 +221,47 @@ export interface HwRegisterResultDto {
   cosignerHints: string[];
 }
 
+export interface SpendingPathDto {
+  id: string;
+  label: string;
+  requiredKeys: string[];
+  timelockBlocks?: number | null;
+  suggestedSequence?: number | null;
+  kind: "primary" | "fallback";
+}
+
+export type KeySignStatus = "signed" | "missing" | "unused";
+
+export interface KeyStatusDto {
+  id: string;
+  fingerprint: string;
+  role: string;
+  status: KeySignStatus;
+}
+
+export interface PathStatusDto {
+  path: SpendingPathDto;
+  satisfied: boolean;
+  missingKeys: string[];
+  presentKeys: string[];
+}
+
+export interface SigningStatusDto {
+  summary: string;
+  keys: KeyStatusDto[];
+  paths: PathStatusDto[];
+  signedFingerprints: string[];
+  signedInputCount: number;
+  totalInputs: number;
+  activePathId?: string | null;
+}
+
+export interface AnalyzePsbtRequest {
+  vaultId: string;
+  psbtBase64: string;
+  activePathId?: string | null;
+}
+
 export interface SignedPsbtDto {
   base64: string;
   inputCount: number;

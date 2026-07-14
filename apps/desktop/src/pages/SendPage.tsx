@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  analyzePsbtStatus,
   broadcastPsbt,
   combinePsbts,
   createPsbt,
@@ -8,11 +9,14 @@ import {
   formatError,
   getVault,
   hwSignPsbt,
+  listSpendingPaths,
   signPsbtSoftware,
   syncVault,
 } from "../lib/api";
+import { formatTimelockLabel } from "../lib/duration";
 import {
   copyText,
+  formatNetwork,
   formatSats,
   getEsploraUrl,
   getHwFingerprint,
@@ -21,6 +25,8 @@ import {
 import type {
   FinalizedTxDto,
   PsbtDto,
+  SigningStatusDto,
+  SpendingPathDto,
   SyncResultDto,
   UtxoDto,
   VaultDto,
@@ -34,22 +40,68 @@ export function SendPage() {
   const [address, setAddress] = useState("");
   const [amount, setAmount] = useState("");
   const [feeRate, setFeeRate] = useState("2");
+  const [paths, setPaths] = useState<SpendingPathDto[]>([]);
+  const [activePathId, setActivePathId] = useState("");
   const [inputSequence, setInputSequence] = useState("");
   const [psbt, setPsbt] = useState<PsbtDto | null>(null);
+  const [signStatus, setSignStatus] = useState<SigningStatusDto | null>(null);
   const [secretKey, setSecretKey] = useState("");
   const [hwFingerprint, setHwFingerprint] = useState(getHwFingerprint());
   const [allowMainnetHotKeys, setAllowMainnetHotKeys] = useState(false);
+  const [confirmMainnetHot, setConfirmMainnetHot] = useState(false);
   const [cosignerPsbt, setCosignerPsbt] = useState("");
   const [finalized, setFinalized] = useState<FinalizedTxDto | null>(null);
+  const [broadcastConfirm, setBroadcastConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void getVault(id)
-      .then(setVault)
+      .then((v) => {
+        setVault(v);
+        return listSpendingPaths(id);
+      })
+      .then((list) => {
+        setPaths(list);
+        const first = list[0]?.id ?? "";
+        setActivePathId(first);
+        const path = list.find((p) => p.id === first);
+        if (path?.suggestedSequence != null) {
+          setInputSequence(String(path.suggestedSequence));
+        }
+      })
       .catch((err) => setError(formatError(err)));
   }, [id]);
+
+  const refreshStatus = useCallback(
+    async (base64: string, pathId: string) => {
+      try {
+        const status = await analyzePsbtStatus({
+          vaultId: id,
+          psbtBase64: base64,
+          activePathId: pathId || null,
+        });
+        setSignStatus(status);
+      } catch {
+        setSignStatus(null);
+      }
+    },
+    [id],
+  );
+
+  function onSelectPath(pathId: string) {
+    setActivePathId(pathId);
+    const path = paths.find((p) => p.id === pathId);
+    if (path?.suggestedSequence != null) {
+      setInputSequence(String(path.suggestedSequence));
+    } else {
+      setInputSequence("");
+    }
+    if (psbt) {
+      void refreshStatus(psbt.base64, pathId);
+    }
+  }
 
   async function onSync() {
     setBusy(true);
@@ -81,6 +133,8 @@ export function SendPage() {
     setMessage(null);
     setPsbt(null);
     setFinalized(null);
+    setSignStatus(null);
+    setBroadcastConfirm(false);
     try {
       const utxos = selectedUtxos();
       if (utxos.length === 0) {
@@ -90,9 +144,13 @@ export function SendPage() {
       if (!Number.isFinite(amountSats) || amountSats <= 0) {
         throw new Error("Enter a valid amount in sats");
       }
-      const seq = inputSequence.trim()
-        ? Number(inputSequence)
-        : undefined;
+      const path = paths.find((p) => p.id === activePathId);
+      if (path?.kind === "fallback" && !inputSequence.trim()) {
+        throw new Error(
+          "Timelock path requires an input sequence (BIP68) — select a path or enter older(N).",
+        );
+      }
+      const seq = inputSequence.trim() ? Number(inputSequence) : undefined;
       if (seq !== undefined && (!Number.isFinite(seq) || seq < 0)) {
         throw new Error("Invalid input sequence");
       }
@@ -104,7 +162,12 @@ export function SendPage() {
         inputSequence: seq ?? null,
       });
       setPsbt(result);
-      setMessage("Unsigned PSBT ready — sign with A then B (or hardware), then combine.");
+      await refreshStatus(result.base64, activePathId);
+      setMessage(
+        path
+          ? `PSBT ready for “${path.label}” — sign required keys, then combine.`
+          : "Unsigned PSBT ready.",
+      );
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -114,6 +177,14 @@ export function SendPage() {
 
   async function onSign() {
     if (!psbt || !vault) return;
+    if (vault.policy.network === "mainnet") {
+      if (!allowMainnetHotKeys || !confirmMainnetHot) {
+        setError(
+          "Mainnet hot-key signing requires both confirmation checkboxes.",
+        );
+        return;
+      }
+    }
     setBusy(true);
     setError(null);
     try {
@@ -123,14 +194,16 @@ export function SendPage() {
         network: vault.policy.network,
         allowMainnetHotKeys,
       });
-      setPsbt({
+      const next = {
         base64: signed.base64,
         inputCount: signed.inputCount,
         outputCount: signed.outputCount,
-      });
+      };
+      setPsbt(next);
       setSecretKey("");
+      await refreshStatus(next.base64, activePathId);
       setMessage(
-        `Signed ${signed.signedInputs}/${signed.totalInputs} input(s) — combine or finalize when ready.`,
+        `Software signed ${signed.signedInputs}/${signed.totalInputs} input(s).`,
       );
     } catch (err) {
       setError(formatError(err));
@@ -149,13 +222,15 @@ export function SendPage() {
         psbtBase64: psbt.base64,
         hwiPath: getHwiPath() || null,
       });
-      setPsbt({
+      const next = {
         base64: signed.base64,
         inputCount: signed.inputCount,
         outputCount: signed.outputCount,
-      });
+      };
+      setPsbt(next);
+      await refreshStatus(next.base64, activePathId);
       setMessage(
-        `Hardware signed ${signed.signedInputs}/${signed.totalInputs} input(s) (confirm on device).`,
+        `Hardware signed ${signed.signedInputs}/${signed.totalInputs} input(s).`,
       );
     } catch (err) {
       setError(formatError(err));
@@ -174,6 +249,7 @@ export function SendPage() {
       });
       setPsbt(combined);
       setCosignerPsbt("");
+      await refreshStatus(combined.base64, activePathId);
       setMessage("PSBTs combined.");
     } catch (err) {
       setError(formatError(err));
@@ -198,16 +274,28 @@ export function SendPage() {
   }
 
   async function onBroadcast() {
+    if (!broadcastConfirm) {
+      setBroadcastConfirm(true);
+      setMessage(
+        `Confirm broadcast on ${vault ? formatNetwork(vault.policy.network) : "selected network"} — click Broadcast again.`,
+      );
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const txid = await broadcastPsbt({
         vaultId: id,
-        psbtBase64: finalized ? null : psbt?.base64 ?? null,
+        psbtBase64: finalized ? null : (psbt?.base64 ?? null),
         txHex: finalized?.hex ?? null,
         esploraUrl: getEsploraUrl() || null,
       });
-      setMessage(`Broadcast ok · txid ${txid}`);
+      setBroadcastConfirm(false);
+      setMessage(`Broadcast ok · ${formatNetwork(vault?.policy.network ?? "testnet")} · txid ${txid}`);
+      if (sync) {
+        const result = await syncVault(id, getEsploraUrl() || undefined);
+        setSync(result);
+      }
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -215,13 +303,17 @@ export function SendPage() {
     }
   }
 
+  const activePath = paths.find((p) => p.id === activePathId);
+
   return (
     <section>
       <header className="page-header">
         <div>
           <h2>Send</h2>
           <p>
-            {vault?.name ?? "Vault"} · PSBT · software / HWI sign · broadcast
+            {vault?.name ?? "Vault"}
+            {vault ? ` · ${formatNetwork(vault.policy.network)}` : ""} · sign
+            status · broadcast
           </p>
         </div>
         <Link className="button-link" to={`/vaults/${id}`}>
@@ -273,7 +365,34 @@ export function SendPage() {
       ) : null}
 
       <form className="panel form-grid" onSubmit={(e) => void onSubmit(e)}>
-        <h3>2. Recipient</h3>
+        <h3>2. Spending path & recipient</h3>
+        {paths.length > 0 ? (
+          <label>
+            Active spending path
+            <select
+              value={activePathId}
+              onChange={(e) => onSelectPath(e.target.value)}
+            >
+              {paths.map((path) => (
+                <option key={path.id} value={path.id}>
+                  {path.label}
+                  {path.timelockBlocks != null
+                    ? ` · older(${path.timelockBlocks})`
+                    : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {activePath?.kind === "fallback" ? (
+          <p className="muted">
+            Timelock path — set BIP68 sequence to match{" "}
+            {activePath.timelockBlocks != null
+              ? `older(${activePath.timelockBlocks})`
+              : formatTimelockLabel("?")}
+            . Spending too early will fail finalize/device checks.
+          </p>
+        ) : null}
         <label>
           Address
           <input
@@ -304,13 +423,17 @@ export function SendPage() {
           />
         </label>
         <label>
-          Input sequence (optional, BIP68 for older/timelock path)
+          Input sequence (BIP68 / older)
           <input
             type="number"
             min={0}
             value={inputSequence}
             onChange={(e) => setInputSequence(e.target.value)}
-            placeholder="leave empty for RBF default"
+            placeholder={
+              activePath?.kind === "fallback"
+                ? "required for timelock path"
+                : "empty = RBF default"
+            }
           />
         </label>
         <button type="submit" disabled={busy}>
@@ -324,25 +447,37 @@ export function SendPage() {
       {psbt ? (
         <div className="panel form-grid">
           <h3>4. Sign / combine</h3>
-          <p className="muted">
-            {psbt.inputCount} in / {psbt.outputCount} out · BIP174 base64.
-            Multi-device: sign on each cosigner (e.g. Ledger A + Coldcard B),
-            then Combine. Register the vault on each device first (Vault →
-            Register on hardware).
-          </p>
-          {vault ? (
-            <ul className="list compact">
-              {vault.policy.keys.map((key) => (
-                <li key={key.id}>
-                  <span className="mono">
-                    {key.id} · {key.fingerprint}
-                  </span>{" "}
-                  <span className="muted">({key.role})</span>
-                </li>
-              ))}
-            </ul>
+          {signStatus ? (
+            <div className="panel" style={{ margin: 0 }}>
+              <p>
+                <strong>{signStatus.summary}</strong>
+              </p>
+              <ul className="list compact">
+                {signStatus.keys.map((key) => (
+                  <li key={key.id}>
+                    <span className="mono">
+                      {key.id} · {key.fingerprint}
+                    </span>{" "}
+                    <span className="muted">({key.role})</span> —{" "}
+                    {key.status === "signed"
+                      ? "signed"
+                      : key.status === "unused"
+                        ? "not needed on this path"
+                        : "missing"}
+                  </li>
+                ))}
+              </ul>
+              <p className="muted">
+                Inputs with sigs: {signStatus.signedInputCount}/
+                {signStatus.totalInputs}
+              </p>
+            </div>
           ) : null}
-          <textarea className="mono" rows={5} readOnly value={psbt.base64} />
+          <p className="muted">
+            {psbt.inputCount} in / {psbt.outputCount} out · multi-device: sign each
+            required key, then Combine.
+          </p>
+          <textarea className="mono" rows={4} readOnly value={psbt.base64} />
           <div className="row-actions">
             <button
               type="button"
@@ -354,6 +489,14 @@ export function SendPage() {
               }
             >
               Copy PSBT
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => void refreshStatus(psbt.base64, activePathId)}
+            >
+              Refresh signature status
             </button>
           </div>
           <label>
@@ -368,14 +511,24 @@ export function SendPage() {
             />
           </label>
           {vault?.policy.network === "mainnet" ? (
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={allowMainnetHotKeys}
-                onChange={(e) => setAllowMainnetHotKeys(e.target.checked)}
-              />
-              <span>Allow mainnet hot-key signing (dangerous)</span>
-            </label>
+            <>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={allowMainnetHotKeys}
+                  onChange={(e) => setAllowMainnetHotKeys(e.target.checked)}
+                />
+                <span>Allow mainnet hot-key signing (dangerous)</span>
+              </label>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={confirmMainnetHot}
+                  onChange={(e) => setConfirmMainnetHot(e.target.checked)}
+                />
+                <span>I understand this exposes private key material on this machine</span>
+              </label>
+            </>
           ) : null}
           <button
             type="button"
@@ -432,9 +585,21 @@ export function SendPage() {
               disabled={busy || (!psbt && !finalized)}
               onClick={() => void onBroadcast()}
             >
-              6. Broadcast
+              {broadcastConfirm
+                ? `Confirm broadcast (${vault ? formatNetwork(vault.policy.network) : "network"})`
+                : "6. Broadcast"}
             </button>
           </div>
+          {broadcastConfirm ? (
+            <p className="muted">
+              Broadcasting to{" "}
+              <strong>
+                {vault ? formatNetwork(vault.policy.network) : "unknown"}
+              </strong>
+              {getEsploraUrl() ? ` via ${getEsploraUrl()}` : " via default Esplora"}
+              . Click the button again to send.
+            </p>
+          ) : null}
         </div>
       ) : null}
 

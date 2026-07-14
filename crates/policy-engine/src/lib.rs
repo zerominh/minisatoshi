@@ -4,6 +4,7 @@ mod compile;
 mod config;
 mod error;
 mod parser;
+mod paths;
 mod templates;
 mod timelock;
 mod translate;
@@ -24,6 +25,7 @@ pub use config::{
 };
 pub use error::PolicyError;
 pub use parser::parse_expression;
+pub use paths::{bip68_relative_blocks, spending_paths, SpendingPath, SpendingPathKind};
 pub use templates::{
     build_from_template, list_templates, multi_manager_primary, TemplateId, TemplateInfo,
 };

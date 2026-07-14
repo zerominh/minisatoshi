@@ -10,9 +10,9 @@ use descriptor_engine::compile_descriptor_from_config;
 use miniscript::descriptor::DescriptorSecretKey;
 use policy_engine::{NetworkName, PolicyConfig};
 use psbt_engine::{
-    broadcast_psbt, combine_psbt, create_psbt as build_psbt, export_psbt, finalize_psbt,
-    import_psbt_base64, sign_psbt, transaction_hex, CreatePsbtOptions, ExportFormat, FeeRate,
-    PsbtRecipient, SoftwareSigner, SpendingUtxo,
+    analyze_signing_status, broadcast_psbt, combine_psbt, create_psbt as build_psbt, export_psbt,
+    finalize_psbt, import_psbt_base64, sign_psbt, transaction_hex, CreatePsbtOptions, ExportFormat,
+    FeeRate, PsbtRecipient, SoftwareSigner, SpendingUtxo, SigningStatus,
 };
 use tauri::State;
 use vault::VaultService;
@@ -21,8 +21,8 @@ use crate::dto::{
     AddressDto, BalanceDto, BroadcastTxRequest, CombinePsbtRequest, CompileVaultResponse,
     CreatePsbtRequest, CreateVaultRequest, CreateWalletRequest, FinalizedTxDto, HwDeviceDto,
     HwGetXpubRequest, HwSignPsbtRequest, HwStatusDto, HwRegisterRequest, HwRegisterResultDto,
-    HwXpubDto, PsbtDto, ServerPresetDto, SignPsbtRequest, SignedPsbtDto, SparrowExportDto,
-    SyncResultDto, VaultDto, VaultSummaryDto, WalletDto, WalletSummaryDto,
+    AnalyzePsbtRequest, HwXpubDto, PsbtDto, ServerPresetDto, SignPsbtRequest, SignedPsbtDto,
+    SparrowExportDto, SyncResultDto, VaultDto, VaultSummaryDto, WalletDto, WalletSummaryDto,
 };
 use crate::error::user_facing_error;
 use crate::state::AppState;
@@ -503,6 +503,40 @@ pub fn hw_sign_psbt(
         output_count: psbt.outputs.len(),
         signed_inputs: count_signed_inputs(&psbt),
         total_inputs: psbt.inputs.len(),
+    })
+}
+
+/// Enumerate policy spending paths (primary branches + timelock fallbacks).
+#[tauri::command]
+pub fn list_spending_paths(
+    state: State<'_, AppState>,
+    vault_id: String,
+) -> Result<Vec<policy_engine::SpendingPath>, String> {
+    state.with_store(|store| {
+        let service = VaultService::new(store);
+        let vault = service.get_vault(&vault_id).map_err(user_facing_error)?;
+        policy_engine::spending_paths(&vault.policy).map_err(user_facing_error)
+    })
+}
+
+/// Analyze which vault keys have signed a PSBT and which paths are satisfied.
+#[tauri::command]
+pub fn analyze_psbt_status(
+    state: State<'_, AppState>,
+    request: AnalyzePsbtRequest,
+) -> Result<SigningStatus, String> {
+    state.with_store(|store| {
+        let service = VaultService::new(store);
+        let vault = service
+            .get_vault(&request.vault_id)
+            .map_err(user_facing_error)?;
+        let psbt = parse_psbt_b64(&request.psbt_base64)?;
+        analyze_signing_status(
+            &vault.policy,
+            &psbt,
+            request.active_path_id.as_deref(),
+        )
+        .map_err(user_facing_error)
     })
 }
 
