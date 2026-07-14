@@ -10,16 +10,15 @@ import {
 import { copyText } from "../lib/settings";
 import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
 import type { AddressDto, SparrowExportDto, VaultDto } from "../lib/types";
-import { useVaultIdFromRouteOrContext } from "../vault/VaultContext";
+import { useVault, useVaultIdFromRouteOrContext } from "../vault/VaultContext";
 
 export function ReceivePage() {
   const id = useVaultIdFromRouteOrContext();
+  const { setError, setMessage } = useVault();
   const [vault, setVault] = useState<VaultDto | null>(null);
   const [address, setAddress] = useState<AddressDto | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [sparrow, setSparrow] = useState<SparrowExportDto | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -91,9 +90,6 @@ export function ReceivePage() {
           Transactions
         </Link>
       </header>
-
-      {error ? <pre className="error">{error}</pre> : null}
-      {message ? <p className="status">{message}</p> : null}
 
       <div className="grid-2">
         <div className="panel center">

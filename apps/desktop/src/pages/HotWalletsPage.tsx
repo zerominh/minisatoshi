@@ -6,6 +6,7 @@ import {
   wordsToMnemonic,
   type WordCount,
 } from "../components/MnemonicGrid";
+import { useFlash } from "../flash/FlashContext";
 import {
   createHotKeystore,
   deleteHotWallet,
@@ -34,6 +35,7 @@ const NETWORKS: NetworkName[] = [
 
 export function HotWalletsPage() {
   const navigate = useNavigate();
+  const { setError, setMessage } = useFlash();
   const [status, setStatus] = useState<HotKeystoreStatusDto | null>(null);
   const [hotWallets, setHotWallets] = useState<HotWalletSummaryDto[]>([]);
   const [password, setPassword] = useState("");
@@ -45,8 +47,6 @@ export function HotWalletsPage() {
   const [passphrase, setPassphrase] = useState("");
   const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   async function refresh() {
     const st = await hotKeystoreStatus();
@@ -180,9 +180,6 @@ export function HotWalletsPage() {
           </p>
         </div>
       </header>
-
-      {error ? <pre className="error">{error}</pre> : null}
-      {message ? <p className="status">{message}</p> : null}
 
       <div className="panel form-grid">
         <h3>

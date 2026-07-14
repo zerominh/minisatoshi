@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Rename wallet, vault, and hot wallet (list actions + Settings → Name)
+- Sticky flash banner (errors / success) fixed at the top of main content app-wide
 - Auto chain sync when opening a vault / hot wallet (deferred, cache-aware), then every 2 min in background without locking UI
 - Vault shell UI (Sparrow-style per-vault tabs): Transactions · Send · Receive · Addresses · UTXOs · Settings
 - Hot wallets are first-class Bitcoin wallets in the UI (`/hot-wallets/:id` shell); vault storage is internal only

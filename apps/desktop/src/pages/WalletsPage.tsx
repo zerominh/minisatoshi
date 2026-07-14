@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useFlash } from "../flash/FlashContext";
 import {
   createWallet,
   deleteWallet,
@@ -16,12 +17,12 @@ import {
 import type { NetworkName, WalletSummaryDto } from "../lib/types";
 
 export function WalletsPage() {
+  const { setError, setMessage } = useFlash();
   const [wallets, setWallets] = useState<WalletSummaryDto[]>([]);
   const [name, setName] = useState("");
   const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
   const [activeId, setActiveId] = useState<string | null>(getActiveWalletId());
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
     const items = await listWallets();
@@ -72,6 +73,7 @@ export function WalletsPage() {
     setError(null);
     try {
       await renameWallet(wallet.id, next);
+      setMessage(`Renamed to “${next}”`);
       await refresh();
     } catch (err) {
       setError(formatError(err));
@@ -134,8 +136,6 @@ export function WalletsPage() {
           {busy ? "Creating…" : "Create wallet"}
         </button>
       </form>
-
-      {error ? <pre className="error">{error}</pre> : null}
 
       <div className="panel">
         <h3>Your wallets</h3>

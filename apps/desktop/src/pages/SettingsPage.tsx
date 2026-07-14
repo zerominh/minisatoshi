@@ -8,6 +8,7 @@ import {
   listHwDevices,
   listServerPresets,
 } from "../lib/api";
+import { useFlash } from "../flash/FlashContext";
 import {
   formatNetwork,
   getEsploraUrl,
@@ -27,6 +28,7 @@ import type {
 } from "../lib/types";
 
 export function SettingsPage() {
+  const { setError, setMessage } = useFlash();
   const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
   const [esploraUrl, setUrl] = useState(getEsploraUrl());
   const [hwiPath, setHwiPathState] = useState(getHwiPath());
@@ -37,8 +39,6 @@ export function SettingsPage() {
   const [xpubResult, setXpubResult] = useState<string | null>(null);
   const [presets, setPresets] = useState<ServerPresetDto[]>([]);
   const [version, setVersion] = useState<string>("…");
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -317,9 +317,6 @@ export function SettingsPage() {
           </label>
         ) : null}
       </div>
-
-      {message ? <p className="status">{message}</p> : null}
-      {error ? <pre className="error">{error}</pre> : null}
 
       <div className="panel">
         <h3>Server presets (Esplora / Electrum)</h3>

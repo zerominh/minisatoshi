@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useFlash } from "../flash/FlashContext";
 import {
   deleteVault,
   formatError,
@@ -13,11 +14,11 @@ import { formatNetwork, getActiveWalletId, setActiveWalletId } from "../lib/sett
 import type { VaultSummaryDto, WalletSummaryDto } from "../lib/types";
 
 export function VaultsPage() {
+  const { setError, setMessage } = useFlash();
   const [wallets, setWallets] = useState<WalletSummaryDto[]>([]);
   const [walletId, setWalletId] = useState<string | null>(getActiveWalletId());
   const [vaults, setVaults] = useState<VaultSummaryDto[]>([]);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function refreshVaults(id: string | null) {
     if (!id) {
@@ -73,6 +74,7 @@ export function VaultsPage() {
     setError(null);
     try {
       await renameVault(vault.id, next);
+      setMessage(`Renamed to “${next}”`);
       await refreshVaults(walletId);
     } catch (err) {
       setError(formatError(err));
@@ -142,8 +144,6 @@ export function VaultsPage() {
               </select>
             </label>
           </div>
-
-          {error ? <pre className="error">{error}</pre> : null}
 
           <div className="panel">
             {vaults.length === 0 ? (
