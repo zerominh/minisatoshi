@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Finalize errors now include the underlying Miniscript/interpreter reason (e.g. bad Schnorr signature).
 - Software signing verifies tap_script_sigs after Sign so a wrong key fails immediately instead of at Finalize.
 
+### Changed
+
+- Send: Create PSBT → Sign → Broadcast as slides; success screen after broadcast (View transactions / Send another)
+
 ### Added
 
 - Rename wallet, vault, and hot wallet (list actions + Settings → Name)

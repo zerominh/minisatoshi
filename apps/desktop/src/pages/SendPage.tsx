@@ -35,6 +35,15 @@ import type {
 } from "../lib/types";
 import { useVault, useVaultIdFromRouteOrContext } from "../vault/VaultContext";
 
+type SendStep = "compose" | "sign" | "broadcast" | "done";
+
+const SEND_STEP_OFFSET: Record<SendStep, string> = {
+  compose: "translateX(0)",
+  sign: "translateX(-100%)",
+  broadcast: "translateX(-200%)",
+  done: "translateX(-300%)",
+};
+
 export function SendPage() {
   const id = useVaultIdFromRouteOrContext();
   const {
@@ -44,6 +53,7 @@ export function SendPage() {
     busy: shellBusy,
   } = useVault();
   const [vault, setVault] = useState<VaultDto | null>(shellVault);
+  const [step, setStep] = useState<SendStep>("compose");
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [address, setAddress] = useState("");
   const [amount, setAmount] = useState("");
@@ -62,6 +72,7 @@ export function SendPage() {
   const [cosignerPsbt, setCosignerPsbt] = useState("");
   const [finalized, setFinalized] = useState<FinalizedTxDto | null>(null);
   const [broadcastConfirm, setBroadcastConfirm] = useState(false);
+  const [broadcastTxid, setBroadcastTxid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -182,6 +193,7 @@ export function SendPage() {
     setFinalized(null);
     setSignStatus(null);
     setBroadcastConfirm(false);
+    setBroadcastTxid(null);
     try {
       const utxos = selectedUtxos();
       if (utxos.length === 0) {
@@ -210,16 +222,62 @@ export function SendPage() {
       });
       setPsbt(result);
       await refreshStatus(result.base64, activePathId);
+      setStep("sign");
       setMessage(
         path
           ? `PSBT ready for “${path.label}” — sign required keys, then combine.`
           : "Unsigned PSBT ready.",
       );
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       setError(formatError(err));
     } finally {
       setBusy(false);
     }
+  }
+
+  function goBackToCompose() {
+    if (step === "done") {
+      startNewSend();
+      return;
+    }
+    setStep("compose");
+    setBroadcastConfirm(false);
+    setError(null);
+    setMessage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function goToSign() {
+    if (!psbt || step === "done") return;
+    setStep("sign");
+    setBroadcastConfirm(false);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function goToBroadcast() {
+    if (!psbt || step === "done") return;
+    setStep("broadcast");
+    setBroadcastConfirm(false);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function startNewSend() {
+    setStep("compose");
+    setPsbt(null);
+    setFinalized(null);
+    setSignStatus(null);
+    setBroadcastConfirm(false);
+    setBroadcastTxid(null);
+    setAddress("");
+    setAmount("");
+    setSecretKey("");
+    setCosignerPsbt("");
+    setError(null);
+    setMessage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function onSign() {
@@ -348,7 +406,9 @@ export function SendPage() {
     try {
       const tx = await finalizePsbt(psbt.base64);
       setFinalized(tx);
-      setMessage(`Finalized ${tx.txid}`);
+      setStep("broadcast");
+      setMessage(`Finalized ${tx.txid} — review and broadcast`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -374,7 +434,10 @@ export function SendPage() {
         esploraUrl: getEsploraUrl() || null,
       });
       setBroadcastConfirm(false);
-      setMessage(`Broadcast ok · ${formatNetwork(vault?.policy.network ?? "testnet")} · txid ${txid}`);
+      setBroadcastTxid(txid);
+      setMessage(null);
+      setStep("done");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       await runSync({ quiet: true });
     } catch (err) {
       setError(formatError(err));
@@ -401,334 +464,545 @@ export function SendPage() {
         </Link>
       </header>
 
-      <div className="panel row-actions">
-        <button type="button" disabled={busy || shellBusy} onClick={() => void onSync()}>
-          {busy || shellBusy ? "Working…" : sync ? "Refresh UTXOs" : "1. Sync UTXOs"}
+      <nav className="send-steps" aria-label="Send steps">
+        <button
+          type="button"
+          className={step === "compose" ? "send-step active" : "send-step"}
+          onClick={goBackToCompose}
+          disabled={step === "done"}
+        >
+          <span className="send-step-num">1</span>
+          Compose
         </button>
-        {sync ? (
-          <span className="muted">
-            Balance {formatSats(sync.balance.confirmedSats)} · {sync.utxos.length}{" "}
-            UTXO(s)
-          </span>
-        ) : null}
-      </div>
-
-      {sync && sync.utxos.length > 0 ? (
-        <div className="panel">
-          <h3>Select inputs</h3>
-          <ul className="list">
-            {sync.utxos.map((utxo) => {
-              const key = `${utxo.txid}:${utxo.vout}`;
-              return (
-                <li key={key} className="list-item">
-                  <label className="check-row">
-                    <input
-                      type="checkbox"
-                      checked={!!selected[key]}
-                      onChange={(e) =>
-                        setSelected((prev) => ({
-                          ...prev,
-                          [key]: e.target.checked,
-                        }))
-                      }
-                    />
-                    <span>
-                      {formatSats(utxo.valueSats)} · idx {utxo.derivationIndex}
-                      {utxo.isChange ? " (change)" : ""}
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ) : null}
-
-      <form className="panel form-grid" onSubmit={(e) => void onSubmit(e)}>
-        <h3>2. Spending path & recipient</h3>
-        {paths.length > 0 ? (
-          <label>
-            Active spending path
-            <select
-              value={activePathId}
-              onChange={(e) => onSelectPath(e.target.value)}
-            >
-              {paths.map((path) => (
-                <option key={path.id} value={path.id}>
-                  {path.label}
-                  {path.timelockBlocks != null
-                    ? ` · older(${path.timelockBlocks})`
-                    : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        {activePath?.kind === "fallback" ? (
-          <p className="muted">
-            Timelock path — set BIP68 sequence to match{" "}
-            {activePath.timelockBlocks != null
-              ? `older(${activePath.timelockBlocks})`
-              : formatTimelockLabel("?")}
-            . Spending too early will fail finalize/device checks.
-          </p>
-        ) : null}
-        <label>
-          Address
-          <input
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="tb1…"
-            required
-          />
-        </label>
-        <label>
-          Amount (sats)
-          <input
-            type="number"
-            min={1}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Fee rate (sat/vB)
-          <input
-            type="number"
-            min={1}
-            value={feeRate}
-            onChange={(e) => setFeeRate(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Input sequence (BIP68 / older)
-          <input
-            type="number"
-            min={0}
-            value={inputSequence}
-            onChange={(e) => setInputSequence(e.target.value)}
-            placeholder={
-              activePath?.kind === "fallback"
-                ? "required for timelock path"
-                : "empty = RBF default"
-            }
-          />
-        </label>
-        <button type="submit" disabled={busy}>
-          3. Create PSBT
+        <span className="send-steps-divider" aria-hidden />
+        <button
+          type="button"
+          className={step === "sign" ? "send-step active" : "send-step"}
+          disabled={!psbt || step === "done"}
+          onClick={goToSign}
+        >
+          <span className="send-step-num">2</span>
+          Sign
         </button>
-      </form>
+        <span className="send-steps-divider" aria-hidden />
+        <button
+          type="button"
+          className={
+            step === "broadcast" || step === "done"
+              ? "send-step active"
+              : "send-step"
+          }
+          disabled={!psbt || step === "done"}
+          onClick={goToBroadcast}
+        >
+          <span className="send-step-num">{step === "done" ? "✓" : "3"}</span>
+          {step === "done" ? "Sent" : "Broadcast"}
+        </button>
+      </nav>
 
       {error ? <pre className="error">{error}</pre> : null}
       {message ? <p className="status">{message}</p> : null}
 
-      {psbt ? (
-        <div className="panel form-grid">
-          <h3>4. Sign / combine</h3>
-          {signStatus ? (
-            <div className="panel" style={{ margin: 0 }}>
-              <p>
-                <strong>{signStatus.summary}</strong>
-              </p>
-              <ul className="list compact">
-                {signStatus.keys.map((key) => (
-                  <li key={key.id}>
-                    <span className="mono">
-                      {key.id} · {key.fingerprint}
-                    </span>{" "}
-                    <span className="muted">({key.role})</span> —{" "}
-                    {key.status === "signed"
-                      ? "signed"
-                      : key.status === "unused"
-                        ? "not needed on this path"
-                        : "missing"}
-                  </li>
-                ))}
-              </ul>
-              <p className="muted">
-                Inputs with sigs: {signStatus.signedInputCount}/
-                {signStatus.totalInputs}
-              </p>
+      <div className="send-wizard">
+        <div
+          className="send-wizard-track"
+          data-step={step}
+          style={{ transform: SEND_STEP_OFFSET[step] }}
+        >
+          <div className="send-wizard-pane">
+            <div className="panel row-actions">
+              <button
+                type="button"
+                disabled={busy || shellBusy}
+                onClick={() => void onSync()}
+              >
+                {busy || shellBusy
+                  ? "Working…"
+                  : sync
+                    ? "Refresh UTXOs"
+                    : "Sync UTXOs"}
+              </button>
+              {sync ? (
+                <span className="muted">
+                  Balance {formatSats(sync.balance.confirmedSats)} ·{" "}
+                  {sync.utxos.length} UTXO(s)
+                </span>
+              ) : null}
             </div>
-          ) : null}
-          <p className="muted">
-            {psbt.inputCount} in / {psbt.outputCount} out · multi-device: sign each
-            required key, then Combine.
-          </p>
-          <textarea className="mono" rows={4} readOnly value={psbt.base64} />
-          <div className="row-actions">
-            <button
-              type="button"
-              className="secondary"
-              onClick={() =>
-                void copyText(psbt.base64).then(() =>
-                  setMessage("Copied PSBT base64"),
-                )
-              }
-            >
-              Copy PSBT
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy}
-              onClick={() => void refreshStatus(psbt.base64, activePathId)}
-            >
-              Refresh signature status
-            </button>
-          </div>
-          <label>
-            Hot wallet (unlocked keystore)
-            <select
-              value={hotWalletId}
-              onChange={(e) => setHotWalletId(e.target.value)}
-            >
-              <option value="">— select —</option>
-              {hotWallets.map((hw) => (
-                <option key={hw.id} value={hw.id}>
-                  {hw.name} · {hw.fingerprint}
-                </option>
-              ))}
-            </select>
-          </label>
-          {hotWallets.length === 0 ? (
-            <p className="muted">
-              Unlock / import under{" "}
-              <Link to="/hot-wallets">Hot wallets</Link> for one-click test
-              signing.
-            </p>
-          ) : null}
-          <button
-            type="button"
-            disabled={busy || !hotWalletId}
-            onClick={() => void onSignHot()}
-          >
-            Sign with hot wallet
-          </button>
-          <label>
-            Descriptor secret (tprv/xprv… with path)
-            <textarea
-              rows={2}
-              className="mono"
-              value={secretKey}
-              onChange={(e) => setSecretKey(e.target.value)}
-              placeholder="tprv…/86'/1'/0'/0/*"
-              autoComplete="off"
-            />
-          </label>
-          {vault?.policy.network === "mainnet" ? (
-            <>
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={allowMainnetHotKeys}
-                  onChange={(e) => setAllowMainnetHotKeys(e.target.checked)}
-                />
-                <span>Allow mainnet hot-key signing (dangerous)</span>
-              </label>
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={confirmMainnetHot}
-                  onChange={(e) => setConfirmMainnetHot(e.target.checked)}
-                />
-                <span>I understand this exposes private key material on this machine</span>
-              </label>
-            </>
-          ) : null}
-          <button
-            type="button"
-            disabled={busy || !secretKey.trim()}
-            onClick={() => void onSign()}
-          >
-            Sign with software key
-          </button>
-          <label>
-            Hardware fingerprint (HWI)
-            <input
-              className="mono"
-              value={hwFingerprint}
-              onChange={(e) => setHwFingerprint(e.target.value)}
-              placeholder="Set in Settings or paste here"
-            />
-          </label>
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy || !hwFingerprint.trim()}
-            onClick={() => void onHwSign()}
-          >
-            Sign with hardware
-          </button>
-          <label>
-            Cosigner PSBT (base64)
-            <textarea
-              rows={3}
-              className="mono"
-              value={cosignerPsbt}
-              onChange={(e) => setCosignerPsbt(e.target.value)}
-              placeholder="Paste partially signed PSBT from another signer"
-            />
-          </label>
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy || !cosignerPsbt.trim()}
-            onClick={() => void onCombine()}
-          >
-            Combine with cosigner PSBT
-          </button>
-          <div className="row-actions">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void onFinalize()}
-            >
-              5. Finalize
-            </button>
-            <button
-              type="button"
-              disabled={busy || (!psbt && !finalized)}
-              onClick={() => void onBroadcast()}
-            >
-              {broadcastConfirm
-                ? `Confirm broadcast (${vault ? formatNetwork(vault.policy.network) : "network"})`
-                : "6. Broadcast"}
-            </button>
-          </div>
-          {broadcastConfirm ? (
-            <p className="muted">
-              Broadcasting to{" "}
-              <strong>
-                {vault ? formatNetwork(vault.policy.network) : "unknown"}
-              </strong>
-              {getEsploraUrl() ? ` via ${getEsploraUrl()}` : " via default Esplora"}
-              . Click the button again to send.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
 
-      {finalized ? (
-        <div className="panel form-grid">
-          <h3>Finalized transaction</h3>
-          <p className="mono wrap">txid {finalized.txid}</p>
-          <textarea className="mono" rows={4} readOnly value={finalized.hex} />
-          <button
-            type="button"
-            className="secondary"
-            onClick={() =>
-              void copyText(finalized.hex).then(() =>
-                setMessage("Copied tx hex"),
-              )
-            }
-          >
-            Copy hex
-          </button>
+            {sync && sync.utxos.length > 0 ? (
+              <div className="panel">
+                <h3>Select inputs</h3>
+                <ul className="list compact">
+                  {sync.utxos.map((utxo) => {
+                    const key = `${utxo.txid}:${utxo.vout}`;
+                    return (
+                      <li key={key} className="list-item">
+                        <label className="check-row">
+                          <input
+                            type="checkbox"
+                            checked={!!selected[key]}
+                            onChange={(e) =>
+                              setSelected((prev) => ({
+                                ...prev,
+                                [key]: e.target.checked,
+                              }))
+                            }
+                          />
+                          <span>
+                            {formatSats(utxo.valueSats)} · idx{" "}
+                            {utxo.derivationIndex}
+                            {utxo.isChange ? " (change)" : ""}
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+
+            <form
+              className="panel form-grid"
+              onSubmit={(e) => void onSubmit(e)}
+            >
+              <h3>Recipient</h3>
+              {paths.length > 0 ? (
+                <label>
+                  Active spending path
+                  <select
+                    value={activePathId}
+                    onChange={(e) => onSelectPath(e.target.value)}
+                  >
+                    {paths.map((path) => (
+                      <option key={path.id} value={path.id}>
+                        {path.label}
+                        {path.timelockBlocks != null
+                          ? ` · older(${path.timelockBlocks})`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {activePath?.kind === "fallback" ? (
+                <p className="muted">
+                  Timelock path — set BIP68 sequence to match{" "}
+                  {activePath.timelockBlocks != null
+                    ? `older(${activePath.timelockBlocks})`
+                    : formatTimelockLabel("?")}
+                  . Spending too early will fail finalize/device checks.
+                </p>
+              ) : null}
+              <label>
+                Address
+                <input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="tb1…"
+                  required
+                />
+              </label>
+              <label>
+                Amount (sats)
+                <input
+                  type="number"
+                  min={1}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Fee rate (sat/vB)
+                <input
+                  type="number"
+                  min={1}
+                  value={feeRate}
+                  onChange={(e) => setFeeRate(e.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Input sequence (BIP68 / older)
+                <input
+                  type="number"
+                  min={0}
+                  value={inputSequence}
+                  onChange={(e) => setInputSequence(e.target.value)}
+                  placeholder={
+                    activePath?.kind === "fallback"
+                      ? "required for timelock path"
+                      : "empty = RBF default"
+                  }
+                />
+              </label>
+              <button type="submit" disabled={busy}>
+                {busy ? "Creating…" : "Create PSBT →"}
+              </button>
+            </form>
+          </div>
+
+          <div className="send-wizard-pane">
+            {!psbt ? (
+              <div className="panel">
+                <p className="muted">
+                  Create a PSBT first, then this step opens for signing.
+                </p>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={goBackToCompose}
+                >
+                  ← Back to compose
+                </button>
+              </div>
+            ) : (
+              <div className="panel form-grid">
+                <div className="row-actions send-pane-header">
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={goBackToCompose}
+                  >
+                    ← Edit draft
+                  </button>
+                  <h3>Sign</h3>
+                </div>
+                {signStatus ? (
+                  <div className="send-sign-status">
+                    <p>
+                      <strong>{signStatus.summary}</strong>
+                    </p>
+                    <ul className="list compact">
+                      {signStatus.keys.map((key) => (
+                        <li key={key.id}>
+                          <span className="mono">
+                            {key.id} · {key.fingerprint}
+                          </span>{" "}
+                          <span className="muted">({key.role})</span> —{" "}
+                          {key.status === "signed"
+                            ? "signed"
+                            : key.status === "unused"
+                              ? "not needed on this path"
+                              : "missing"}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="muted">
+                      Inputs with sigs: {signStatus.signedInputCount}/
+                      {signStatus.totalInputs}
+                    </p>
+                  </div>
+                ) : null}
+                <p className="muted">
+                  {psbt.inputCount} in / {psbt.outputCount} out · multi-device:
+                  sign each required key, then Combine.
+                </p>
+                <textarea
+                  className="mono"
+                  rows={3}
+                  readOnly
+                  value={psbt.base64}
+                />
+                <div className="row-actions">
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() =>
+                      void copyText(psbt.base64).then(() =>
+                        setMessage("Copied PSBT base64"),
+                      )
+                    }
+                  >
+                    Copy PSBT
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => void refreshStatus(psbt.base64, activePathId)}
+                  >
+                    Refresh status
+                  </button>
+                </div>
+                <label>
+                  Hot wallet (unlocked keystore)
+                  <select
+                    value={hotWalletId}
+                    onChange={(e) => setHotWalletId(e.target.value)}
+                  >
+                    <option value="">— select —</option>
+                    {hotWallets.map((hw) => (
+                      <option key={hw.id} value={hw.id}>
+                        {hw.name} · {hw.fingerprint}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {hotWallets.length === 0 ? (
+                  <p className="muted">
+                    Unlock / import under{" "}
+                    <Link to="/hot-wallets">Hot wallets</Link> for one-click
+                    test signing.
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={busy || !hotWalletId}
+                  onClick={() => void onSignHot()}
+                >
+                  Sign with hot wallet
+                </button>
+                <label>
+                  Descriptor secret (tprv/xprv… with path)
+                  <textarea
+                    rows={2}
+                    className="mono"
+                    value={secretKey}
+                    onChange={(e) => setSecretKey(e.target.value)}
+                    placeholder="tprv…/86'/1'/0'/0/*"
+                    autoComplete="off"
+                  />
+                </label>
+                {vault?.policy.network === "mainnet" ? (
+                  <>
+                    <label className="check-row">
+                      <input
+                        type="checkbox"
+                        checked={allowMainnetHotKeys}
+                        onChange={(e) =>
+                          setAllowMainnetHotKeys(e.target.checked)
+                        }
+                      />
+                      <span>Allow mainnet hot-key signing (dangerous)</span>
+                    </label>
+                    <label className="check-row">
+                      <input
+                        type="checkbox"
+                        checked={confirmMainnetHot}
+                        onChange={(e) =>
+                          setConfirmMainnetHot(e.target.checked)
+                        }
+                      />
+                      <span>
+                        I understand this exposes private key material on this
+                        machine
+                      </span>
+                    </label>
+                  </>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={busy || !secretKey.trim()}
+                  onClick={() => void onSign()}
+                >
+                  Sign with software key
+                </button>
+                <label>
+                  Hardware fingerprint (HWI)
+                  <input
+                    className="mono"
+                    value={hwFingerprint}
+                    onChange={(e) => setHwFingerprint(e.target.value)}
+                    placeholder="Set in Settings or paste here"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy || !hwFingerprint.trim()}
+                  onClick={() => void onHwSign()}
+                >
+                  Sign with hardware
+                </button>
+                <label>
+                  Cosigner PSBT (base64)
+                  <textarea
+                    rows={3}
+                    className="mono"
+                    value={cosignerPsbt}
+                    onChange={(e) => setCosignerPsbt(e.target.value)}
+                    placeholder="Paste partially signed PSBT from another signer"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy || !cosignerPsbt.trim()}
+                  onClick={() => void onCombine()}
+                >
+                  Combine with cosigner PSBT
+                </button>
+                <div className="row-actions">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onFinalize()}
+                  >
+                    {busy ? "Finalizing…" : "Finalize →"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={!psbt}
+                    onClick={goToBroadcast}
+                  >
+                    Broadcast →
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="send-wizard-pane">
+            {!psbt ? (
+              <div className="panel">
+                <p className="muted">Sign a PSBT first, then broadcast.</p>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={goBackToCompose}
+                >
+                  ← Back to compose
+                </button>
+              </div>
+            ) : (
+              <div className="panel form-grid">
+                <div className="row-actions send-pane-header">
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={goToSign}
+                  >
+                    ← Back to sign
+                  </button>
+                  <h3>Broadcast</h3>
+                </div>
+                <p className="muted">
+                  Network:{" "}
+                  <strong>
+                    {vault ? formatNetwork(vault.policy.network) : "unknown"}
+                  </strong>
+                  {getEsploraUrl()
+                    ? ` · ${getEsploraUrl()}`
+                    : " · default Esplora"}
+                </p>
+                {finalized ? (
+                  <>
+                    <p className="mono wrap">txid {finalized.txid}</p>
+                    <textarea
+                      className="mono"
+                      rows={4}
+                      readOnly
+                      value={finalized.hex}
+                    />
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() =>
+                        void copyText(finalized.hex).then(() =>
+                          setMessage("Copied tx hex"),
+                        )
+                      }
+                    >
+                      Copy hex
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="muted">
+                      Not finalized yet — broadcast will try to finalize from
+                      the PSBT, or go back and Finalize first.
+                    </p>
+                    <textarea
+                      className="mono"
+                      rows={3}
+                      readOnly
+                      value={psbt.base64}
+                    />
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() => void onFinalize()}
+                    >
+                      Finalize first
+                    </button>
+                  </>
+                )}
+                {broadcastConfirm ? (
+                  <p className="muted">
+                    Confirm sending to{" "}
+                    <strong>
+                      {vault
+                        ? formatNetwork(vault.policy.network)
+                        : "unknown"}
+                    </strong>
+                    . Click Broadcast again to publish.
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={busy || (!psbt && !finalized)}
+                  onClick={() => void onBroadcast()}
+                >
+                  {broadcastConfirm
+                    ? `Confirm broadcast (${vault ? formatNetwork(vault.policy.network) : "network"})`
+                    : "Broadcast"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="send-wizard-pane">
+            <div className="panel send-success">
+              <p className="send-success-eyebrow">Sent</p>
+              <h3>Transaction broadcast</h3>
+              <p className="muted">
+                Published on{" "}
+                <strong>
+                  {vault ? formatNetwork(vault.policy.network) : "network"}
+                </strong>
+                . It may take a moment to appear in history after sync.
+              </p>
+              {broadcastTxid ? (
+                <div className="send-success-txid">
+                  <span className="muted">txid</span>
+                  <p className="mono wrap">{broadcastTxid}</p>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() =>
+                      void copyText(broadcastTxid).then(() =>
+                        setMessage("Copied txid"),
+                      )
+                    }
+                  >
+                    Copy txid
+                  </button>
+                </div>
+              ) : null}
+              <div className="row-actions send-success-actions">
+                <Link
+                  className="button-link primary"
+                  to="../transactions"
+                  relative="path"
+                >
+                  View transactions
+                </Link>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={startNewSend}
+                >
+                  Send another
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      ) : null}
+      </div>
     </section>
   );
 }
