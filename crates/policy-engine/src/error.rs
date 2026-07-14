@@ -29,6 +29,9 @@ pub enum PolicyError {
     #[error("fallback key '{key}' is not defined")]
     UnknownFallbackKey { key: String },
 
+    #[error("fallback allow expression is empty")]
+    EmptyFallbackAllow,
+
     #[error("miniscript compile error: {0}")]
     MiniscriptCompile(String),
 }

@@ -2717,6 +2717,7 @@ name = "policy-engine"
 version = "0.1.0"
 dependencies = [
  "bitcoin",
+ "descriptor-engine",
  "miniscript",
  "serde",
  "serde_json",

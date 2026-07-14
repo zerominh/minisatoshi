@@ -28,6 +28,9 @@ pub fn validate(config: &PolicyConfig) -> Result<(), PolicyError> {
 
     for fallback in config.policy.all_fallbacks() {
         parse_duration(&fallback.after)?;
+        if fallback.allow.trim().is_empty() {
+            return Err(PolicyError::EmptyFallbackAllow);
+        }
         let allow_ast = parser::parse_expression(&fallback.allow).map_err(|e| {
             PolicyError::InvalidExpression(format!("fallback allow: {e}"))
         })?;
