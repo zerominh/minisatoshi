@@ -4,9 +4,18 @@ Offline-first desktop app for creating and managing Bitcoin vaults with Miniscri
 
 ## Status
 
-**v0.1.0** — Sprint 0–8 complete (MVP hardening + release tooling).
+**v0.2.x** — Phases 1–4 (vaults, signing, import/export, interop docs).
 
 See [CHANGELOG.md](CHANGELOG.md) and [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md).
+
+## Docs
+
+| Doc | Topic |
+|---|---|
+| [docs/interop.md](docs/interop.md) | Sparrow / Liana / Nunchuk / Core — fund vs watch vs sign |
+| [docs/bitcoin-core-miniscript.md](docs/bitcoin-core-miniscript.md) | `importdescriptors`, PSBT, multipath |
+| [docs/hardware-signing.md](docs/hardware-signing.md) | HWI, BIP-388, Coldcard |
+| [docs/policy-format.md](docs/policy-format.md) | Policy JSON schema |
 
 ## Tech stack
 
@@ -53,11 +62,15 @@ minisatoshi/
 │   ├── storage/           # SQLite persistence
 │   ├── wallet-core/       # wallet + vault lifecycle
 │   ├── address-engine/
-│   ├── blockchain/        # Esplora / Electrum / Sparrow interop
+│   ├── blockchain/        # Esplora / Electrum + fund/server presets
 │   ├── psbt-engine/
+│   ├── signing-devices/   # HWI
 │   └── vault/
 ├── docs/
 │   ├── DEVELOPMENT_PLAN.md
+│   ├── interop.md
+│   ├── bitcoin-core-miniscript.md
+│   ├── hardware-signing.md
 │   └── policy-format.md
 └── tests/vectors/         # Golden Taproot descriptor fixtures
 ```

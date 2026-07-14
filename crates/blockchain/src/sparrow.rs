@@ -138,10 +138,10 @@ pub fn default_server_presets(network: NetworkName) -> Vec<ServerPreset> {
 
 fn sparrow_import_instructions(network: NetworkName) -> String {
     format!(
-        "Sparrow does not import Miniscript / Taproot script-path vaults (inheritance timelocks). \
-         To fund: copy a receive address from Minisatoshi and send from Sparrow (network {:?}). \
-         To watch the full vault policy, use Liana, Nunchuk, or Bitcoin Core instead. \
-         The descriptor below is still useful as a backup / for those wallets.",
+        "Sparrow: fund only — copy a Minisatoshi receive address and send (network {:?}). \
+         Sparrow does not import or sign arbitrary Miniscript / Taproot script-path vaults. \
+         Watch or sign with Minisatoshi (HW/software), Bitcoin Core, or Nunchuk. \
+         The descriptor below is a backup for those wallets — see docs/interop.md.",
         network
     )
 }

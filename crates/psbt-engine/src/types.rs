@@ -52,7 +52,7 @@ pub struct SignProgress {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportFormat {
-    /// PSBT as a base64 string (Sparrow paste/import).
+    /// PSBT as a base64 string (BIP-174; paste into Core / Nunchuk / Minisatoshi).
     Base64,
     /// Raw PSBT binary (.psbt file bytes).
     File,

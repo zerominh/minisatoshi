@@ -322,7 +322,12 @@ export function SettingsPage() {
       {error ? <pre className="error">{error}</pre> : null}
 
       <div className="panel">
-        <h3>Sparrow-compatible server presets</h3>
+        <h3>Server presets (Esplora / Electrum)</h3>
+        <p className="muted">
+          Same public endpoints many Sparrow users pick for chain sync. Presets
+          do not mean Sparrow can import Miniscript vaults — fund by address;
+          sign in Minisatoshi / Core / Nunchuk (docs/interop.md).
+        </p>
         <ul className="list">
           {presets.map((preset) => (
             <li key={`${preset.backend}-${preset.url}`} className="list-item">

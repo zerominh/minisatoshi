@@ -66,7 +66,7 @@ export function VaultDetailPage() {
       );
       if (path) {
         setMessage(
-          `Saved to ${path} — for Liana / Nunchuk / Bitcoin Core (Sparrow cannot import Miniscript vaults)`,
+          `Saved to ${path} — for Core / Nunchuk / Minisatoshi import (Sparrow: fund address only)`,
         );
       }
     } catch (err) {

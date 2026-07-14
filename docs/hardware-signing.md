@@ -2,6 +2,8 @@
 
 Minisatoshi is watch-only by default. Hardware wallets sign via **HWI**; secrets never leave the device.
 
+See also: [Interop matrix](interop.md) · [Bitcoin Core + Miniscript](bitcoin-core-miniscript.md)
+
 ## Supported path
 
 1. Create / open a Taproot vault (e.g. ABC `(A && B) || (A && C)`).

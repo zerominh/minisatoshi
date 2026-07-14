@@ -71,7 +71,7 @@ export function ReceivePage() {
       );
       if (path) {
         setMessage(
-          `Saved to ${path} — for Liana / Nunchuk / Bitcoin Core (Sparrow cannot import Miniscript vaults)`,
+          `Saved to ${path} — for Core / Nunchuk / Minisatoshi import (Sparrow: fund address only)`,
         );
       }
     } catch (err) {
@@ -124,10 +124,9 @@ export function ReceivePage() {
         <div className="panel">
           <h3>Descriptor backup</h3>
           <p className="muted">
-            Fund by sending to the address on the left. For watch-only share the
-            descriptor or use Vault → Export vault backup. Sign in Minisatoshi
-            (HW/software), Bitcoin Core, Liana, or Nunchuk — not Sparrow for
-            arbitrary Miniscript.
+            Fund by sending to the address on the left. For watch-only share use
+            Vault → Share. Sign in Minisatoshi (HW/software), Bitcoin Core, or
+            Nunchuk — Sparrow funds addresses only (see docs/interop.md).
           </p>
           {vault ? (
             <>
@@ -147,7 +146,7 @@ export function ReceivePage() {
                   Save descriptor file
                 </button>
                 <button type="button" onClick={() => void onSparrowExport()}>
-                  Compatibility notes
+                  Fund / interop notes
                 </button>
               </div>
             </>

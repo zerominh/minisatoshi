@@ -182,7 +182,10 @@ export function ShareVaultPage() {
               They can sync balances and receive; signing still needs hardware,
               software keys, Core, Liana, or Nunchuk.
             </li>
-            <li>Sparrow can fund an address but cannot import arbitrary Miniscript.</li>
+            <li>
+              Sparrow: fund a receive address only — not import/sign Miniscript
+              vaults (docs/interop.md).
+            </li>
           </ol>
           <p className="mono wrap">{vault.descriptor}</p>
           <div className="row-actions">

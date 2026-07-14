@@ -746,14 +746,14 @@ Docs trung thực (cập nhật giả định cũ “Sparrow sign”):
 
 | Tài liệu | Nội dung |
 |---|---|
-| `docs/interop.md` | Ma trận: Sparrow / Liana / Nunchuk / Core — fund vs watch vs sign |
-| `docs/bitcoin-core-miniscript.md` | `importdescriptors`, `walletprocesspsbt`, multipath `<0;1>/*`, Core ≥ 26 |
-| `docs/hardware-signing.md` | (từ GĐ3) link lại |
-| Sparrow presets | Giữ server presets; **không** hướng dẫn import Miniscript vault |
+| `docs/interop.md` | Ma trận: Sparrow / Liana / Nunchuk / Core — fund vs watch vs sign ✅ |
+| `docs/bitcoin-core-miniscript.md` | `importdescriptors`, `walletprocesspsbt`, multipath `<0;1>/*`, Core ≥ 26 ✅ |
+| `docs/hardware-signing.md` | (từ GĐ3) linked từ interop + Core guide ✅ |
+| Sparrow presets | Giữ server presets; UI ghi rõ fund-only / không import Miniscript ✅ |
 
-**UI copy audit:** mọi string “paste into Sparrow to sign” → Core / Nunchuk / in-app sign.
+**UI copy audit:** mọi string “paste into Sparrow to sign” → Core / Nunchuk / in-app sign. ✅
 
-**Exit criteria Giai đoạn 4:** User mới đọc docs → biết kênh nào fund, kênh nào ký; import descriptor vào Minisatoshi ra đúng địa chỉ đã fund.
+**Exit criteria Giai đoạn 4:** User mới đọc docs → biết kênh nào fund, kênh nào ký; import descriptor vào Minisatoshi ra đúng địa chỉ đã fund. ✅
 
 ---
 
@@ -924,12 +924,12 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Giai đoạn 4: Sprint 13 descriptor import/export ✅
-  → Sprint 14 QR / watch-only / BSMS-ish
+Giai đoạn 4 Import/Export & interop ✅
+  Sprint 13 backup/import · 14 QR/watch-only/BSMS · 15 interop docs
 ```
 
-Pipeline: … → **Backup/Import descriptor (minisatoshi-vault-v1)** → UI ✅.
-Bước kế: **Sprint 14 — QR descriptor / watch-only workflows**.
+Pipeline: Policy → Descriptor → Address → Sync → PSBT → Sign → Broadcast → Backup/Share ✅.
+Bước kế (optional): **Giai đoạn 5 — Fund Management** (Sprint 16+) — chỉ khi cần org/NAV; server vẫn không giữ key.
 
 ---
 
