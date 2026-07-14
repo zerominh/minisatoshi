@@ -74,3 +74,31 @@ pub(crate) fn script_type_to_str(script_type: ScriptTypeName) -> &'static str {
         ScriptTypeName::Wsh => "wsh",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use policy_engine::NetworkName;
+
+    #[test]
+    fn network_from_str_accepts_testnet3_alias() {
+        assert_eq!(network_from_str("testnet").unwrap(), NetworkName::Testnet);
+        assert_eq!(network_from_str("testnet3").unwrap(), NetworkName::Testnet);
+        assert_eq!(network_from_str("testnet4").unwrap(), NetworkName::Testnet4);
+    }
+
+    #[test]
+    fn network_to_str_roundtrips_known_networks() {
+        assert_eq!(network_to_str(NetworkName::Testnet), "testnet");
+        assert_eq!(network_to_str(NetworkName::Testnet4), "testnet4");
+        assert_eq!(
+            network_from_str(network_to_str(NetworkName::Signet)).unwrap(),
+            NetworkName::Signet
+        );
+    }
+
+    #[test]
+    fn network_from_str_rejects_unknown() {
+        assert!(network_from_str("nonsense").is_err());
+    }
+}

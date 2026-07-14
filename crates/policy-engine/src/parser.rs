@@ -181,8 +181,21 @@ mod tests {
     }
 
     #[test]
-    fn parses_simple_and() {
-        let expr = parse_expression("A && B").unwrap();
-        assert!(matches!(expr, Expr::And(_, _)));
+    fn rejects_single_ampersand() {
+        let err = parse_expression("A & B").unwrap_err();
+        assert!(matches!(err, PolicyError::InvalidExpression(_)));
+    }
+
+    #[test]
+    fn and_binds_tighter_than_or() {
+        // A || B && C ≡ A || (B && C)
+        let expr = parse_expression("A || B && C").unwrap();
+        match expr {
+            Expr::Or(left, right) => {
+                assert!(matches!(*left, Expr::Key(_)));
+                assert!(matches!(*right, Expr::And(_, _)));
+            }
+            other => panic!("expected Or, got {other:?}"),
+        }
     }
 }

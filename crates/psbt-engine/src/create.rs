@@ -258,4 +258,85 @@ mod tests {
             sequence
         );
     }
+
+    #[test]
+    fn rejects_insufficient_funds() {
+        let vault = two_of_two_vault();
+        let receive =
+            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+        let recipient =
+            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+
+        let err = create_psbt(
+            &vault,
+            &[PsbtRecipient {
+                address: recipient.address,
+                amount_sats: 90_000,
+            }],
+            FeeRate::new(10),
+            &[SpendingUtxo::new(
+                blockchain::Utxo {
+                    txid: "33".repeat(32),
+                    vout: 0,
+                    value_sats: 50_000,
+                    address: receive.address,
+                    confirmed: true,
+                    block_height: Some(1),
+                    derivation_index: 0,
+                    is_change: false,
+                },
+                0,
+                false,
+            )],
+            CreatePsbtOptions::default(),
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            PsbtError::InsufficientFunds {
+                available: 50_000,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn rejects_dust_change_as_insufficient() {
+        let vault = two_of_two_vault();
+        let receive =
+            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+        let recipient =
+            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+
+        // Craft fee so leftover change is between 1 and 546 sats.
+        // estimate_vbytes(1 in, 2 out) = 10 + 58 + 86 = 154; fee_rate 324 → fee 49896
+        // input 50000 - recipient 50 - fee 49896 = 54 (dust)
+        let err = create_psbt(
+            &vault,
+            &[PsbtRecipient {
+                address: recipient.address,
+                amount_sats: 50,
+            }],
+            FeeRate::new(324),
+            &[SpendingUtxo::new(
+                blockchain::Utxo {
+                    txid: "44".repeat(32),
+                    vout: 0,
+                    value_sats: 50_000,
+                    address: receive.address,
+                    confirmed: true,
+                    block_height: Some(1),
+                    derivation_index: 0,
+                    is_change: false,
+                },
+                0,
+                false,
+            )],
+            CreatePsbtOptions::default(),
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, PsbtError::InsufficientFunds { .. }));
+    }
 }

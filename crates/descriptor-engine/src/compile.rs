@@ -238,4 +238,35 @@ mod tests {
         assert!(leaves[1].contains(&format!("older({})", 4 * blocks_per_year())));
         compile_descriptor_from_config(&config).unwrap();
     }
+
+    #[test]
+    fn mainnet_abc_matches_golden_vector() {
+        let json: PolicyConfig = serde_json::from_str(include_str!(
+            "../../../tests/vectors/policy_abc_mainnet.json"
+        ))
+        .unwrap();
+        assert_eq!(json.network, NetworkName::Mainnet);
+        let descriptor = compile_descriptor_from_config(&json).unwrap();
+        let expected =
+            include_str!("../../../tests/vectors/policy_abc_mainnet_descriptor.txt").trim();
+        assert_eq!(descriptor, expected);
+    }
+
+    #[test]
+    fn wsh_script_type_compiles() {
+        let keys = sample_keys();
+        let config = PolicyConfig {
+            version: 1,
+            network: NetworkName::Testnet,
+            script_type: ScriptTypeName::Wsh,
+            keys: keys.into(),
+            policy: PolicyExpression {
+                primary: "A && B".into(),
+                fallback: None,
+            },
+        };
+        let descriptor = compile_descriptor_from_config(&config).unwrap();
+        assert!(descriptor.starts_with("wsh("));
+        assert!(descriptor.contains('#'));
+    }
 }

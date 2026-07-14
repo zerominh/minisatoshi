@@ -78,3 +78,106 @@ fn validate_expr_keys(expr: &Expr, config: &PolicyConfig) -> Result<(), PolicyEr
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{
+        FallbackPolicy, KeyConfig, KeyRole, NetworkName, PolicyExpression, ScriptTypeName,
+    };
+    use crate::test_vectors::{TEST_FP, TEST_XPUB_A, TEST_XPUB_B};
+
+    fn base_config(keys: Vec<KeyConfig>) -> PolicyConfig {
+        PolicyConfig {
+            version: POLICY_SCHEMA_VERSION,
+            network: NetworkName::Testnet,
+            script_type: ScriptTypeName::Taproot,
+            keys,
+            policy: PolicyExpression {
+                primary: "A && B".into(),
+                fallback: None,
+            },
+        }
+    }
+
+    fn key(id: &str, xpub: &str, fingerprint: &str) -> KeyConfig {
+        KeyConfig {
+            id: id.into(),
+            role: KeyRole::Investor,
+            xpub: xpub.into(),
+            fingerprint: fingerprint.into(),
+            origin_path: None,
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_fingerprint() {
+        let config = base_config(vec![
+            key("A", TEST_XPUB_A, "zzz"),
+            key("B", TEST_XPUB_B, TEST_FP),
+        ]);
+        assert!(matches!(
+            validate(&config),
+            Err(PolicyError::InvalidFingerprint { .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_invalid_xpub_prefix() {
+        let config = base_config(vec![
+            key("A", "not-an-xpub", "78412e3a"),
+            key("B", TEST_XPUB_B, TEST_FP),
+        ]);
+        assert!(matches!(
+            validate(&config),
+            Err(PolicyError::InvalidXpub { .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_duplicate_key_id() {
+        let config = base_config(vec![
+            key("A", TEST_XPUB_A, "78412e3a"),
+            key("A", TEST_XPUB_B, TEST_FP),
+        ]);
+        assert_eq!(
+            validate(&config),
+            Err(PolicyError::DuplicateKeyId("A".into()))
+        );
+    }
+
+    #[test]
+    fn rejects_unsupported_version() {
+        let mut config = base_config(vec![
+            key("A", TEST_XPUB_A, "78412e3a"),
+            key("B", TEST_XPUB_B, TEST_FP),
+        ]);
+        config.version = 99;
+        assert_eq!(validate(&config), Err(PolicyError::UnsupportedVersion(99)));
+    }
+
+    #[test]
+    fn rejects_unknown_fallback_key() {
+        let mut config = base_config(vec![
+            key("A", TEST_XPUB_A, "78412e3a"),
+            key("B", TEST_XPUB_B, TEST_FP),
+        ]);
+        config.policy.fallback = Some(FallbackPolicy {
+            after: "4y".into(),
+            allow: "Z".into(),
+        });
+        assert!(matches!(
+            validate(&config),
+            Err(PolicyError::UnknownFallbackKey { .. })
+        ));
+    }
+
+    #[test]
+    fn accepts_valid_abc_config() {
+        let config = base_config(vec![
+            key("A", TEST_XPUB_A, "78412e3a"),
+            key("B", TEST_XPUB_B, TEST_FP),
+        ]);
+        validate(&config).unwrap();
+    }
+}

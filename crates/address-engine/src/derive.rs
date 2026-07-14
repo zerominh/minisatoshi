@@ -204,4 +204,27 @@ mod tests {
         let address = new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
         assert!(address.address.starts_with("tb1"));
     }
+
+    #[test]
+    fn testnet4_receive_address_is_valid_for_network() {
+        let keys = sample_keys();
+        let policy = abc_preset(
+            keys[0].clone(),
+            keys[1].clone(),
+            keys[2].clone(),
+            4,
+            NetworkName::Testnet4,
+        );
+        let descriptor = compile_descriptor_from_config(&policy).unwrap();
+        let receive = new_receive_address(&policy, &descriptor, 0).unwrap();
+
+        assert!(receive.address.starts_with("tb1"));
+        let parsed = receive
+            .address
+            .parse::<bitcoin::Address<bitcoin::address::NetworkUnchecked>>()
+            .unwrap()
+            .require_network(bitcoin::Network::Testnet4)
+            .unwrap();
+        assert_eq!(parsed.to_string(), receive.address);
+    }
 }

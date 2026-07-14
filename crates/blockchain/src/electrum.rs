@@ -1,7 +1,9 @@
+//! Electrum protocol backend (JSON-RPC over HTTP).
+
 use std::collections::HashMap;
 use std::time::Duration;
 
-use bitcoin::hashes::{sha256d, Hash};
+use bitcoin::hashes::{sha256, Hash};
 use policy_engine::NetworkName;
 use reqwest::blocking::Client;
 use serde::Deserialize;
@@ -196,20 +198,17 @@ pub fn default_electrum_url(network: NetworkName) -> &'static str {
     }
 }
 
+/// Electrum scripthash = reverse(SHA256(scriptPubKey)), hex-encoded.
 fn address_to_scripthash(address: &str) -> Result<String, ChainError> {
     let parsed = address
         .parse::<bitcoin::Address<bitcoin::address::NetworkUnchecked>>()
         .map_err(|e| ChainError::Parse(e.to_string()))?
         .assume_checked();
     let script = parsed.script_pubkey();
-    let hash = sha256d::Hash::hash(script.as_bytes());
-    Ok(hex::encode(
-        hash.to_byte_array()
-            .iter()
-            .rev()
-            .copied()
-            .collect::<Vec<_>>(),
-    ))
+    let digest = sha256::Hash::hash(script.as_bytes());
+    let mut bytes = digest.to_byte_array();
+    bytes.reverse();
+    Ok(hex::encode(bytes))
 }
 
 mod hex {
@@ -244,34 +243,19 @@ struct ElectrumUtxo {
 
 #[cfg(test)]
 mod tests {
-    use policy_engine::{abc_preset, NetworkName};
+    use bitcoin::hashes::{sha256, Hash};
+    use httpmock::prelude::*;
+    use policy_engine::{
+        abc_preset, test_vectors::TEST_FP, test_vectors::TEST_XPUB_A, test_vectors::TEST_XPUB_B,
+        test_vectors::TEST_XPUB_C, KeyConfig, KeyRole, NetworkName,
+    };
+    use serde_json::json;
 
-    use super::{address_to_scripthash, default_electrum_url};
+    use super::{address_to_scripthash, default_electrum_url, ElectrumBackend};
+    use crate::backend::BlockchainBackend;
+    use crate::query::DescriptorQuery;
 
-    #[test]
-    fn scripthash_is_reversed_sha256() {
-        let keys = sample_keys_from_policy_engine();
-        let policy = abc_preset(
-            keys[0].clone(),
-            keys[1].clone(),
-            keys[2].clone(),
-            4,
-            NetworkName::Testnet,
-        );
-        let descriptor = descriptor_engine::compile_descriptor_from_config(&policy).unwrap();
-        let address = address_engine::new_receive_address(&policy, &descriptor, 0)
-            .unwrap()
-            .address;
-
-        let hash = address_to_scripthash(&address).unwrap();
-        assert_eq!(hash.len(), 64);
-    }
-
-    fn sample_keys_from_policy_engine() -> [policy_engine::KeyConfig; 3] {
-        use policy_engine::{
-            test_vectors::TEST_FP, test_vectors::TEST_XPUB_A, test_vectors::TEST_XPUB_B,
-            test_vectors::TEST_XPUB_C, KeyConfig, KeyRole,
-        };
+    fn sample_keys() -> [KeyConfig; 3] {
         [
             KeyConfig {
                 id: "A".into(),
@@ -297,8 +281,71 @@ mod tests {
         ]
     }
 
+    fn sample_policy() -> (policy_engine::PolicyConfig, String) {
+        let keys = sample_keys();
+        let policy = abc_preset(
+            keys[0].clone(),
+            keys[1].clone(),
+            keys[2].clone(),
+            4,
+            NetworkName::Testnet,
+        );
+        let descriptor = descriptor_engine::compile_descriptor_from_config(&policy).unwrap();
+        (policy, descriptor)
+    }
+
     #[test]
-    fn electrum_url_presets_exist() {
+    fn scripthash_matches_electrum_sha256_reversed() {
+        let (policy, descriptor) = sample_policy();
+        let address = address_engine::new_receive_address(&policy, &descriptor, 0)
+            .unwrap()
+            .address;
+
+        let script = address
+            .parse::<bitcoin::Address<bitcoin::address::NetworkUnchecked>>()
+            .unwrap()
+            .assume_checked()
+            .script_pubkey();
+        let digest = sha256::Hash::hash(script.as_bytes());
+        let mut expected_bytes = digest.to_byte_array();
+        expected_bytes.reverse();
+        let expected: String = expected_bytes.iter().map(|b| format!("{b:02x}")).collect();
+
+        assert_eq!(address_to_scripthash(&address).unwrap(), expected);
+    }
+
+    #[test]
+    fn electrum_url_presets_cover_testnets() {
         assert!(default_electrum_url(NetworkName::Testnet).contains("testnet"));
+        assert_eq!(
+            default_electrum_url(NetworkName::Testnet4),
+            "http://127.0.0.1:3004"
+        );
+    }
+
+    #[test]
+    fn electrum_sync_empty_via_httpmock() {
+        let server = MockServer::start();
+        // Empty history ⇒ gap-limit discover finds zero active addresses.
+        server.mock(|when, then| {
+            when.method(POST)
+                .body_includes("blockchain.scripthash.get_history");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(json!({"jsonrpc":"2.0","id":1,"result":[]}));
+        });
+
+        let (policy, descriptor) = sample_policy();
+        let backend = ElectrumBackend::new(server.base_url())
+            .unwrap()
+            .with_gap_limit(2);
+        let result = backend
+            .sync(&DescriptorQuery::new(policy, descriptor), &|_| {})
+            .unwrap();
+
+        assert_eq!(result.balance.confirmed_sats, 0);
+        assert!(result.utxos.is_empty());
+        assert_eq!(result.scanned_receive_count, 0);
+        assert_eq!(result.scanned_change_count, 0);
     }
 }

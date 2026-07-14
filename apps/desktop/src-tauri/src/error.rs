@@ -75,4 +75,21 @@ mod tests {
             "insufficient funds: need 100 sats, have 50 sats"
         );
     }
+
+    #[test]
+    fn user_facing_error_redacts_wrapped_display() {
+        #[derive(Debug)]
+        struct Wrapped(&'static str);
+        impl std::fmt::Display for Wrapped {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "signing error: {}", self.0)
+            }
+        }
+
+        let msg = user_facing_error(Wrapped(
+            "tprvABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz123456789",
+        ));
+        assert!(msg.contains("[redacted-private-key]"));
+        assert!(!msg.contains("tprv"));
+    }
 }
