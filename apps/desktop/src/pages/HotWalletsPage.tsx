@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   MnemonicGrid,
   mnemonicIsComplete,
@@ -13,38 +13,36 @@ import {
   hotKeystoreStatus,
   importHotWallet,
   listHotWallets,
-  listWallets,
   lockHotKeystore,
   unlockHotKeystore,
 } from "../lib/api";
-import {
-  formatNetwork,
-  getActiveWalletId,
-  getPreferredNetwork,
-  setActiveWalletId,
-} from "../lib/settings";
+import { formatNetwork, getPreferredNetwork } from "../lib/settings";
 import type {
   HotKeystoreStatusDto,
   HotWalletSummaryDto,
   NetworkName,
-  WalletSummaryDto,
 } from "../lib/types";
+
+const NETWORKS: NetworkName[] = [
+  "testnet4",
+  "testnet",
+  "signet",
+  "regtest",
+  "mainnet",
+];
 
 export function HotWalletsPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<HotKeystoreStatusDto | null>(null);
-  const [wallets, setWallets] = useState<WalletSummaryDto[]>([]);
   const [hotWallets, setHotWallets] = useState<HotWalletSummaryDto[]>([]);
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("Test hot");
+  const [name, setName] = useState("My hot wallet");
   const [wordCount, setWordCount] = useState<WordCount>(24);
   const [words, setWords] = useState<string[]>(() => Array(24).fill(""));
   const [advancedJson, setAdvancedJson] = useState(false);
   const [jsonPayload, setJsonPayload] = useState("");
   const [passphrase, setPassphrase] = useState("");
-  const [walletId, setWalletId] = useState(getActiveWalletId() ?? "");
   const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
-  const [createNested, setCreateNested] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -60,23 +58,7 @@ export function HotWalletsPage() {
   }
 
   useEffect(() => {
-    void (async () => {
-      try {
-        const items = await listWallets();
-        setWallets(items);
-        if (!walletId && items[0]) {
-          setWalletId(items[0].id);
-          setActiveWalletId(items[0].id);
-          setNetwork(items[0].network);
-        } else if (walletId) {
-          const w = items.find((i) => i.id === walletId);
-          if (w) setNetwork(w.network);
-        }
-        await refresh();
-      } catch (err) {
-        setError(formatError(err));
-      }
-    })();
+    void refresh().catch((err) => setError(formatError(err)));
   }, []);
 
   async function onCreateOrUnlock(event: FormEvent) {
@@ -115,15 +97,13 @@ export function HotWalletsPage() {
 
   async function onImport(event: FormEvent) {
     event.preventDefault();
-    if (!walletId) {
-      setError("Select a parent wallet first");
-      return;
-    }
     const mnemonicOrJson = advancedJson
       ? jsonPayload.trim()
       : wordsToMnemonic(words);
     if (!advancedJson && !mnemonicIsComplete(words, wordCount)) {
-      setError(`Enter all ${wordCount} valid BIP-39 words (or paste / scan SeedQR)`);
+      setError(
+        `Enter all ${wordCount} valid BIP-39 words (or paste / scan SeedQR)`,
+      );
       return;
     }
     if (!mnemonicOrJson) {
@@ -138,21 +118,15 @@ export function HotWalletsPage() {
         mnemonicOrJson,
         bip39Passphrase: passphrase || undefined,
         network,
-        walletId,
-        createNestedVault: createNested,
+        walletId: "",
+        createNestedVault: true,
       });
       setWords(Array(wordCount).fill(""));
       setJsonPayload("");
       setPassphrase("");
-      setMessage(
-        result.vault
-          ? `Imported “${result.hotWallet.name}” → vault ${result.vault.name}`
-          : `Imported “${result.hotWallet.name}” (no nested vault)`,
-      );
+      setMessage(`Imported “${result.hotWallet.name}”`);
       await refresh();
-      if (result.vault) {
-        navigate(`/vaults/${result.vault.id}`);
-      }
+      navigate(`/hot-wallets/${result.hotWallet.id}`);
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -183,14 +157,11 @@ export function HotWalletsPage() {
         <div>
           <h2>Hot wallets</h2>
           <p>
-            BIP-39 import for quick test signing (Sparrow-like grid + SeedQR).
-            Nested vault lives under a Minisatoshi wallet. Encrypted with master
-            password (Argon2id + XChaCha20).
+            Import a BIP-39 seed and use it like a normal Bitcoin wallet —
+            transactions, send, receive. Seed stays encrypted (Argon2id +
+            XChaCha20).
           </p>
         </div>
-        <Link className="button-link" to="/vaults">
-          Vaults
-        </Link>
       </header>
 
       {error ? <pre className="error">{error}</pre> : null}
@@ -207,7 +178,10 @@ export function HotWalletsPage() {
         </h3>
         <p className="muted mono wrap">{status?.path ?? "…"}</p>
         {!status?.unlocked ? (
-          <form className="form-grid" onSubmit={(e) => void onCreateOrUnlock(e)}>
+          <form
+            className="form-grid"
+            onSubmit={(e) => void onCreateOrUnlock(e)}
+          >
             <label>
               Master password
               <input
@@ -227,7 +201,11 @@ export function HotWalletsPage() {
             </button>
           </form>
         ) : (
-          <button type="button" className="secondary" onClick={() => void onLock()}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => void onLock()}
+          >
             Lock keystore
           </button>
         )}
@@ -238,20 +216,14 @@ export function HotWalletsPage() {
           <form className="panel form-grid" onSubmit={(e) => void onImport(e)}>
             <h3>Import BIP-39 seed</h3>
             <label>
-              Parent wallet (nested vault)
+              Network
               <select
-                value={walletId}
-                onChange={(e) => {
-                  setWalletId(e.target.value);
-                  setActiveWalletId(e.target.value);
-                  const w = wallets.find((i) => i.id === e.target.value);
-                  if (w) setNetwork(w.network);
-                }}
-                required
+                value={network}
+                onChange={(e) => setNetwork(e.target.value as NetworkName)}
               >
-                {wallets.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} ({formatNetwork(w.network)})
+                {NETWORKS.map((n) => (
+                  <option key={n} value={n}>
+                    {formatNetwork(n)}
                   </option>
                 ))}
               </select>
@@ -276,7 +248,7 @@ export function HotWalletsPage() {
 
             {advancedJson ? (
               <label>
-                Mnemonic JSON {"{ \"mnemonic\": \"…\" }"} or raw words
+                Mnemonic JSON {'{ "mnemonic": "…" }'} or raw words
                 <textarea
                   className="mono"
                   rows={4}
@@ -305,20 +277,9 @@ export function HotWalletsPage() {
                 autoComplete="off"
               />
             </label>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={createNested}
-                onChange={(e) => setCreateNested(e.target.checked)}
-              />
-              <span>
-                Create nested Taproot vault (policy <span className="mono">A</span>
-                ) under parent wallet
-              </span>
-            </label>
             <p className="muted">
-              Derives BIP-86 on {formatNetwork(network)}. SeedQR: Sparrow “Show
-              SeedQR” or SeedSigner (standard + compact). Prefer offline scan.
+              BIP-86 Taproot on {formatNetwork(network)}. SeedQR from Sparrow /
+              SeedSigner supported.
             </p>
             <button type="submit" disabled={busy || !canImport}>
               {busy ? "Importing…" : "Import hot wallet"}
@@ -326,30 +287,32 @@ export function HotWalletsPage() {
           </form>
 
           <div className="panel">
-            <h3>Stored hot wallets</h3>
+            <h3>Your hot wallets</h3>
+            <p className="muted">
+              Tap a wallet to open Transactions / Send / Receive.
+            </p>
             {hotWallets.length === 0 ? (
               <p className="muted">None yet.</p>
             ) : (
               <ul className="list">
                 {hotWallets.map((hw) => (
                   <li key={hw.id} className="list-item">
-                    <div>
+                    <button
+                      type="button"
+                      className="list-item-main"
+                      disabled={busy}
+                      onClick={() => navigate(`/hot-wallets/${hw.id}`)}
+                    >
                       <strong>{hw.name}</strong>
                       <div className="muted">
                         {formatNetwork(hw.network)} · fp{" "}
                         <span className="mono">{hw.fingerprint}</span>
                       </div>
-                      <div className="mono wrap muted">{hw.xpub.slice(0, 24)}…</div>
-                    </div>
+                      <div className="mono wrap muted">
+                        {hw.xpub.slice(0, 24)}…
+                      </div>
+                    </button>
                     <div className="row-actions">
-                      {hw.linkedVaultId ? (
-                        <Link
-                          className="button-link"
-                          to={`/vaults/${hw.linkedVaultId}`}
-                        >
-                          Open vault
-                        </Link>
-                      ) : null}
                       <button
                         type="button"
                         className="secondary"

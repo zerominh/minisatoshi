@@ -113,6 +113,12 @@ export async function newReceiveAddress(
   return invoke("new_receive_address", { vaultId });
 }
 
+export async function listAddresses(
+  vaultId: string,
+): Promise<AddressDto[]> {
+  return invoke("list_addresses", { vaultId });
+}
+
 export async function getBalance(
   vaultId: string,
   esploraUrl?: string,
@@ -173,6 +179,17 @@ export async function importHotWallet(
   request: ImportHotWalletRequest,
 ): Promise<ImportHotWalletResultDto> {
   return invoke("import_hot_wallet", { request });
+}
+
+/** Resolve (or create) the nested vault for a hot wallet — opens Transactions/Send/Receive. */
+export async function openHotWallet(
+  hotWalletId: string,
+  walletId?: string | null,
+): Promise<VaultDto> {
+  return invoke("open_hot_wallet", {
+    hotWalletId,
+    walletId: walletId ?? null,
+  });
 }
 
 export async function deleteHotWallet(hotWalletId: string): Promise<void> {

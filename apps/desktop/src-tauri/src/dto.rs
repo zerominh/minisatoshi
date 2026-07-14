@@ -298,7 +298,8 @@ pub struct ImportHotWalletRequestDto {
     #[serde(default)]
     pub bip39_passphrase: String,
     pub network: NetworkName,
-    /// Parent Minisatoshi wallet that will own the nested hot vault.
+    /// Optional storage parent; empty → auto-pick/create a wallet for this network.
+    #[serde(default)]
     pub wallet_id: String,
     #[serde(default)]
     pub account_path: Option<String>,

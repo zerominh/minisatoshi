@@ -1,11 +1,12 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import {
   exportBsms,
   exportVaultBackup,
   formatError,
   getVault,
+  openHotWallet,
 } from "../lib/api";
 import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
 import { splitDescriptorQrChunks } from "../lib/qrChunks";
@@ -15,6 +16,9 @@ import { hasRememberedSigningDevice } from "../lib/watchOnly";
 
 export function ShareVaultPage() {
   const { id = "" } = useParams();
+  const location = useLocation();
+  const isHot = location.pathname.startsWith("/hot-wallets/");
+  const [vaultId, setVaultId] = useState("");
   const [vault, setVault] = useState<VaultDto | null>(null);
   const [chunks, setChunks] = useState<string[]>([]);
   const [chunkIndex, setChunkIndex] = useState(0);
@@ -24,14 +28,27 @@ export function ShareVaultPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    void getVault(id)
-      .then((v) => {
+    let cancelled = false;
+    setVault(null);
+    setError(null);
+    void (async () => {
+      try {
+        const resolved = isHot ? (await openHotWallet(id)).id : id;
+        if (cancelled) return;
+        setVaultId(resolved);
+        const v = await getVault(resolved);
+        if (cancelled) return;
         setVault(v);
         setChunks(splitDescriptorQrChunks(v.descriptor));
         setChunkIndex(0);
-      })
-      .catch((err) => setError(formatError(err)));
-  }, [id]);
+      } catch (err) {
+        if (!cancelled) setError(formatError(err));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isHot]);
 
   useEffect(() => {
     const payload = chunks[chunkIndex];
@@ -39,7 +56,11 @@ export function ShareVaultPage() {
       setQr(null);
       return;
     }
-    void QRCode.toDataURL(payload, { margin: 1, width: 280, errorCorrectionLevel: "M" })
+    void QRCode.toDataURL(payload, {
+      margin: 1,
+      width: 280,
+      errorCorrectionLevel: "M",
+    })
       .then(setQr)
       .catch((err) => setError(formatError(err)));
   }, [chunks, chunkIndex]);
@@ -65,11 +86,11 @@ export function ShareVaultPage() {
   }
 
   async function onSaveBackup() {
-    if (!vault) return;
+    if (!vault || !vaultId) return;
     setBusy(true);
     setError(null);
     try {
-      const backup = await exportVaultBackup(id);
+      const backup = await exportVaultBackup(vaultId);
       const path = await saveTextFileWithDialog(
         `${sanitizedFilename(backup.name)}-minisatoshi-vault-v1.json`,
         `${backup.json}\n`,
@@ -83,12 +104,13 @@ export function ShareVaultPage() {
   }
 
   async function onSaveBsms() {
+    if (!vaultId) return;
     setBusy(true);
     setError(null);
     try {
-      const bsms = await exportBsms(id);
+      const bsms = await exportBsms(vaultId);
       const path = await saveTextFileWithDialog(
-        `${sanitizedFilename(vault?.name ?? "vault")}.bsms`,
+        `${sanitizedFilename(vault?.name ?? "wallet")}.bsms`,
         bsms.text,
       );
       if (path) {
@@ -107,6 +129,9 @@ export function ShareVaultPage() {
   if (!vault) return <pre className="error">{error}</pre>;
 
   const hwRemembered = hasRememberedSigningDevice(vault, getHwFingerprint());
+  const backTo = isHot
+    ? `/hot-wallets/${id}/transactions`
+    : `/vaults/${vaultId}/transactions`;
 
   return (
     <section>
@@ -117,8 +142,8 @@ export function ShareVaultPage() {
             Watch-only sharing — xpubs/descriptor only, never seed or xprv.
           </p>
         </div>
-        <Link className="button-link" to={`/vaults/${id}`}>
-          Back to vault
+        <Link className="button-link" to={backTo}>
+          Back
         </Link>
       </header>
 

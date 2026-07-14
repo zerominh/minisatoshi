@@ -7,14 +7,14 @@ export function TransactionsPage() {
         <div>
           <h2>Transactions</h2>
           <p>
-            Per-vault history lives on each vault dashboard after sync. Global
-            history aggregation comes in a later sprint.
+            History lives on each vault (Transactions tab), like Sparrow&apos;s
+            per-wallet view. Global aggregation comes later.
           </p>
         </div>
       </header>
       <div className="panel">
         <p className="muted">
-          Open a vault, tap <strong>Sync chain</strong>, then review Recent TX.
+          Open a vault → <strong>Transactions</strong>, sync, then review history.
         </p>
         <Link className="button-link" to="/vaults">
           Browse vaults

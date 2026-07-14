@@ -227,6 +227,20 @@ pub fn new_receive_address(
 }
 
 #[tauri::command]
+pub fn list_addresses(
+    state: State<'_, AppState>,
+    vault_id: String,
+) -> Result<Vec<AddressDto>, String> {
+    state.with_store(|store| {
+        let service = VaultService::new(store);
+        service
+            .list_addresses(&vault_id)
+            .map(|addrs| addrs.into_iter().map(AddressDto::from).collect())
+            .map_err(user_facing_error)
+    })
+}
+
+#[tauri::command]
 pub fn get_balance(
     state: State<'_, AppState>,
     vault_id: String,
@@ -890,7 +904,7 @@ pub fn list_hot_wallets(state: State<'_, AppState>) -> Result<Vec<HotWalletSumma
     state.with_hot_unlocked(|ks| Ok(ks.list().into_iter().map(hot_summary_dto).collect()))
 }
 
-/// Import BIP-39 (or Sparrow/Electrum JSON with mnemonic) as a nested hot vault under a wallet.
+/// Import BIP-39 as a hot Bitcoin wallet (send / receive / history).
 #[tauri::command]
 pub fn import_hot_wallet(
     state: State<'_, AppState>,
@@ -913,53 +927,46 @@ pub fn import_hot_wallet(
     let (mut record, key) =
         hot_keystore::derive_bip86_account(&import_req).map_err(user_facing_error)?;
 
-    // Ensure parent wallet network matches the hot wallet network.
-    state.with_store(|store| {
-        let wallet = store
-            .open_wallet(&request.wallet_id)
-            .map_err(user_facing_error)?;
-        if wallet.network != request.network {
-            return Err(format!(
-                "network mismatch: wallet is {:?}, hot import is {:?}",
-                wallet.network, request.network
-            ));
-        }
-        Ok(())
+    let _ = request.create_nested_vault;
+    let wallet_id = if request.wallet_id.trim().is_empty() {
+        ensure_hot_parent_wallet(&state, request.network)?
+    } else {
+        state.with_store(|store| {
+            let wallet = store
+                .open_wallet(&request.wallet_id)
+                .map_err(user_facing_error)?;
+            if wallet.network != request.network {
+                return Err(format!(
+                    "network mismatch: wallet is {:?}, hot import is {:?}",
+                    wallet.network, request.network
+                ));
+            }
+            Ok(request.wallet_id.clone())
+        })?
+    };
+    let vault_name = request.name.trim().to_string();
+
+    let vault = state.with_store(|store| {
+        let service = VaultService::new(store);
+        let policy = PolicyConfig {
+            version: policy_engine::POLICY_SCHEMA_VERSION,
+            network: request.network,
+            script_type: policy_engine::ScriptTypeName::Taproot,
+            keys: vec![key],
+            policy: policy_engine::PolicyExpression {
+                primary: "A".into(),
+                fallback: None,
+                fallbacks: vec![],
+            },
+        };
+        service
+            .create_vault_with_receive_address(&wallet_id, &vault_name, policy)
+            .map(|result| VaultDto::from(result.vault))
+            .map_err(user_facing_error)
     })?;
 
-    let create_vault = request.create_nested_vault;
-    let wallet_id = request.wallet_id.clone();
-    let vault_name = format!("{} (hot)", request.name.trim());
-
-    let vault = if create_vault {
-        Some(state.with_store(|store| {
-            let service = VaultService::new(store);
-            let policy = PolicyConfig {
-                version: policy_engine::POLICY_SCHEMA_VERSION,
-                network: request.network,
-                script_type: policy_engine::ScriptTypeName::Taproot,
-                keys: vec![key],
-                policy: policy_engine::PolicyExpression {
-                    primary: "A".into(),
-                    fallback: None,
-                    fallbacks: vec![],
-                },
-            };
-            service
-                .create_vault_with_receive_address(&wallet_id, &vault_name, policy)
-                .map(|result| VaultDto::from(result.vault))
-                .map_err(user_facing_error)
-        })?)
-    } else {
-        None
-    };
-
-    if let Some(ref v) = vault {
-        record.linked_wallet_id = Some(wallet_id.clone());
-        record.linked_vault_id = Some(v.id.clone());
-    } else {
-        record.linked_wallet_id = Some(wallet_id);
-    }
+    record.linked_wallet_id = Some(wallet_id);
+    record.linked_vault_id = Some(vault.id.clone());
 
     let summary = state.with_hot_unlocked_mut(|ks| {
         ks.insert(record)
@@ -969,8 +976,104 @@ pub fn import_hot_wallet(
 
     Ok(ImportHotWalletResultDto {
         hot_wallet: summary,
-        vault,
+        vault: Some(vault),
     })
+}
+
+fn ensure_hot_parent_wallet(
+    state: &State<'_, AppState>,
+    network: NetworkName,
+) -> Result<String, String> {
+    state.with_store(|store| {
+        let wallets = store.list_wallets().map_err(user_facing_error)?;
+        if let Some(existing) = wallets.into_iter().find(|w| w.network == network) {
+            return Ok(existing.id);
+        }
+        store
+            .create_wallet("Hot wallets", network)
+            .map(|w| w.id)
+            .map_err(user_facing_error)
+    })
+}
+
+/// Open a hot wallet’s detail: reuse linked chain row, or create storage if missing.
+#[tauri::command]
+pub fn open_hot_wallet(
+    state: State<'_, AppState>,
+    hot_wallet_id: String,
+    wallet_id: Option<String>,
+) -> Result<VaultDto, String> {
+    let rec = state.with_hot_unlocked(|ks| {
+        ks.get(&hot_wallet_id)
+            .map(|r| r.clone())
+            .map_err(user_facing_error)
+    })?;
+
+    if let Some(ref vault_id) = rec.linked_vault_id {
+        match state.with_store(|store| {
+            let service = VaultService::new(store);
+            service
+                .get_vault(vault_id)
+                .map(VaultDto::from)
+                .map_err(user_facing_error)
+        }) {
+            Ok(vault) => return Ok(vault),
+            Err(_) => {
+                // Linked row was deleted — recreate below.
+            }
+        }
+    }
+
+    let parent_id = match wallet_id
+        .filter(|s| !s.trim().is_empty())
+        .or(rec.linked_wallet_id.clone())
+    {
+        Some(id) => id,
+        None => ensure_hot_parent_wallet(&state, rec.network)?,
+    };
+
+    state.with_store(|store| {
+        let wallet = store.open_wallet(&parent_id).map_err(user_facing_error)?;
+        if wallet.network != rec.network {
+            return Err(format!(
+                "network mismatch: wallet is {:?}, hot wallet is {:?}",
+                wallet.network, rec.network
+            ));
+        }
+        Ok(())
+    })?;
+
+    let key = hot_keystore::account_policy_key(&rec);
+    let vault = state.with_store(|store| {
+        let service = VaultService::new(store);
+        let policy = PolicyConfig {
+            version: policy_engine::POLICY_SCHEMA_VERSION,
+            network: rec.network,
+            script_type: policy_engine::ScriptTypeName::Taproot,
+            keys: vec![key],
+            policy: policy_engine::PolicyExpression {
+                primary: "A".into(),
+                fallback: None,
+                fallbacks: vec![],
+            },
+        };
+        service
+            .create_vault_with_receive_address(&parent_id, &rec.name, policy)
+            .map(|result| VaultDto::from(result.vault))
+            .map_err(user_facing_error)
+    })?;
+
+    state.with_hot_unlocked_mut(|ks| {
+        ks.set_links(
+            &hot_wallet_id,
+            Some(parent_id),
+            Some(vault.id.clone()),
+        )
+        .map_err(user_facing_error)?;
+        Ok(())
+    })?;
+
+    Ok(vault)
 }
 
 #[tauri::command]

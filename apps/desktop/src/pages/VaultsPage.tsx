@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { deleteVault, formatError, listVaults, listWallets } from "../lib/api";
+import {
+  deleteVault,
+  formatError,
+  hotKeystoreStatus,
+  listHotWallets,
+  listVaults,
+  listWallets,
+} from "../lib/api";
 import { formatNetwork, getActiveWalletId, setActiveWalletId } from "../lib/settings";
 import type { VaultSummaryDto, WalletSummaryDto } from "../lib/types";
 
@@ -16,7 +23,23 @@ export function VaultsPage() {
       setVaults([]);
       return;
     }
-    setVaults(await listVaults(id));
+    const all = await listVaults(id);
+    // Hot wallets own their UI under /hot-wallets — hide their storage rows here.
+    let hide = new Set<string>();
+    try {
+      const st = await hotKeystoreStatus();
+      if (st.unlocked) {
+        const hot = await listHotWallets();
+        hide = new Set(
+          hot
+            .map((h) => h.linkedVaultId)
+            .filter((vid): vid is string => Boolean(vid)),
+        );
+      }
+    } catch {
+      // keystore locked / unavailable — show full list
+    }
+    setVaults(all.filter((v) => !hide.has(v.id)));
   }
 
   useEffect(() => {

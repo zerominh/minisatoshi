@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Vault shell UI (Sparrow-style per-vault tabs): Transactions · Send · Receive · Addresses · UTXOs · Settings
+- Hot wallets are first-class Bitcoin wallets in the UI (`/hot-wallets/:id` shell); vault storage is internal only
+- Import no longer asks for a parent vault; open/list under Hot wallets
+- `open_hot_wallet` / auto parent wallet when chain storage is missing
+- `list_addresses` IPC for the Addresses tab
 - Hot wallets: Sparrow-style numbered BIP-39 word grid (12/24) with autocomplete
 - SeedQR import: camera or image scan (Standard + Compact SeedQR / plain words / JSON)
 

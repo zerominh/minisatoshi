@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   exportSparrowWallet,
   formatError,
@@ -10,9 +10,10 @@ import {
 import { copyText } from "../lib/settings";
 import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
 import type { AddressDto, SparrowExportDto, VaultDto } from "../lib/types";
+import { useVaultIdFromRouteOrContext } from "../vault/VaultContext";
 
 export function ReceivePage() {
-  const { id = "" } = useParams();
+  const id = useVaultIdFromRouteOrContext();
   const [vault, setVault] = useState<VaultDto | null>(null);
   const [address, setAddress] = useState<AddressDto | null>(null);
   const [qr, setQr] = useState<string | null>(null);
@@ -86,8 +87,8 @@ export function ReceivePage() {
           <h2>Receive</h2>
           <p>{vault?.name ?? "Vault"} · Taproot address</p>
         </div>
-        <Link className="button-link" to={`/vaults/${id}`}>
-          Back to vault
+        <Link className="button-link" to="../transactions" relative="path">
+          Transactions
         </Link>
       </header>
 

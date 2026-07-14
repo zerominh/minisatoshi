@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   analyzePsbtStatus,
   broadcastPsbt,
@@ -35,9 +35,10 @@ import type {
   UtxoDto,
   VaultDto,
 } from "../lib/types";
+import { useVaultIdFromRouteOrContext } from "../vault/VaultContext";
 
 export function SendPage() {
-  const { id = "" } = useParams();
+  const id = useVaultIdFromRouteOrContext();
   const [vault, setVault] = useState<VaultDto | null>(null);
   const [sync, setSync] = useState<SyncResultDto | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -376,8 +377,8 @@ export function SendPage() {
             status · broadcast
           </p>
         </div>
-        <Link className="button-link" to={`/vaults/${id}`}>
-          Back to vault
+        <Link className="button-link" to="../transactions" relative="path">
+          Transactions
         </Link>
       </header>
 

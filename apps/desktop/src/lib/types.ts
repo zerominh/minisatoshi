@@ -327,7 +327,8 @@ export interface ImportHotWalletRequest {
   mnemonicOrJson: string;
   bip39Passphrase?: string;
   network: NetworkName;
-  walletId: string;
+  /** Optional; empty → auto storage parent for the network. */
+  walletId?: string;
   accountPath?: string | null;
   createNestedVault?: boolean;
 }
