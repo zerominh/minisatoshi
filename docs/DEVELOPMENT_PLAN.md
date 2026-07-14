@@ -13,7 +13,7 @@
 4. [Sơ đồ phụ thuộc module](#sơ-đồ-phụ-thuộc-module)
 5. [Policy Engine tổng quát](#policy-engine-tổng-quát)
 6. [Giai đoạn 1 — MVP (8 Sprint)](#giai-đoạn-1--mvp-8-sprint)
-7. [Giai đoạn 2–5](#giai-đoạn-25-roadmap)
+7. [Giai đoạn 2–5](#giai-đoạn-25-roadmap) — chi tiết Sprint 9–19 (ký/HW, import/export, fund mgmt)
 8. [Quyết định kỹ thuật](#quyết-định-kỹ-thuật)
 9. [Test strategy](#test-strategy)
 10. [Rủi ro và giảm thiểu](#rủi-ro-và-giảm-thiểu)
@@ -621,45 +621,291 @@ Module: `policy_engine::templates` + `apps/desktop` Create Vault wizard.
 
 
 
-### Giai đoạn 3 — Hardware Wallet
+### Giai đoạn 3 — Ký trong app + Hardware Wallet
 
-- Ledger
-- Trezor
-- Coldcard
-- Thêm vendors sau
+**Mục tiêu:** User tạo PSBT trong Minisatoshi → ký bằng software key (dev) và/hoặc hardware wallet → finalize → (tuỳ chọn) broadcast — **không phụ thuộc Sparrow** để chi tiêu vault Miniscript.
 
-**Phụ thuộc:** PSBT engine + HWI integration.
+**Bối cảnh đã biết:** Sparrow không import/ký arbitrary Miniscript `tr()` script-path. Liana chỉ restore ví Liana. Bitcoin Core + HWI / Ledger–Coldcard tapscript là lớp tương thích thật.
+
+**Nguyên tắc bảo mật:**
+
+| Nguyên tắc | Chi tiết |
+|---|---|
+| Watch-only mặc định | DB vẫn chỉ lưu xpub/descriptor; **không** bắt buộc lưu seed |
+| Hot key tùy chọn | Software signer chỉ bật rõ ràng (dev/testnet); cảnh báo mainnet |
+| HW ưu tiên | Path production: HWI / vendor SDK; xprv không rời device |
+| Path đăng ký | Register / verify descriptor (hoặc wallet policy) trên device trước khi ký |
+| Không leak | `user_facing_error` tiếp tục redact `xprv`/`tprv` |
+
+**Thứ tự sprint đề xuất:** Sprint 9 → 12 (có thể song song 10+11 sau khi trait signer ổn).
+
+#### Sprint 9 — Software sign + combine + finalize (UI)
+
+Mở rộng những gì `psbt-engine` đã có (`SoftwareSigner`, `sign_psbt`, `finalize`) lên Tauri + Send flow.
+
+**API / commands**
+
+```rust
+#[tauri::command]
+fn sign_psbt_software(psbt_base64: String, secret_key: String) -> Result<PsbtDto, String>;
+
+#[tauri::command]
+fn combine_psbts(parts: Vec<String>) -> Result<PsbtDto, String>;
+
+#[tauri::command]
+fn finalize_psbt(psbt_base64: String) -> Result<FinalizedTxDto, String>;
+// FinalizedTxDto { hex, txid, fully_signed: bool }
+```
+
+**UI (`/vaults/:id/send` mở rộng)**
+
+```text
+Create PSBT → Sign (paste xprv / descriptor secret — testnet only toggle)
+  → Import cosigner PSBT → Combine → Finalize → Copy hex / Broadcast
+```
+
+- Multi-signer: export partial PSBT after mỗi lần ký (file + base64).
+- Sequence / timelock path: UI chọn spending path (primary vs recovery) → set `input_sequence` / hiện rõ leaf đang dùng.
+
+**Tests**
+
+- 2-of-2 create → sign A → sign B → combine → finalize (unit + lifecycle).
+- Reject sign trên mainnet khi chưa bật “allow hot keys”.
+- Redact secrets trong error path.
+
+**Deliverable:** End-to-end chi tiêu testnet vault bằng software keys trong app (không HW).
 
 ---
 
+#### Sprint 10 — HWI abstraction + discovery
 
+Thêm crate (hoặc module) `hwi-bridge` / `crates/signing-devices`:
 
-### Giai đoạn 4 — Import/Export
+```rust
+pub trait HardwareSigner: Send + Sync {
+    fn device_id(&self) -> &str;
+    fn fingerprint(&self) -> Result<[u8; 4], SignError>;
+    fn get_xpub(&self, path: &DerivationPath) -> Result<String, SignError>;
+    fn register_policy(&self, descriptor: &str) -> Result<(), SignError>;
+    fn sign_psbt(&self, psbt: &mut Psbt) -> Result<usize, SignError>;
+}
 
-- Watch-only Wallet
-- Descriptor Import
-- Descriptor Export
-- QR Descriptor
-- **Sparrow workflow docs** (import descriptor, sign PSBT, recommended servers)
+pub fn list_devices() -> Result<Vec<DeviceInfo>, SignError>;
+```
 
-**Phụ thuộc:** Descriptor engine + PSBT engine.
+- Backend mặc định: binary **HWI** (subprocess) — đã quen với Bitcoin Core ecosystem.
+- Parse JSON stdout; timeout; never log xprv.
+- Tauri commands: `list_hw_devices`, `hw_get_xpub`, `hw_sign_psbt`.
+
+**UI:** Settings → Signing devices (danh sách, refresh, đường dẫn HWI).
+
+**Tests:** mock HWI fixture JSON; lỗi device disconnected / user abort.
+
+**Deliverable:** App enumerates HW và lấy xpub + fingerprint thay vì paste tay (wizard).
 
 ---
 
+#### Sprint 11 — Ledger / Trezor / Coldcard (Miniscript + Taproot)
 
+Ưu tiên theo độ chín Miniscript/tapscript:
 
-### Giai đoạn 5 — Fund Management
+| Device | Ghi chú |
+|---|---|
+| **Coldcard** | SD card / PSBT file + tapscript mạnh; hỗ trợ multipath descriptor |
+| **Ledger** | Bitcoin app + **wallet policies** (register descriptor dạng `@0`, `/**`) |
+| **Trezor** | HWI; kiểm tra phiên bản firmware hỗ trợ policy đang dùng |
 
-Lúc này mới thêm server:
+**Work items**
 
-- KYC
-- Investor managementV
-- Reporting
-- NA
-- API
-- Database
+1. Map vault descriptor → **wallet policy** (Ledger) / Coldcard register format.
+2. UI “Register vault on device” trước lần ký đầu.
+3. Ký multi-device: A trên Ledger, B trên Coldcard → combine trong app.
+4. Docs: `docs/hardware-signing.md` (mạng, đăng ký, hạn chế Timelock/`older`).
 
-**Nguyên tắc:** Không đụng vào private key. Chỉ watch-only descriptors.
+**Phạm vi cố ý cắt:** Jade / BitBox / Specter DIY → backlog “vendors sau”.
+
+**Deliverable:** Í nhất **hai** vendor (Coldcard + Ledger *hoặc* Trezor) ký được ABC vault Taproot trên testnet; broadcast qua Esplora/Core.
+
+---
+
+#### Sprint 12 — Broadcast, UX ký, hardening Giai đoạn 3
+
+- Broadcast từ app (`psbt-engine::broadcast` + UI) với confirm rõ network.
+- Trạng thái chữ ký: “cần A+B”, “đã có A”, “thiếu B”, spending path active.
+- Optional: SQLCipher / encrypted keystore **chỉ** nếu user bật hot-wallet mode (không bắt buộc cho HW-only).
+- Release notes v0.2.x.
+
+**Rủi ro Giai đoạn 3**
+
+| Rủi ro | Giảm thiểu |
+|---|---|
+| Device không hiểu leaf Miniscript | Register policy; limit template đã test; fallback Core+HWI |
+| HWI API thay đổi | Pin version HWI; abstraction trait |
+| User ký nhầm path timelock | UI bắt buộc chọn path + hiện `older(N)` / sequence |
+| Hot key trên mainnet | Default off; double confirm |
+
+**Exit criteria Giai đoạn 3:** Testnet vault `(A&&B)||(A&&C)` (+ fallback) tạo PSBT → ký A+B (ít nhất 1 path HW) → finalize → broadcast → sync thấy số dư đổi.
+
+---
+
+### Giai đoạn 4 — Import / Export & interop
+
+**Mục tiêu:** Descriptor là source of truth — backup/restore vault, chia sẻ watch-only, QR, docs interop trung thực (không hứa Sparrow ký Miniscript).
+
+**Thứ tự sprint:** Sprint 13 → 15.
+
+#### Sprint 13 — Descriptor import / export (first-class)
+
+**Đã có một phần:** save `.txt`, copy descriptor, `export_sparrow_wallet` (messaging đã cảnh báo Miniscript).
+
+**Bổ sung**
+
+```rust
+#[tauri::command]
+fn import_descriptor(wallet_id: String, name: String, descriptor: String) -> Result<VaultDto, String>;
+
+#[tauri::command]
+fn export_vault_backup(vault_id: String) -> Result<VaultBackupDto, String>;
+// VaultBackupDto { name, network, policy_json?, descriptor, created_at, format_version }
+```
+
+- Import: validate checksum, detect `tr`/`wsh`, network khớp wallet, optional attach policy JSON nếu có.
+- Export package: `minisatoshi-vault-v1.json` = `{ descriptor, policy, network, labels }` + plain `.txt` descriptor-only.
+- UI: Vault detail → Import vault / Export backup; Receive bỏ lời hứa Sparrow Import File như đường ký.
+
+**Tests:** round-trip export → wipe → import → cùng address index 0; reject checksum sai; reject network mismatch.
+
+**Deliverable:** Backup/restore vault không cần file DB SQLite.
+
+---
+
+#### Sprint 14 — QR, watch-only workflows, BSMS-ish
+
+- QR cho: receive address (đã có), **descriptor** (chunked nếu dài — UR hoặc multi-QR đơn giản).
+- Watch-only mode badge: vault không có signing device gắn.
+- Optional: export **BSMS** / wallet configuration tương thích Nunchuk (nếu schema ổn định).
+- Import watch-only từ file mô tả Liana/Nunchuk **best-effort** (parse descriptor; fail rõ nếu không hỗ trợ).
+
+**UI**
+
+| Route / surface | Nội dung |
+|---|---|
+| `/vaults/import` | Paste / file / QR descriptor |
+| Vault → Share | QR + file + “watch-only instructions” |
+
+**Deliverable:** Chia sẻ vault cho bên thứ ba chỉ theo dõi số dư (xpub/descriptor), không seed.
+
+---
+
+#### Sprint 15 — Interop docs + Bitcoin Core guide
+
+Docs trung thực (cập nhật giả định cũ “Sparrow sign”):
+
+| Tài liệu | Nội dung |
+|---|---|
+| `docs/interop.md` | Ma trận: Sparrow / Liana / Nunchuk / Core — fund vs watch vs sign |
+| `docs/bitcoin-core-miniscript.md` | `importdescriptors`, `walletprocesspsbt`, multipath `<0;1>/*`, Core ≥ 26 |
+| `docs/hardware-signing.md` | (từ GĐ3) link lại |
+| Sparrow presets | Giữ server presets; **không** hướng dẫn import Miniscript vault |
+
+**UI copy audit:** mọi string “paste into Sparrow to sign” → Core / Nunchuk / in-app sign.
+
+**Exit criteria Giai đoạn 4:** User mới đọc docs → biết kênh nào fund, kênh nào ký; import descriptor vào Minisatoshi ra đúng địa chỉ đã fund.
+
+---
+
+### Giai đoạn 5 — Fund Management (optional server)
+
+**Chỉ bắt đầu khi:** GĐ1–4 ổn định, có nhu cầu tổ chức thật, và **vẫn** nguyên tắc: server **không bao giờ** giữ private key / không thể chi tiêu.
+
+**Mục tiêu:** Lớp quản lý quỹ / NAV / reporting — watch-only descriptors + metadata off-chain.
+
+**Kiến trúc tách biệt**
+
+```text
+Minisatoshi Desktop (offline keys / HW)
+        │  export watch-only descriptor + labels (manual / API opt-in)
+        ▼
+Fund Mgmt Backend (Giai đoạn 5)
+        │  sync chain qua Esplora/Electrum indexers
+        ▼
+Admin Web / Investor portal (read-mostly)
+```
+
+**Không làm:** custody, remote signing, “sign in the cloud”, seed backup lên server.
+
+#### Sprint 16 — Backend skeleton + tenancy
+
+- Service tách repo hoặc `services/fund-api/` (Rust Axum *hoặc* stack team chọn).
+- Auth: org admin; **không** đăng nhập bằng seed.
+- DB: Postgres — orgs, users (KYC status), vaults (descriptor + network + labels), audit log.
+- Encrypt descriptors at rest (app-level); RLS theo org.
+
+**Deliverable:** Admin tạo org, gắn 1 watch-only vault, xem metadata.
+
+---
+
+#### Sprint 17 — Chain indexer + balances / NAV
+
+- Worker sync UTXO/tx theo descriptor (reuse logic `blockchain` crate hoặc service gọi Electrum).
+- NAV đơn giản: `confirmed_sats` × oracle giá (configurable; UI ghi rõ nguồn giá).
+- Reporting: CSV/PDF balance + tx history theo khoảng thời gian.
+
+**Deliverable:** Dashboard NAV + lịch sử cho 1 vault testnet/mainnet watch-only.
+
+---
+
+#### Sprint 18 — Investor / KYC / API
+
+| Module | Phạm vi |
+|---|---|
+| Investor management | Hồ sơ nhà đầu tư, % ownership **tuyên bố off-chain** (không on-chain share) |
+| KYC | Tích hợp vendor hoặc upload manual + trạng thái |
+| Reporting | Báo cáo định kỳ email; export kế toán |
+| API | Read-only REST: balances, txs, descriptors (scoped tokens) |
+
+**Nguyên tắc API**
+
+- Scope `read:vault`; **không** có `sign` / `broadcast` từ server.
+- Desktop vẫn là nơi tạo PSBT & ký (GĐ3); portal chỉ “đề xuất chi tiêu” → user ký offline.
+
+---
+
+#### Sprint 19 — Hardening & compliance checklist
+
+- Threat model doc: server compromise ≠ loss of funds.
+- Pen-test / dependency audit.
+- Data retention, GDPR export/delete (metadata only).
+- Feature flags: toàn bộ GĐ5 tắt mặc định trong build desktop OSS.
+
+**Exit criteria Giai đoạn 5:** Tổ chức theo dõi nhiều vault Miniscript watch-only, báo cáo NAV, KYC investor — chi tiêu chỉ trên desktop + HW.
+
+**Rủi ro Giai đoạn 5**
+
+| Rủi ro | Giảm thiểu |
+|---|---|
+| Scope creep thành custodian | Charter: no keys on server; code review gate |
+| Sai NAV / giá | Ghi rõ nguồn giá; không auto-trade |
+| Leak descriptor → privacy | Encrypt; minimize sharing; optional Tor indexer |
+
+---
+
+### Lộ trình phụ thuộc (3 → 5)
+
+```mermaid
+flowchart LR
+  G2[Giai đoạn 2 Policy] --> G3[Giai đoạn 3 Sign + HW]
+  G3 --> G4[Giai đoạn 4 Import/Export]
+  G4 --> G5[Giai đoạn 5 Fund Mgmt]
+  G3 -.->|docs/sign paths| G4
+  G4 -.->|watch-only feed| G5
+```
+
+| Giai đoạn | Version gợi ý | Điều kiện vào |
+|---|---|---|
+| 3 | v0.2.x | GĐ2 templates ổn; testnet vault có UTXO |
+| 4 | v0.3.x | Ký software hoặc HW trên testnet đã demo |
+| 5 | v1.x+ / sản phẩm riêng | Có nhu cầu org; OSS desktop vẫn chạy offline không server |
 
 ---
 
@@ -675,8 +921,10 @@ Lúc này mới thêm server:
 | Key derivation?       | BIP86 (Taproot), BIP84 fallback nếu cần                                                                         |
 | Timelock unit?        | Blocks (chuẩn Miniscript `older`); UI hiển thị năm, convert `years × 52560` blocks                              |
 | BDK version?          | `bdk_wallet 1.x` (tách từ bdk-ng)                                                                               |
-| DB encryption?        | Giai đoạn 1: không mã hóa (watch-only). Giai đoạn 3+: SQLCipher nếu lưu xprv                                    |
-| Sparrow integration?  | **Interop, không phải backend** — descriptor export (Sprint 4), PSBT BIP174 (Sprint 5), Electrum server presets |
+| DB encryption?        | Giai đoạn 1–2: không (watch-only). Giai đoạn 3: SQLCipher **chỉ** nếu bật hot-wallet software keys |
+| Hardware signing?     | HWI subprocess + device register (Ledger wallet policies / Coldcard); software sign cho testnet trước |
+| Sparrow integration?  | **Interop fund/address only** — không kỳ vọng import/ký Miniscript vault; Core/Nunchuk/in-app sign |
+| Fund management?      | Giai đoạn 5 tách server; **never** custody keys; desktop OSS vẫn offline-first |
 
 
 ---
@@ -720,8 +968,10 @@ tests/
 | `bdk_wallet` API thay đổi                   | Pin version; abstract qua trait trong `blockchain`                |
 | Timelock sai số blocks                      | Document rõ; dùng constant `BLOCKS_PER_YEAR = 52560`              |
 | User nhập xpub sai network                  | Validate version bytes (xpub/tpub) + fingerprint                  |
-| PSBT multi-signer phức tạp                  | Giai đoạn 1 chỉ export unsigned PSBT; sign offline (Sparrow / HW) |
-| Nhầm Sparrow là blockchain backend          | Document rõ trong plan; chỉ dùng Electrum/Esplora/Core cho sync   |
+| PSBT multi-signer phức tạp                  | GĐ1 export unsigned; GĐ3 software/HW sign + combine trong app; docs Core/Nunchuk (không Sparrow) |
+| Nhầm Sparrow là backend / signer Miniscript | Document interop matrix (GĐ4); Sparrow chỉ fund address / Electrum presets |
+| HW không ký được tapscript leaf             | Register policy; Coldcard+Ledger first; mock HWI tests; fallback Core |
+| GĐ5 thành custody                           | Charter no-keys-on-server; API read-only; feature-flag server |
 
 
 ---
@@ -731,13 +981,12 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Post-v0.1: Giai đoạn 2 policy templates + multi-fallback UI ✅
-  → tiếp: Giai đoạn 3 — Hardware wallet signing
-  hoặc ký software trong app / Core interop docs
+Tiếp theo: Giai đoạn 3 — Sprint 9 (software sign UI) → Sprint 10–11 (HWI + Coldcard/Ledger)
+  → Giai đoạn 4 interop/backup → Giai đoạn 5 chỉ khi có nhu cầu org
 ```
 
-Pipeline hiện tại: `Policy → Descriptor → Address → Balance → PSBT → Tauri IPC → UI MVP` ✅ (Sprint 1–8).
-v0.1.0 hardening xong; bước kế: mở rộng policy hoặc HW signing.
+Pipeline hiện tại: `Policy → Descriptor → Address → Balance → PSBT → Tauri IPC → UI MVP` ✅ (Sprint 1–8) + GĐ2 templates ✅.
+Bước kế: **Sprint 9 — ký software + combine/finalize trong app**.
 
 ---
 
