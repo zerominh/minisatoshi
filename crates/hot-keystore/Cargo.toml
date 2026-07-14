@@ -1,0 +1,22 @@
+[package]
+name = "hot-keystore"
+description = "Master-password encrypted hot wallet keystore (BIP-39 import, test sign)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+argon2 = "0.5"
+bip39 = "2"
+bitcoin.workspace = true
+chacha20poly1305 = "0.10"
+hex = "0.4"
+policy-engine.workspace = true
+rand = "0.8"
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

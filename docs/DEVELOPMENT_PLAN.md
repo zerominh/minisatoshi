@@ -696,7 +696,7 @@ Thêm crate `crates/signing-devices`:
 - [x] Chọn spending path (primary / timelock) + gợi ý BIP68 sequence; bắt buộc sequence cho fallback
 - [x] Mainnet hot-key: double confirm
 - [x] Release notes v0.2.0 (`CHANGELOG.md`)
-- [ ] Optional SQLCipher / encrypted keystore — **deferred** (không bắt buộc HW-only)
+- [x] Optional encrypted hot-key store — **`hot-keystore` crate** (master password · Argon2id+XChaCha20); true SQLCipher for whole app DB deferred (linker vs plain SQLite)
 
 **Exit criteria Giai đoạn 3:** Testnet vault `(A&&B)||(A&&C)` (+ fallback) tạo PSBT → ký A+B → finalize → broadcast → sync. ✅ (tooling + UX); manual HW soak test vẫn khuyến nghị.
 

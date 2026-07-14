@@ -65,6 +65,7 @@ minisatoshi/
 │   ├── blockchain/        # Esplora / Electrum + fund/server presets
 │   ├── psbt-engine/
 │   ├── signing-devices/   # HWI
+│   ├── hot-keystore/      # BIP-39 hot wallets (encrypted)
 │   └── vault/
 ├── docs/
 │   ├── DEVELOPMENT_PLAN.md

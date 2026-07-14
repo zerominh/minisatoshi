@@ -19,11 +19,13 @@ use vault::VaultService;
 
 use crate::dto::{
     AddressDto, AnalyzePsbtRequest, BalanceDto, BroadcastTxRequest, BsmsExportDto,
-    CombinePsbtRequest, CompileVaultResponse, CreatePsbtRequest, CreateVaultRequest,
-    CreateWalletRequest, FinalizedTxDto, HwDeviceDto, HwGetXpubRequest, HwRegisterRequest,
-    HwRegisterResultDto, HwSignPsbtRequest, HwStatusDto, HwXpubDto, ImportDescriptorRequest,
-    ImportVaultBackupRequest, PsbtDto, ServerPresetDto, SignPsbtRequest, SignedPsbtDto,
-    SparrowExportDto, SyncResultDto, VaultBackupDto, VaultDto, VaultSummaryDto, WalletDto,
+    CombinePsbtRequest, CompileVaultResponse, CreateHotKeystoreRequest, CreatePsbtRequest,
+    CreateVaultRequest, CreateWalletRequest, FinalizedTxDto, HotKeystoreStatusDto,
+    HotWalletSummaryDto, HwDeviceDto, HwGetXpubRequest, HwRegisterRequest, HwRegisterResultDto,
+    HwSignPsbtRequest, HwStatusDto, HwXpubDto, ImportDescriptorRequest, ImportHotWalletRequestDto,
+    ImportHotWalletResultDto, ImportVaultBackupRequest, PsbtDto, ServerPresetDto,
+    SignPsbtHotRequest, SignPsbtRequest, SignedPsbtDto, SparrowExportDto, SyncResultDto,
+    UnlockHotKeystoreRequest, VaultBackupDto, VaultDto, VaultSummaryDto, WalletDto,
     WalletSummaryDto,
 };
 use crate::error::user_facing_error;
@@ -765,6 +767,228 @@ pub fn broadcast_psbt_cmd(
             .ok_or_else(|| "provide psbtBase64 or txHex".to_string())?;
         let psbt = parse_psbt_b64(psbt_b64)?;
         broadcast_psbt(&psbt, &backend).map_err(user_facing_error)
+    })
+}
+
+fn hot_summary_dto(s: hot_keystore::HotWalletSummary) -> HotWalletSummaryDto {
+    HotWalletSummaryDto {
+        id: s.id,
+        name: s.name,
+        network: s.network,
+        fingerprint: s.fingerprint,
+        origin_path: s.origin_path,
+        xpub: s.xpub,
+        linked_wallet_id: s.linked_wallet_id,
+        linked_vault_id: s.linked_vault_id,
+        created_at: s.created_at,
+    }
+}
+
+/// Extract mnemonic from raw BIP-39 text or Sparrow/Electrum-ish JSON.
+fn extract_mnemonic_payload(raw: &str) -> Result<(String, Option<String>), String> {
+    let trimmed = raw.trim();
+    if trimmed.starts_with('{') {
+        let value: serde_json::Value =
+            serde_json::from_str(trimmed).map_err(|e| format!("invalid JSON: {e}"))?;
+        let obj = value
+            .as_object()
+            .ok_or_else(|| "JSON root must be an object".to_string())?;
+        let mnemonic = ["mnemonic", "seed", "words", "bip39"]
+            .iter()
+            .find_map(|k| {
+                obj.get(*k)
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+            })
+            .ok_or_else(|| {
+                "JSON has no mnemonic/seed field (Sparrow/Electrum-style hot import)".to_string()
+            })?;
+        let passphrase = ["passphrase", "bip39Passphrase", "bip39_passphrase"]
+            .iter()
+            .find_map(|k| {
+                obj.get(*k)
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .filter(|s| !s.is_empty())
+            });
+        Ok((mnemonic.to_string(), passphrase))
+    } else {
+        Ok((trimmed.to_string(), None))
+    }
+}
+
+#[tauri::command]
+pub fn hot_keystore_status(state: State<'_, AppState>) -> Result<HotKeystoreStatusDto, String> {
+    let exists = hot_keystore::HotKeystore::exists(&state.data_dir);
+    let unlocked = state.with_hot_mut(|slot| Ok(slot.is_some()))?;
+    Ok(HotKeystoreStatusDto {
+        exists,
+        unlocked,
+        path: hot_keystore::HotKeystore::path_in(&state.data_dir)
+            .display()
+            .to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn create_hot_keystore(
+    state: State<'_, AppState>,
+    request: CreateHotKeystoreRequest,
+) -> Result<HotKeystoreStatusDto, String> {
+    state.with_hot_mut(|slot| {
+        let ks = hot_keystore::HotKeystore::create(&state.data_dir, &request.master_password)
+            .map_err(user_facing_error)?;
+        *slot = Some(ks);
+        Ok(())
+    })?;
+    hot_keystore_status(state)
+}
+
+#[tauri::command]
+pub fn unlock_hot_keystore(
+    state: State<'_, AppState>,
+    request: UnlockHotKeystoreRequest,
+) -> Result<HotKeystoreStatusDto, String> {
+    state.with_hot_mut(|slot| {
+        let ks = hot_keystore::HotKeystore::unlock(&state.data_dir, &request.master_password)
+            .map_err(user_facing_error)?;
+        *slot = Some(ks);
+        Ok(())
+    })?;
+    hot_keystore_status(state)
+}
+
+#[tauri::command]
+pub fn lock_hot_keystore(state: State<'_, AppState>) -> Result<HotKeystoreStatusDto, String> {
+    state.with_hot_mut(|slot| {
+        *slot = None;
+        Ok(())
+    })?;
+    hot_keystore_status(state)
+}
+
+#[tauri::command]
+pub fn list_hot_wallets(state: State<'_, AppState>) -> Result<Vec<HotWalletSummaryDto>, String> {
+    state.with_hot_unlocked(|ks| Ok(ks.list().into_iter().map(hot_summary_dto).collect()))
+}
+
+/// Import BIP-39 (or Sparrow/Electrum JSON with mnemonic) as a nested hot vault under a wallet.
+#[tauri::command]
+pub fn import_hot_wallet(
+    state: State<'_, AppState>,
+    request: ImportHotWalletRequestDto,
+) -> Result<ImportHotWalletResultDto, String> {
+    let (mnemonic, json_pass) = extract_mnemonic_payload(&request.mnemonic_or_json)?;
+    let passphrase = if !request.bip39_passphrase.is_empty() {
+        request.bip39_passphrase.clone()
+    } else {
+        json_pass.unwrap_or_default()
+    };
+
+    let import_req = hot_keystore::ImportHotWalletRequest {
+        name: request.name.clone(),
+        mnemonic,
+        bip39_passphrase: passphrase,
+        network: request.network,
+        account_path: request.account_path.clone(),
+    };
+    let (mut record, key) =
+        hot_keystore::derive_bip86_account(&import_req).map_err(user_facing_error)?;
+
+    // Ensure parent wallet network matches the hot wallet network.
+    state.with_store(|store| {
+        let wallet = store
+            .open_wallet(&request.wallet_id)
+            .map_err(user_facing_error)?;
+        if wallet.network != request.network {
+            return Err(format!(
+                "network mismatch: wallet is {:?}, hot import is {:?}",
+                wallet.network, request.network
+            ));
+        }
+        Ok(())
+    })?;
+
+    let create_vault = request.create_nested_vault;
+    let wallet_id = request.wallet_id.clone();
+    let vault_name = format!("{} (hot)", request.name.trim());
+
+    let vault = if create_vault {
+        Some(state.with_store(|store| {
+            let service = VaultService::new(store);
+            let policy = PolicyConfig {
+                version: policy_engine::POLICY_SCHEMA_VERSION,
+                network: request.network,
+                script_type: policy_engine::ScriptTypeName::Taproot,
+                keys: vec![key],
+                policy: policy_engine::PolicyExpression {
+                    primary: "A".into(),
+                    fallback: None,
+                    fallbacks: vec![],
+                },
+            };
+            service
+                .create_vault_with_receive_address(&wallet_id, &vault_name, policy)
+                .map(|result| VaultDto::from(result.vault))
+                .map_err(user_facing_error)
+        })?)
+    } else {
+        None
+    };
+
+    if let Some(ref v) = vault {
+        record.linked_wallet_id = Some(wallet_id.clone());
+        record.linked_vault_id = Some(v.id.clone());
+    } else {
+        record.linked_wallet_id = Some(wallet_id);
+    }
+
+    let summary = state.with_hot_unlocked_mut(|ks| {
+        ks.insert(record)
+            .map(hot_summary_dto)
+            .map_err(user_facing_error)
+    })?;
+
+    Ok(ImportHotWalletResultDto {
+        hot_wallet: summary,
+        vault,
+    })
+}
+
+#[tauri::command]
+pub fn delete_hot_wallet(state: State<'_, AppState>, hot_wallet_id: String) -> Result<(), String> {
+    state.with_hot_unlocked_mut(|ks| {
+        ks.remove(&hot_wallet_id).map_err(user_facing_error)?;
+        Ok(())
+    })
+}
+
+/// Sign a PSBT using a stored hot wallet (no paste of tprv).
+#[tauri::command]
+pub fn sign_psbt_hot(
+    state: State<'_, AppState>,
+    request: SignPsbtHotRequest,
+) -> Result<SignedPsbtDto, String> {
+    assert_hot_key_allowed(request.network, request.allow_mainnet_hot_keys)?;
+    let secret = state.with_hot_unlocked(|ks| {
+        ks.descriptor_secret(&request.hot_wallet_id)
+            .map_err(user_facing_error)
+    })?;
+
+    let mut psbt = parse_psbt_b64(&request.psbt_base64)?;
+    let secret_key = DescriptorSecretKey::from_str(secret.trim())
+        .map_err(|e| user_facing_error(format!("invalid stored secret: {e}")))?;
+    let progress = sign_psbt(&mut psbt, &SoftwareSigner::from_secret(secret_key))
+        .map_err(user_facing_error)?;
+    let base64 = encode_psbt(&psbt)?;
+
+    Ok(SignedPsbtDto {
+        base64,
+        input_count: psbt.inputs.len(),
+        output_count: psbt.outputs.len(),
+        signed_inputs: progress.signed_inputs,
+        total_inputs: progress.total_inputs,
     })
 }
 

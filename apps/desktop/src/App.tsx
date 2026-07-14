@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./layout/AppLayout";
+import { HotWalletsPage } from "./pages/HotWalletsPage";
 import { NewVaultPage } from "./pages/NewVaultPage";
 import { ImportVaultPage } from "./pages/ImportVaultPage";
 import { ReceivePage } from "./pages/ReceivePage";
@@ -24,6 +25,7 @@ function App() {
         <Route path="vaults/:id/share" element={<ShareVaultPage />} />
         <Route path="vaults/:id/receive" element={<ReceivePage />} />
         <Route path="vaults/:id/send" element={<SendPage />} />
+        <Route path="hot-wallets" element={<HotWalletsPage />} />
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/wallets" replace />} />

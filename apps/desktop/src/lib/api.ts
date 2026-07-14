@@ -36,6 +36,13 @@ import type {
   ImportVaultBackupRequest,
   VaultBackupDto,
   BsmsExportDto,
+  SignPsbtHotRequest,
+  HotKeystoreStatusDto,
+  CreateHotKeystoreRequest,
+  UnlockHotKeystoreRequest,
+  HotWalletSummaryDto,
+  ImportHotWalletRequest,
+  ImportHotWalletResultDto,
 } from "./types";
 
 export async function compileVaultDescriptor(
@@ -122,6 +129,46 @@ export async function signPsbtSoftware(
   request: SignPsbtRequest,
 ): Promise<SignedPsbtDto> {
   return invoke("sign_psbt_software", { request });
+}
+
+export async function signPsbtHot(
+  request: SignPsbtHotRequest,
+): Promise<SignedPsbtDto> {
+  return invoke("sign_psbt_hot", { request });
+}
+
+export async function hotKeystoreStatus(): Promise<HotKeystoreStatusDto> {
+  return invoke("hot_keystore_status");
+}
+
+export async function createHotKeystore(
+  request: CreateHotKeystoreRequest,
+): Promise<HotKeystoreStatusDto> {
+  return invoke("create_hot_keystore", { request });
+}
+
+export async function unlockHotKeystore(
+  request: UnlockHotKeystoreRequest,
+): Promise<HotKeystoreStatusDto> {
+  return invoke("unlock_hot_keystore", { request });
+}
+
+export async function lockHotKeystore(): Promise<HotKeystoreStatusDto> {
+  return invoke("lock_hot_keystore");
+}
+
+export async function listHotWallets(): Promise<HotWalletSummaryDto[]> {
+  return invoke("list_hot_wallets");
+}
+
+export async function importHotWallet(
+  request: ImportHotWalletRequest,
+): Promise<ImportHotWalletResultDto> {
+  return invoke("import_hot_wallet", { request });
+}
+
+export async function deleteHotWallet(hotWalletId: string): Promise<void> {
+  return invoke("delete_hot_wallet", { hotWalletId });
 }
 
 export async function listHwDevices(

@@ -296,6 +296,54 @@ export interface BsmsExportDto {
   firstAddress: string;
 }
 
+export interface HotKeystoreStatusDto {
+  exists: boolean;
+  unlocked: boolean;
+  path: string;
+}
+
+export interface HotWalletSummaryDto {
+  id: string;
+  name: string;
+  network: NetworkName;
+  fingerprint: string;
+  originPath: string;
+  xpub: string;
+  linkedWalletId?: string | null;
+  linkedVaultId?: string | null;
+  createdAt: number;
+}
+
+export interface CreateHotKeystoreRequest {
+  masterPassword: string;
+}
+
+export interface UnlockHotKeystoreRequest {
+  masterPassword: string;
+}
+
+export interface ImportHotWalletRequest {
+  name: string;
+  mnemonicOrJson: string;
+  bip39Passphrase?: string;
+  network: NetworkName;
+  walletId: string;
+  accountPath?: string | null;
+  createNestedVault?: boolean;
+}
+
+export interface ImportHotWalletResultDto {
+  hotWallet: HotWalletSummaryDto;
+  vault?: VaultDto | null;
+}
+
+export interface SignPsbtHotRequest {
+  psbtBase64: string;
+  hotWalletId: string;
+  network: NetworkName;
+  allowMainnetHotKeys?: boolean;
+}
+
 export interface SignedPsbtDto {
   base64: string;
   inputCount: number;

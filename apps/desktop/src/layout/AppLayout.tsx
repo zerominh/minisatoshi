@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 const links = [
   { to: "/wallets", label: "Wallets" },
   { to: "/vaults", label: "Vaults" },
+  { to: "/hot-wallets", label: "Hot wallets" },
   { to: "/transactions", label: "Transactions" },
   { to: "/settings", label: "Settings" },
 ];

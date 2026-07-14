@@ -8,8 +8,11 @@ import {
   finalizePsbt,
   formatError,
   getVault,
+  hotKeystoreStatus,
   hwSignPsbt,
+  listHotWallets,
   listSpendingPaths,
+  signPsbtHot,
   signPsbtSoftware,
   syncVault,
 } from "../lib/api";
@@ -24,6 +27,7 @@ import {
 } from "../lib/settings";
 import type {
   FinalizedTxDto,
+  HotWalletSummaryDto,
   PsbtDto,
   SigningStatusDto,
   SpendingPathDto,
@@ -46,6 +50,8 @@ export function SendPage() {
   const [psbt, setPsbt] = useState<PsbtDto | null>(null);
   const [signStatus, setSignStatus] = useState<SigningStatusDto | null>(null);
   const [secretKey, setSecretKey] = useState("");
+  const [hotWallets, setHotWallets] = useState<HotWalletSummaryDto[]>([]);
+  const [hotWalletId, setHotWalletId] = useState("");
   const [hwFingerprint, setHwFingerprint] = useState(getHwFingerprint());
   const [allowMainnetHotKeys, setAllowMainnetHotKeys] = useState(false);
   const [confirmMainnetHot, setConfirmMainnetHot] = useState(false);
@@ -72,6 +78,24 @@ export function SendPage() {
         }
       })
       .catch((err) => setError(formatError(err)));
+  }, [id]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const st = await hotKeystoreStatus();
+        if (!st.unlocked) {
+          setHotWallets([]);
+          return;
+        }
+        const list = await listHotWallets();
+        setHotWallets(list);
+        const linked = list.find((h) => h.linkedVaultId === id);
+        if (linked) setHotWalletId(linked.id);
+      } catch {
+        setHotWallets([]);
+      }
+    })();
   }, [id]);
 
   const refreshStatus = useCallback(
@@ -204,6 +228,42 @@ export function SendPage() {
       await refreshStatus(next.base64, activePathId);
       setMessage(
         `Software signed ${signed.signedInputs}/${signed.totalInputs} input(s).`,
+      );
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSignHot() {
+    if (!psbt || !vault || !hotWalletId) return;
+    if (vault.policy.network === "mainnet") {
+      if (!allowMainnetHotKeys || !confirmMainnetHot) {
+        setError(
+          "Mainnet hot-key signing requires both confirmation checkboxes.",
+        );
+        return;
+      }
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const signed = await signPsbtHot({
+        psbtBase64: psbt.base64,
+        hotWalletId,
+        network: vault.policy.network,
+        allowMainnetHotKeys,
+      });
+      const next = {
+        base64: signed.base64,
+        inputCount: signed.inputCount,
+        outputCount: signed.outputCount,
+      };
+      setPsbt(next);
+      await refreshStatus(next.base64, activePathId);
+      setMessage(
+        `Hot wallet signed ${signed.signedInputs}/${signed.totalInputs} input(s).`,
       );
     } catch (err) {
       setError(formatError(err));
@@ -499,6 +559,34 @@ export function SendPage() {
               Refresh signature status
             </button>
           </div>
+          <label>
+            Hot wallet (unlocked keystore)
+            <select
+              value={hotWalletId}
+              onChange={(e) => setHotWalletId(e.target.value)}
+            >
+              <option value="">— select —</option>
+              {hotWallets.map((hw) => (
+                <option key={hw.id} value={hw.id}>
+                  {hw.name} · {hw.fingerprint}
+                </option>
+              ))}
+            </select>
+          </label>
+          {hotWallets.length === 0 ? (
+            <p className="muted">
+              Unlock / import under{" "}
+              <Link to="/hot-wallets">Hot wallets</Link> for one-click test
+              signing.
+            </p>
+          ) : null}
+          <button
+            type="button"
+            disabled={busy || !hotWalletId}
+            onClick={() => void onSignHot()}
+          >
+            Sign with hot wallet
+          </button>
           <label>
             Descriptor secret (tprv/xprv… with path)
             <textarea

@@ -257,6 +257,74 @@ pub struct BsmsExportDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct HotKeystoreStatusDto {
+    pub exists: bool,
+    pub unlocked: bool,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HotWalletSummaryDto {
+    pub id: String,
+    pub name: String,
+    pub network: NetworkName,
+    pub fingerprint: String,
+    pub origin_path: String,
+    pub xpub: String,
+    pub linked_wallet_id: Option<String>,
+    pub linked_vault_id: Option<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateHotKeystoreRequest {
+    pub master_password: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlockHotKeystoreRequest {
+    pub master_password: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportHotWalletRequestDto {
+    pub name: String,
+    /// BIP-39 mnemonic, or Sparrow/Electrum-ish JSON with `mnemonic` / `seed` field.
+    pub mnemonic_or_json: String,
+    #[serde(default)]
+    pub bip39_passphrase: String,
+    pub network: NetworkName,
+    /// Parent Minisatoshi wallet that will own the nested hot vault.
+    pub wallet_id: String,
+    #[serde(default)]
+    pub account_path: Option<String>,
+    #[serde(default)]
+    pub create_nested_vault: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportHotWalletResultDto {
+    pub hot_wallet: HotWalletSummaryDto,
+    pub vault: Option<VaultDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignPsbtHotRequest {
+    pub psbt_base64: String,
+    pub hot_wallet_id: String,
+    pub network: NetworkName,
+    #[serde(default)]
+    pub allow_mainnet_hot_keys: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SignedPsbtDto {
     pub base64: String,
     pub input_count: usize,
