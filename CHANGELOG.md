@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Hot wallet open after parent SQLite wallet was deleted (or BIP-86 migration recreated storage): heal stale `linked_wallet_id` instead of `wallet not found`
+- Hot wallet rename still updates the keystore name when the linked vault row is missing
 - Hot wallet singlesig used `tr(NUMS,{pk(A)})` script-path addresses, so Sync showed **0 balance** vs Sparrow BIP-86 `tr(xpub/…)`. Now compiles key-path Taproot; opening an old hot wallet migrates the stored descriptor.
 - Hot wallet signing produced **invalid Taproot script-path signatures** for multipath descriptors (`[fp/origin]account/<0;1>/*`). Secrets now use `[fp]master/86'/…'/<0;1>/*`; existing keystores rebuild the path from the mnemonic on sign.
 - Finalize errors now include the underlying Miniscript/interpreter reason (e.g. bad Schnorr signature).

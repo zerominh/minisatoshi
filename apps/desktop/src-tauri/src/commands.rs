@@ -1025,6 +1025,25 @@ fn ensure_hot_parent_wallet(
     })
 }
 
+/// Prefer an existing linked / requested parent; if that SQLite wallet was deleted, recreate.
+fn resolve_hot_parent_wallet(
+    state: &State<'_, AppState>,
+    network: NetworkName,
+    preferred: Option<String>,
+) -> Result<String, String> {
+    if let Some(id) = preferred.filter(|s| !s.trim().is_empty()) {
+        let alive = state.with_store(|store| match store.open_wallet(&id) {
+            Ok(wallet) if wallet.network == network => Ok(true),
+            Ok(_) => Ok(false),
+            Err(_) => Ok(false),
+        })?;
+        if alive {
+            return Ok(id);
+        }
+    }
+    ensure_hot_parent_wallet(state, network)
+}
+
 /// Open a hot wallet’s detail: reuse linked chain row, or create storage if missing.
 #[tauri::command]
 pub fn open_hot_wallet(
@@ -1069,24 +1088,10 @@ pub fn open_hot_wallet(
         }
     }
 
-    let parent_id = match wallet_id
+    let preferred = wallet_id
         .filter(|s| !s.trim().is_empty())
-        .or(rec.linked_wallet_id.clone())
-    {
-        Some(id) => id,
-        None => ensure_hot_parent_wallet(&state, rec.network)?,
-    };
-
-    state.with_store(|store| {
-        let wallet = store.open_wallet(&parent_id).map_err(user_facing_error)?;
-        if wallet.network != rec.network {
-            return Err(format!(
-                "network mismatch: wallet is {:?}, hot wallet is {:?}",
-                wallet.network, rec.network
-            ));
-        }
-        Ok(())
-    })?;
+        .or(rec.linked_wallet_id.clone());
+    let parent_id = resolve_hot_parent_wallet(&state, rec.network, preferred)?;
 
     let key = hot_keystore::account_policy_key(&rec);
     let vault = state.with_store(|store| {
@@ -1138,13 +1143,12 @@ pub fn rename_hot_wallet(
             .map_err(user_facing_error)
     })?;
 
+    // Linked vault may be gone (parent wallet deleted) — still rename the hot record.
     if let Some(vault_id) = linked_vault_id.as_ref() {
         let _ = state.with_store(|store| {
             let service = VaultService::new(store);
-            service
-                .rename_vault(vault_id, &name)
-                .map_err(user_facing_error)
-        })?;
+            service.rename_vault(vault_id, &name).map_err(user_facing_error)
+        });
     }
 
     state.with_hot_unlocked_mut(|ks| {
