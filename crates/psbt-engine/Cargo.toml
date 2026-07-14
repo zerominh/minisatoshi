@@ -1,9 +1,21 @@
 [package]
 name = "psbt-engine"
+description = "PSBT creation, signing, and export for Minisatoshi"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
+address-engine.workspace = true
+base64 = "0.22"
+bitcoin.workspace = true
+blockchain.workspace = true
 descriptor-engine.workspace = true
+miniscript.workspace = true
+policy-engine.workspace = true
 thiserror.workspace = true
+wallet-core.workspace = true
+
+[dev-dependencies]
+policy-engine.workspace = true
+tempfile = "3"

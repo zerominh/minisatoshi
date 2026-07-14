@@ -432,7 +432,7 @@ pub fn export_psbt(psbt: &Psbt, format: ExportFormat) -> Result<Vec<u8>, PsbtErr
 - Timelock path: verify `nSequence` đúng
 - PSBT export → Sparrow import round-trip (unsigned)
 
-**Deliverable:** Tạo PSBT unsigned, export base64/file tương thích Sparrow; finalize với test keys.
+**Deliverable:** Tạo PSBT unsigned, export base64/file tương thích Sparrow; finalize với test keys. ✅
 
 ---
 
@@ -628,13 +628,13 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Sprint 5: Implement psbt-engine
-  - create_psbt, export base64/file (Sparrow-compatible)
-  - sign/combine/finalize with test keys
+Sprint 6: Tauri commands + TypeScript type bridge
+  - create_vault_cmd, get_balance_cmd, create_psbt_cmd
+  - specta or ts-rs for Rust ↔ TS types
 ```
 
-Pipeline hiện tại: `Policy JSON → Descriptor → Address → Balance/UTXO` ✅ (Sprint 1–4).
-Tiếp theo: `UTXO → PSBT → Export`.
+Pipeline hiện tại: `Policy → Descriptor → Address → Balance → PSBT` ✅ (Sprint 1–5).
+Tiếp theo: wire desktop UI qua Tauri IPC.
 
 ---
 

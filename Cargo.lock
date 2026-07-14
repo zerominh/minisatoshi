@@ -2803,8 +2803,16 @@ dependencies = [
 name = "psbt-engine"
 version = "0.1.0"
 dependencies = [
+ "address-engine",
+ "base64 0.22.1",
+ "bitcoin",
+ "blockchain",
  "descriptor-engine",
+ "miniscript",
+ "policy-engine",
+ "tempfile",
  "thiserror 2.0.18",
+ "wallet-core",
 ]
 
 [[package]]
