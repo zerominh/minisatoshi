@@ -16,10 +16,10 @@ use crate::scanner::{build_scan_plan, DEFAULT_GAP_LIMIT};
 use crate::types::{Balance, SyncProgress, SyncResult, TxSummary, Utxo};
 
 /// Space out public Esplora calls so Blockstream / mempool.space don't 429 mid-scan.
-const MIN_REQUEST_INTERVAL: Duration = Duration::from_millis(120);
-const MAX_RETRIES: u32 = 6;
-const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
-const MAX_BACKOFF: Duration = Duration::from_secs(16);
+const MIN_REQUEST_INTERVAL: Duration = Duration::from_millis(250);
+const MAX_RETRIES: u32 = 8;
+const INITIAL_BACKOFF: Duration = Duration::from_secs(1);
+const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 /// Esplora HTTP API backend (Blockstream, mempool.space, self-hosted Electrs).
 pub struct EsploraBackend {
@@ -107,7 +107,7 @@ impl EsploraBackend {
             return Err(ChainError::Api(format!(
                 "{context} failed with status {status}{}",
                 if is_retryable(status) {
-                    " (rate limited — wait a bit or switch Esplora server in Settings)"
+                    " (rate limited - wait a minute or switch Esplora server in Settings)"
                 } else {
                     ""
                 }
