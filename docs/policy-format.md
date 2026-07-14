@@ -63,11 +63,18 @@ Duration forms:
 
 | Input | Meaning |
 |---|---|
+| `1d` | 1 × 144 blocks (~1 day) |
+| `2d` | 2 × 144 blocks |
+| `1w` | 1 × 1 008 blocks (~1 week) |
 | `4y` | 4 × 52 560 blocks (~4 years) |
 | `210240b` | Explicit block count |
 | `1008` | Plain block count |
 
-`BLOCKS_PER_YEAR = 52560` (365.25 days × 144 blocks/day).
+Constants (≈10‑minute blocks):
+
+- `BLOCKS_PER_DAY = 144`
+- `BLOCKS_PER_WEEK = 1008`
+- `BLOCKS_PER_YEAR = 52560` (365.25 × 144)
 
 Fallback compiles to a Miniscript leaf like `and(pk(A), older(N))` alongside the primary leaves.
 

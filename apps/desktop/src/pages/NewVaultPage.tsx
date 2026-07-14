@@ -12,6 +12,11 @@ import {
   getPreferredNetwork,
   setActiveWalletId,
 } from "../lib/settings";
+import {
+  durationToBlocks,
+  formatDuration,
+  type TimelockUnit,
+} from "../lib/duration";
 import type { KeyConfig, NetworkName, PolicyConfig } from "../lib/types";
 
 type Step = 1 | 2 | 3 | 4 | 5;
@@ -35,7 +40,8 @@ export function NewVaultPage() {
   const [investor, setInvestor] = useState(emptyKey("A", "investor"));
   const [manager, setManager] = useState(emptyKey("B", "manager"));
   const [recovery, setRecovery] = useState(emptyKey("C", "recovery"));
-  const [years, setYears] = useState(4);
+  const [timelockAmount, setTimelockAmount] = useState(4);
+  const [timelockUnit, setTimelockUnit] = useState<TimelockUnit>("y");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -54,6 +60,9 @@ export function NewVaultPage() {
 
   const network =
     wallets.find((w) => w.id === walletId)?.network ?? getPreferredNetwork();
+
+  const after = formatDuration(timelockAmount, timelockUnit);
+  const timelockBlocks = durationToBlocks(timelockAmount, timelockUnit);
 
   const policy: PolicyConfig = useMemo(
     () => ({
@@ -76,10 +85,10 @@ export function NewVaultPage() {
       ],
       policy: {
         primary: "(A && B) || (A && C)",
-        fallback: { after: `${years}y`, allow: "A" },
+        fallback: { after, allow: "A" },
       },
     }),
-    [investor, manager, recovery, network, years],
+    [investor, manager, recovery, network, after],
   );
 
   function validateKey(key: KeyConfig, label: string): string | null {
@@ -95,7 +104,15 @@ export function NewVaultPage() {
     if (step === 1) return validateKey(investor, "Investor");
     if (step === 2) return validateKey(manager, "Manager");
     if (step === 3) return validateKey(recovery, "Recovery");
-    if (step === 4 && (years < 1 || years > 10)) return "Timelock must be 1–10 years";
+    if (step === 4) {
+      if (!Number.isInteger(timelockAmount) || timelockAmount < 1) {
+        return "Timelock amount must be at least 1";
+      }
+      if (timelockBlocks < 1) return "Timelock must be at least 1 block";
+      if (timelockBlocks > 10 * 52_560) {
+        return "Timelock is too large (max ~10 years)";
+      }
+    }
     if (step === 5 && !name.trim()) return "Vault name is required";
     return null;
   }
@@ -231,16 +248,49 @@ export function NewVaultPage() {
             {step === 4 && (
               <div className="form-grid">
                 <h3>Step 4 · Inheritance timelock</h3>
+                <p className="muted">
+                  After this relative delay, investor (A) alone can spend via the
+                  fallback path (`older(N)`).
+                </p>
                 <label>
-                  Years after which investor (A) alone can spend: {years}y
+                  Amount
                   <input
-                    type="range"
+                    type="number"
                     min={1}
-                    max={10}
-                    value={years}
-                    onChange={(e) => setYears(Number(e.target.value))}
+                    step={1}
+                    value={timelockAmount}
+                    onChange={(e) => setTimelockAmount(Number(e.target.value))}
+                    required
                   />
                 </label>
+                <label>
+                  Unit
+                  <select
+                    value={timelockUnit}
+                    onChange={(e) =>
+                      setTimelockUnit(e.target.value as TimelockUnit)
+                    }
+                  >
+                    <option value="d">Days</option>
+                    <option value="w">Weeks</option>
+                    <option value="y">Years</option>
+                    <option value="b">Blocks</option>
+                  </select>
+                </label>
+                <p className="mono">
+                  Policy: <strong>{after}</strong>
+                  {" · "}
+                  <strong>{timelockBlocks.toLocaleString()}</strong> blocks
+                  {timelockUnit !== "b"
+                    ? ` (≈ ${
+                        timelockUnit === "d"
+                          ? `${timelockAmount} × 144`
+                          : timelockUnit === "w"
+                            ? `${timelockAmount} × 1008`
+                            : `${timelockAmount} × 52560`
+                      })`
+                    : null}
+                </p>
               </div>
             )}
 

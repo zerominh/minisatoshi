@@ -23,7 +23,10 @@ pub use config::{
 };
 pub use error::PolicyError;
 pub use parser::parse_expression;
-pub use timelock::{blocks_per_year, parse_duration, DurationUnit};
+pub use timelock::{
+    blocks_per_day, blocks_per_week, blocks_per_year, parse_duration, DurationUnit, BLOCKS_PER_DAY,
+    BLOCKS_PER_WEEK, BLOCKS_PER_YEAR,
+};
 pub use translate::{descriptor_key_expression, translate_policy_keys, KeyTranslator};
 
 use validate::validate;

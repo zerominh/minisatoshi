@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { formatError, getVault, syncVault } from "../lib/api";
+import { formatTimelockLabel } from "../lib/duration";
 import { formatNetwork, formatSats, getEsploraUrl } from "../lib/settings";
 import type { SyncResultDto, VaultDto } from "../lib/types";
 
@@ -80,7 +81,7 @@ export function VaultDetailPage() {
           {vault.policy.policy.fallback ? (
             <p className="muted">
               Fallback {vault.policy.policy.fallback.allow} after{" "}
-              {vault.policy.policy.fallback.after}
+              {formatTimelockLabel(vault.policy.policy.fallback.after)}
             </p>
           ) : null}
         </div>
