@@ -124,9 +124,10 @@ export function ReceivePage() {
         <div className="panel">
           <h3>Descriptor backup</h3>
           <p className="muted">
-            Sparrow cannot import this Miniscript vault. Fund by sending to the
-            address on the left. Use Liana, Nunchuk, or Bitcoin Core to watch the
-            full policy.
+            Fund by sending to the address on the left. For watch-only share the
+            descriptor or use Vault → Export vault backup. Sign in Minisatoshi
+            (HW/software), Bitcoin Core, Liana, or Nunchuk — not Sparrow for
+            arbitrary Miniscript.
           </p>
           {vault ? (
             <>

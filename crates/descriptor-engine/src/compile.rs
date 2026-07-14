@@ -55,6 +55,17 @@ pub fn descriptor_checksum(descriptor: &str) -> Option<String> {
         .map(|(_, checksum)| checksum.to_string())
 }
 
+/// Verify BIP-380 descriptor checksum without fully parsing the script tree.
+///
+/// Miniscript Taproot trees from our compiler may not round-trip through
+/// `Descriptor::parse` even when the checksum is correct — import validates
+/// checksum here and relies on address derivation at use time.
+pub fn verify_descriptor_checksum(descriptor: &str) -> Result<(), DescriptorError> {
+    miniscript::descriptor::checksum::verify_checksum(descriptor.trim())
+        .map(|_| ())
+        .map_err(|e| DescriptorError::Parse(format!("invalid checksum: {e}")))
+}
+
 fn compile_taproot(
     config: &PolicyConfig,
 ) -> Result<Descriptor<DescriptorPublicKey>, DescriptorError> {

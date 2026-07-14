@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  exportVaultBackup,
   formatError,
   getVault,
   hwRegisterVault,
@@ -70,6 +71,25 @@ export function VaultDetailPage() {
       }
     } catch (err) {
       setError(formatError(err));
+    }
+  }
+
+  async function onExportBackup() {
+    setBusy(true);
+    setError(null);
+    try {
+      const backup = await exportVaultBackup(id);
+      const filename = `${sanitizedFilename(backup.name)}-minisatoshi-vault-v1.json`;
+      const path = await saveTextFileWithDialog(filename, `${backup.json}\n`);
+      if (path) {
+        setMessage(
+          `Backup saved to ${path} — restore via Vaults → Import vault (no SQLite needed).`,
+        );
+      }
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -207,6 +227,14 @@ export function VaultDetailPage() {
         <div className="row-actions">
           <button type="button" onClick={() => void onSaveDescriptorFile()}>
             Save descriptor file
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={() => void onExportBackup()}
+          >
+            Export vault backup
           </button>
         </div>
       </div>

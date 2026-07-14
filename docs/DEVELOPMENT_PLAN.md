@@ -712,24 +712,13 @@ Thêm crate `crates/signing-devices`:
 
 **Đã có một phần:** save `.txt`, copy descriptor, `export_sparrow_wallet` (messaging đã cảnh báo Miniscript).
 
-**Bổ sung**
+- [x] Tauri: `import_descriptor`, `import_vault_backup`, `export_vault_backup`
+- [x] Format `minisatoshi-vault-v1.json` = `{ descriptor, policy?, network, … }` + plain `.txt`
+- [x] Import: BIP-380 checksum verify, `tr`/`wsh`, network khớp wallet, optional policy JSON
+- [x] UI: Vaults → Import vault; Vault detail → Export vault backup; Receive copy audit
+- [x] Tests: round-trip address index 0; reject bad checksum; reject network mismatch
 
-```rust
-#[tauri::command]
-fn import_descriptor(wallet_id: String, name: String, descriptor: String) -> Result<VaultDto, String>;
-
-#[tauri::command]
-fn export_vault_backup(vault_id: String) -> Result<VaultBackupDto, String>;
-// VaultBackupDto { name, network, policy_json?, descriptor, created_at, format_version }
-```
-
-- Import: validate checksum, detect `tr`/`wsh`, network khớp wallet, optional attach policy JSON nếu có.
-- Export package: `minisatoshi-vault-v1.json` = `{ descriptor, policy, network, labels }` + plain `.txt` descriptor-only.
-- UI: Vault detail → Import vault / Export backup; Receive bỏ lời hứa Sparrow Import File như đường ký.
-
-**Tests:** round-trip export → wipe → import → cùng address index 0; reject checksum sai; reject network mismatch.
-
-**Deliverable:** Backup/restore vault không cần file DB SQLite.
+**Deliverable:** Backup/restore vault không cần file DB SQLite. ✅
 
 ---
 
@@ -935,12 +924,12 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Giai đoạn 3: Sprint 9–12 ✅ (sign / HWI / register / Send UX)
-  → Giai đoạn 4 Sprint 13 descriptor import/export
+Giai đoạn 4: Sprint 13 descriptor import/export ✅
+  → Sprint 14 QR / watch-only / BSMS-ish
 ```
 
-Pipeline: Policy → Descriptor → Address → Balance → PSBT → **Path/Sign status / HW / Combine / Finalize / Broadcast** → UI ✅.
-Bước kế: **Sprint 13 — Descriptor import / export**.
+Pipeline: … → **Backup/Import descriptor (minisatoshi-vault-v1)** → UI ✅.
+Bước kế: **Sprint 14 — QR descriptor / watch-only workflows**.
 
 ---
 

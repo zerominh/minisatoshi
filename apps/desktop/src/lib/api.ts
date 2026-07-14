@@ -32,6 +32,9 @@ import type {
   AnalyzePsbtRequest,
   SigningStatusDto,
   SpendingPathDto,
+  ImportDescriptorRequest,
+  ImportVaultBackupRequest,
+  VaultBackupDto,
 } from "./types";
 
 export async function compileVaultDescriptor(
@@ -54,6 +57,24 @@ export async function createVault(
   request: CreateVaultRequest,
 ): Promise<VaultDto> {
   return invoke("create_vault", { request });
+}
+
+export async function importDescriptor(
+  request: ImportDescriptorRequest,
+): Promise<VaultDto> {
+  return invoke("import_descriptor", { request });
+}
+
+export async function importVaultBackup(
+  request: ImportVaultBackupRequest,
+): Promise<VaultDto> {
+  return invoke("import_vault_backup", { request });
+}
+
+export async function exportVaultBackup(
+  vaultId: string,
+): Promise<VaultBackupDto> {
+  return invoke("export_vault_backup", { vaultId });
 }
 
 export async function listVaults(

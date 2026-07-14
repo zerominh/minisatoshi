@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./layout/AppLayout";
 import { NewVaultPage } from "./pages/NewVaultPage";
+import { ImportVaultPage } from "./pages/ImportVaultPage";
 import { ReceivePage } from "./pages/ReceivePage";
 import { SendPage } from "./pages/SendPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -17,6 +18,7 @@ function App() {
         <Route path="wallets" element={<WalletsPage />} />
         <Route path="vaults" element={<VaultsPage />} />
         <Route path="vaults/new" element={<NewVaultPage />} />
+        <Route path="vaults/import" element={<ImportVaultPage />} />
         <Route path="vaults/:id" element={<VaultDetailPage />} />
         <Route path="vaults/:id/receive" element={<ReceivePage />} />
         <Route path="vaults/:id/send" element={<SendPage />} />

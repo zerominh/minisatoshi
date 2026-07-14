@@ -18,11 +18,12 @@ use tauri::State;
 use vault::VaultService;
 
 use crate::dto::{
-    AddressDto, BalanceDto, BroadcastTxRequest, CombinePsbtRequest, CompileVaultResponse,
-    CreatePsbtRequest, CreateVaultRequest, CreateWalletRequest, FinalizedTxDto, HwDeviceDto,
-    HwGetXpubRequest, HwSignPsbtRequest, HwStatusDto, HwRegisterRequest, HwRegisterResultDto,
-    AnalyzePsbtRequest, HwXpubDto, PsbtDto, ServerPresetDto, SignPsbtRequest, SignedPsbtDto,
-    SparrowExportDto, SyncResultDto, VaultDto, VaultSummaryDto, WalletDto, WalletSummaryDto,
+    AddressDto, AnalyzePsbtRequest, BalanceDto, BroadcastTxRequest, CombinePsbtRequest,
+    CompileVaultResponse, CreatePsbtRequest, CreateVaultRequest, CreateWalletRequest,
+    FinalizedTxDto, HwDeviceDto, HwGetXpubRequest, HwRegisterRequest, HwRegisterResultDto,
+    HwSignPsbtRequest, HwStatusDto, HwXpubDto, ImportDescriptorRequest, ImportVaultBackupRequest,
+    PsbtDto, ServerPresetDto, SignPsbtRequest, SignedPsbtDto, SparrowExportDto, SyncResultDto,
+    VaultBackupDto, VaultDto, VaultSummaryDto, WalletDto, WalletSummaryDto,
 };
 use crate::error::user_facing_error;
 use crate::state::AppState;
@@ -78,6 +79,83 @@ pub fn create_vault(
             .create_vault_with_receive_address(&request.wallet_id, &request.name, request.policy)
             .map(|result| VaultDto::from(result.vault))
             .map_err(user_facing_error)
+    })
+}
+
+/// Import a checksummed descriptor (optional policy JSON) into a wallet.
+#[tauri::command]
+pub fn import_descriptor(
+    state: State<'_, AppState>,
+    request: ImportDescriptorRequest,
+) -> Result<VaultDto, String> {
+    state.with_store(|store| {
+        let service = VaultService::new(store);
+        service
+            .import_descriptor(
+                &request.wallet_id,
+                &request.name,
+                &request.descriptor,
+                request.policy,
+            )
+            .map(VaultDto::from)
+            .map_err(user_facing_error)
+    })
+}
+
+/// Import `minisatoshi-vault-v1.json` or a bare descriptor string.
+#[tauri::command]
+pub fn import_vault_backup(
+    state: State<'_, AppState>,
+    request: ImportVaultBackupRequest,
+) -> Result<VaultDto, String> {
+    state.with_store(|store| {
+        let service = VaultService::new(store);
+        let payload = request.payload.trim();
+        if payload.starts_with('{') {
+            let backup = wallet_core::VaultBackup::from_json(payload).map_err(user_facing_error)?;
+            service
+                .import_vault_backup(&request.wallet_id, &backup, request.name.as_deref())
+                .map(VaultDto::from)
+                .map_err(user_facing_error)
+        } else {
+            let name = request
+                .name
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .unwrap_or("Imported vault");
+            service
+                .import_descriptor(&request.wallet_id, name, payload, None)
+                .map(VaultDto::from)
+                .map_err(user_facing_error)
+        }
+    })
+}
+
+/// Export portable vault backup (JSON + descriptor text).
+#[tauri::command]
+pub fn export_vault_backup(
+    state: State<'_, AppState>,
+    vault_id: String,
+) -> Result<VaultBackupDto, String> {
+    state.with_store(|store| {
+        let service = VaultService::new(store);
+        let backup = service
+            .export_vault_backup(&vault_id)
+            .map_err(user_facing_error)?;
+        let json = backup.to_json_pretty().map_err(user_facing_error)?;
+        let descriptor_txt = backup.descriptor_txt();
+        Ok(VaultBackupDto {
+            format_version: backup.format_version,
+            name: backup.name,
+            network: backup.network,
+            descriptor: backup.descriptor,
+            script_type: backup.script_type,
+            policy: backup.policy,
+            created_at: backup.created_at,
+            json,
+            descriptor_txt,
+        })
     })
 }
 

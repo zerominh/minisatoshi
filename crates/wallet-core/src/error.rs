@@ -31,8 +31,17 @@ pub enum WalletError {
     #[error("descriptor import is invalid: {0}")]
     InvalidDescriptor(String),
 
+    #[error("network mismatch: wallet is {wallet}, backup/policy is {provided}")]
+    NetworkMismatch {
+        wallet: String,
+        provided: String,
+    },
+
     #[error("invalid script type: {0}")]
     InvalidScriptType(String),
+
+    #[error("unsupported backup format: {0}")]
+    UnsupportedBackupFormat(String),
 
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),

@@ -262,6 +262,31 @@ export interface AnalyzePsbtRequest {
   activePathId?: string | null;
 }
 
+export interface ImportDescriptorRequest {
+  walletId: string;
+  name: string;
+  descriptor: string;
+  policy?: PolicyConfig | null;
+}
+
+export interface ImportVaultBackupRequest {
+  walletId: string;
+  payload: string;
+  name?: string | null;
+}
+
+export interface VaultBackupDto {
+  formatVersion: string;
+  name: string;
+  network: NetworkName;
+  descriptor: string;
+  scriptType: ScriptTypeName;
+  policy?: PolicyConfig | null;
+  createdAt: number;
+  json: string;
+  descriptorTxt: string;
+}
+
 export interface SignedPsbtDto {
   base64: string;
   inputCount: number;

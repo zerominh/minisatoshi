@@ -212,6 +212,40 @@ pub struct AnalyzePsbtRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ImportDescriptorRequest {
+    pub wallet_id: String,
+    pub name: String,
+    pub descriptor: String,
+    #[serde(default)]
+    pub policy: Option<PolicyConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportVaultBackupRequest {
+    pub wallet_id: String,
+    /// Raw JSON (`minisatoshi-vault-v1`) or a bare descriptor string.
+    pub payload: String,
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultBackupDto {
+    pub format_version: String,
+    pub name: String,
+    pub network: NetworkName,
+    pub descriptor: String,
+    pub script_type: ScriptTypeName,
+    pub policy: Option<PolicyConfig>,
+    pub created_at: i64,
+    pub json: String,
+    pub descriptor_txt: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SignedPsbtDto {
     pub base64: String,
     pub input_count: usize,

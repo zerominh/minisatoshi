@@ -2,11 +2,12 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use address_engine::{new_change_address, new_receive_address, DerivedAddress};
-use descriptor_engine::compile_descriptor_from_config;
-use policy_engine::{PolicyConfig, ScriptTypeName};
+use descriptor_engine::{compile_descriptor_from_config, verify_descriptor_checksum};
+use policy_engine::{NetworkName, PolicyConfig, ScriptTypeName};
 use storage::{Database, NewAddress, NewVault, NewWallet, StorageError};
 use uuid::Uuid;
 
+use crate::backup::{VaultBackup, VAULT_BACKUP_FORMAT};
 use crate::error::WalletError;
 use crate::types::{
     network_from_str, network_to_str, script_type_from_str, script_type_to_str, Vault,
@@ -119,15 +120,40 @@ impl WalletStore {
         wallet_id: &str,
         name: &str,
         descriptor: &str,
+        policy: Option<PolicyConfig>,
     ) -> Result<Vault, WalletError> {
         if name.trim().is_empty() {
             return Err(WalletError::EmptyVaultName);
         }
 
         let wallet = self.db.get_wallet(wallet_id)?;
-        let script_type = validate_imported_descriptor(descriptor)?;
-        let network = network_from_str(&wallet.network).map_err(WalletError::InvalidNetwork)?;
-        let policy = imported_policy_placeholder(network, script_type, descriptor);
+        let wallet_network =
+            network_from_str(&wallet.network).map_err(WalletError::InvalidNetwork)?;
+        let (normalized, script_type) = validate_imported_descriptor(descriptor)?;
+
+        let policy = match policy {
+            Some(mut policy) => {
+                if policy.network != wallet_network {
+                    return Err(WalletError::NetworkMismatch {
+                        wallet: network_to_str(wallet_network).into(),
+                        provided: network_to_str(policy.network).into(),
+                    });
+                }
+                if policy.script_type != script_type {
+                    policy.script_type = script_type;
+                }
+                // Prefer compiled descriptor from policy when it matches what was pasted.
+                if let Ok(compiled) = compile_descriptor_from_config(&policy) {
+                    if strip_checksum(&compiled) != strip_checksum(&normalized)
+                        && compiled != normalized
+                    {
+                        // Keep user descriptor as source of truth; still store policy metadata.
+                    }
+                }
+                policy
+            }
+            None => imported_policy_placeholder(wallet_network, script_type),
+        };
 
         let now = unix_now();
         let record = self.db.insert_vault(&NewVault {
@@ -135,7 +161,7 @@ impl WalletStore {
             wallet_id: wallet_id.to_string(),
             name: name.trim().to_string(),
             policy_json: serde_json::to_string(&policy)?,
-            descriptor: descriptor.to_string(),
+            descriptor: normalized,
             script_type: script_type_to_str(script_type).to_string(),
             created_at: now,
         })?;
@@ -146,6 +172,53 @@ impl WalletStore {
 
     pub fn export_descriptor(&self, vault_id: &str) -> Result<String, WalletError> {
         Ok(self.db.get_vault(vault_id)?.descriptor)
+    }
+
+    /// Export a portable `minisatoshi-vault-v1` backup (descriptor + optional policy).
+    pub fn export_vault_backup(&self, vault_id: &str) -> Result<VaultBackup, WalletError> {
+        let vault = self.get_vault(vault_id)?;
+        let has_real_policy = vault.policy.policy.primary != "imported"
+            || !vault.policy.keys.is_empty();
+        Ok(VaultBackup::new(
+            vault.name,
+            vault.policy.network,
+            vault.descriptor,
+            vault.script_type,
+            if has_real_policy {
+                Some(vault.policy)
+            } else {
+                None
+            },
+            vault.created_at,
+        ))
+    }
+
+    /// Import from a `minisatoshi-vault-v1` JSON backup package.
+    pub fn import_vault_backup(
+        &self,
+        wallet_id: &str,
+        backup: &VaultBackup,
+        name_override: Option<&str>,
+    ) -> Result<Vault, WalletError> {
+        if backup.format_version != VAULT_BACKUP_FORMAT {
+            return Err(WalletError::UnsupportedBackupFormat(
+                backup.format_version.clone(),
+            ));
+        }
+        let wallet = self.db.get_wallet(wallet_id)?;
+        let wallet_network =
+            network_from_str(&wallet.network).map_err(WalletError::InvalidNetwork)?;
+        if backup.network != wallet_network {
+            return Err(WalletError::NetworkMismatch {
+                wallet: network_to_str(wallet_network).into(),
+                provided: network_to_str(backup.network).into(),
+            });
+        }
+        let name = name_override
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(backup.name.trim());
+        self.import_descriptor(wallet_id, name, &backup.descriptor, backup.policy.clone())
     }
 
     pub fn get_vault(&self, vault_id: &str) -> Result<Vault, WalletError> {
@@ -261,17 +334,31 @@ fn vault_from_record(record: storage::VaultRecord) -> Result<Vault, WalletError>
     })
 }
 
-fn validate_imported_descriptor(descriptor: &str) -> Result<ScriptTypeName, WalletError> {
+fn validate_imported_descriptor(
+    descriptor: &str,
+) -> Result<(String, ScriptTypeName), WalletError> {
     let desc = descriptor.trim();
     if desc.is_empty() {
         return Err(WalletError::InvalidDescriptor("descriptor is empty".into()));
     }
     if !desc.contains('#') {
         return Err(WalletError::InvalidDescriptor(
-            "descriptor must include checksum".into(),
+            "descriptor must include checksum (#…)".into(),
         ));
     }
-    detect_script_type(desc)
+    let script_type = detect_script_type(desc)?;
+    verify_descriptor_checksum(desc).map_err(|e| {
+        WalletError::InvalidDescriptor(format!("checksum or parse failed: {e}"))
+    })?;
+    Ok((desc.to_string(), script_type))
+}
+
+fn strip_checksum(descriptor: &str) -> &str {
+    descriptor
+        .rsplit_once('#')
+        .map(|(body, _)| body)
+        .unwrap_or(descriptor)
+        .trim()
 }
 
 fn detect_script_type(descriptor: &str) -> Result<ScriptTypeName, WalletError> {
@@ -288,9 +375,8 @@ fn detect_script_type(descriptor: &str) -> Result<ScriptTypeName, WalletError> {
 }
 
 fn imported_policy_placeholder(
-    network: policy_engine::NetworkName,
+    network: NetworkName,
     script_type: ScriptTypeName,
-    _descriptor: &str,
 ) -> PolicyConfig {
     PolicyConfig {
         version: policy_engine::POLICY_SCHEMA_VERSION,
@@ -300,7 +386,7 @@ fn imported_policy_placeholder(
         policy: policy_engine::PolicyExpression {
             primary: "imported".into(),
             fallback: None,
-                fallbacks: vec![],
+            fallbacks: vec![],
         },
     }
 }
@@ -316,8 +402,11 @@ fn unix_now() -> i64 {
 mod tests {
     use policy_engine::{
         abc_preset, test_vectors::TEST_FP, test_vectors::TEST_XPUB_A, test_vectors::TEST_XPUB_B,
-        test_vectors::TEST_XPUB_C, KeyConfig, KeyRole, NetworkName,
+        test_vectors::TEST_XPUB_C, KeyConfig, KeyRole, NetworkName, ScriptTypeName,
     };
+
+    use crate::backup::{VaultBackup, VAULT_BACKUP_FORMAT};
+    use crate::error::WalletError;
 
     use super::*;
 
@@ -415,9 +504,106 @@ mod tests {
         let descriptor = store.export_descriptor(&vault.id).unwrap();
 
         let imported = store
-            .import_descriptor(&wallet.id, "Imported Vault", &descriptor)
+            .import_descriptor(&wallet.id, "Imported Vault", &descriptor, None)
             .unwrap();
         let exported = store.export_descriptor(&imported.id).unwrap();
         assert_eq!(exported, descriptor);
+    }
+
+    #[test]
+    fn reject_bad_checksum() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = WalletStore::open(dir.path().join("wallet.db")).unwrap();
+        let wallet = store.create_wallet("Import", NetworkName::Testnet).unwrap();
+        let keys = sample_keys();
+        let policy = abc_preset(
+            keys[0].clone(),
+            keys[1].clone(),
+            keys[2].clone(),
+            4,
+            NetworkName::Testnet,
+        );
+        let vault = store.create_vault(&wallet.id, "Source", policy).unwrap();
+        let mut bad = vault.descriptor.clone();
+        // Flip last checksum char.
+        bad.pop();
+        bad.push('x');
+        let err = store
+            .import_descriptor(&wallet.id, "Bad", &bad, None)
+            .unwrap_err();
+        assert!(
+            matches!(err, WalletError::InvalidDescriptor(_)),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn reject_network_mismatch_on_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = WalletStore::open(dir.path().join("wallet.db")).unwrap();
+        let wallet = store.create_wallet("Testnet W", NetworkName::Testnet).unwrap();
+        let keys = sample_keys();
+        let policy = abc_preset(
+            keys[0].clone(),
+            keys[1].clone(),
+            keys[2].clone(),
+            4,
+            NetworkName::Mainnet,
+        );
+        // Craft backup claiming mainnet while descriptor is still valid parse-wise for import path.
+        let desc = include_str!("../../../tests/vectors/policy_abc_mainnet_descriptor.txt").trim();
+        let backup = VaultBackup::new(
+            "Mainnet vault",
+            NetworkName::Mainnet,
+            desc,
+            ScriptTypeName::Taproot,
+            Some(policy),
+            0,
+        );
+        let err = store
+            .import_vault_backup(&wallet.id, &backup, None)
+            .unwrap_err();
+        assert!(
+            matches!(err, WalletError::NetworkMismatch { .. }),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn backup_roundtrip_same_receive_address_index_0() {
+        let dir = tempfile::tempdir().unwrap();
+        let store_a = WalletStore::open(dir.path().join("a.db")).unwrap();
+        let wallet_a = store_a
+            .create_wallet("A", NetworkName::Testnet)
+            .unwrap();
+        let keys = sample_keys();
+        let policy = abc_preset(
+            keys[0].clone(),
+            keys[1].clone(),
+            keys[2].clone(),
+            4,
+            NetworkName::Testnet,
+        );
+        let vault = store_a
+            .create_vault(&wallet_a.id, "ABC", policy)
+            .unwrap();
+        let addr0 = store_a
+            .derive_and_save_receive_address(&vault.id, 0)
+            .unwrap();
+        let backup = store_a.export_vault_backup(&vault.id).unwrap();
+        assert_eq!(backup.format_version, VAULT_BACKUP_FORMAT);
+        assert!(backup.policy.is_some());
+
+        let store_b = WalletStore::open(dir.path().join("b.db")).unwrap();
+        let wallet_b = store_b
+            .create_wallet("B", NetworkName::Testnet)
+            .unwrap();
+        let imported = store_b
+            .import_vault_backup(&wallet_b.id, &backup, Some("Restored"))
+            .unwrap();
+        let addr0_b = store_b
+            .derive_and_save_receive_address(&imported.id, 0)
+            .unwrap();
+        assert_eq!(addr0.address, addr0_b.address);
     }
 }

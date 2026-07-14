@@ -46,9 +46,14 @@ export function VaultsPage() {
           <h2>Vaults</h2>
           <p>Policy-backed Taproot vaults for the active wallet.</p>
         </div>
-        <Link className="button-link primary" to="/vaults/new">
-          New vault
-        </Link>
+        <div className="row-actions">
+          <Link className="button-link" to="/vaults/import">
+            Import vault
+          </Link>
+          <Link className="button-link primary" to="/vaults/new">
+            New vault
+          </Link>
+        </div>
       </header>
 
       {wallets.length === 0 ? (
