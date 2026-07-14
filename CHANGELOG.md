@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Esplora sync: space requests (~120ms) and retry with backoff on HTTP 429/503 (Blockstream rate limits)
 - Hot wallet open after parent SQLite wallet was deleted (or BIP-86 migration recreated storage): heal stale `linked_wallet_id` instead of `wallet not found`
 - Hot wallet rename still updates the keystore name when the linked vault row is missing
 - Hot wallet singlesig used `tr(NUMS,{pk(A)})` script-path addresses, so Sync showed **0 balance** vs Sparrow BIP-86 `tr(xpub/…)`. Now compiles key-path Taproot; opening an old hot wallet migrates the stored descriptor.

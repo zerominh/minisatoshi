@@ -1,8 +1,12 @@
 use std::collections::HashMap;
-use std::time::Duration;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use policy_engine::NetworkName;
 use reqwest::blocking::Client;
+use reqwest::header::RETRY_AFTER;
+use reqwest::StatusCode;
+use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
 use crate::backend::BlockchainBackend;
@@ -11,11 +15,18 @@ use crate::query::DescriptorQuery;
 use crate::scanner::{build_scan_plan, DEFAULT_GAP_LIMIT};
 use crate::types::{Balance, SyncProgress, SyncResult, TxSummary, Utxo};
 
+/// Space out public Esplora calls so Blockstream / mempool.space don't 429 mid-scan.
+const MIN_REQUEST_INTERVAL: Duration = Duration::from_millis(120);
+const MAX_RETRIES: u32 = 6;
+const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
+const MAX_BACKOFF: Duration = Duration::from_secs(16);
+
 /// Esplora HTTP API backend (Blockstream, mempool.space, self-hosted Electrs).
 pub struct EsploraBackend {
     base_url: String,
     client: Client,
     gap_limit: u32,
+    last_request: Mutex<Option<Instant>>,
 }
 
 impl EsploraBackend {
@@ -29,6 +40,7 @@ impl EsploraBackend {
             base_url: normalize_base_url(base_url.into()),
             client,
             gap_limit: DEFAULT_GAP_LIMIT,
+            last_request: Mutex::new(None),
         })
     }
 
@@ -49,23 +61,69 @@ impl EsploraBackend {
         format!("{}{}", self.base_url, path)
     }
 
-    fn address_stats(&self, address: &str) -> Result<EsploraAddressStats, ChainError> {
-        let response = self
-            .client
-            .get(self.url(&format!("/address/{address}")))
-            .send()
-            .map_err(|e| ChainError::Http(e.to_string()))?;
+    fn pace(&self) {
+        let mut slot = self
+            .last_request
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(previous) = *slot {
+            let elapsed = previous.elapsed();
+            if elapsed < MIN_REQUEST_INTERVAL {
+                std::thread::sleep(MIN_REQUEST_INTERVAL - elapsed);
+            }
+        }
+        *slot = Some(Instant::now());
+    }
 
-        if !response.status().is_success() {
+    fn get_json<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        context: &str,
+    ) -> Result<T, ChainError> {
+        let mut backoff = INITIAL_BACKOFF;
+
+        for attempt in 0..MAX_RETRIES {
+            self.pace();
+            let response = self
+                .client
+                .get(self.url(path))
+                .send()
+                .map_err(|e| ChainError::Http(e.to_string()))?;
+
+            let status = response.status();
+            if status.is_success() {
+                return response
+                    .json::<T>()
+                    .map_err(|e| ChainError::Parse(e.to_string()));
+            }
+
+            if is_retryable(status) && attempt + 1 < MAX_RETRIES {
+                let wait = retry_after_delay(&response).unwrap_or(backoff);
+                std::thread::sleep(wait);
+                backoff = (backoff.saturating_mul(2)).min(MAX_BACKOFF);
+                continue;
+            }
+
             return Err(ChainError::Api(format!(
-                "address lookup failed with status {}",
-                response.status()
+                "{context} failed with status {status}{}",
+                if is_retryable(status) {
+                    " (rate limited — wait a bit or switch Esplora server in Settings)"
+                } else {
+                    ""
+                }
             )));
         }
 
-        response
-            .json::<EsploraAddressStats>()
-            .map_err(|e| ChainError::Parse(e.to_string()))
+        Err(ChainError::Api(format!(
+            "{context} failed after {MAX_RETRIES} attempts"
+        )))
+    }
+
+    fn address_stats(&self, address: &str) -> Result<EsploraAddressStats, ChainError> {
+        self.get_json(
+            &format!("/address/{address}"),
+            "address lookup",
+        )
     }
 
     fn address_has_activity(&self, address: &str) -> Result<bool, ChainError> {
@@ -74,42 +132,32 @@ impl EsploraBackend {
     }
 
     fn address_utxos(&self, address: &str) -> Result<Vec<EsploraUtxo>, ChainError> {
-        let response = self
-            .client
-            .get(self.url(&format!("/address/{address}/utxo")))
-            .send()
-            .map_err(|e| ChainError::Http(e.to_string()))?;
-
-        if !response.status().is_success() {
-            return Err(ChainError::Api(format!(
-                "utxo lookup failed with status {}",
-                response.status()
-            )));
-        }
-
-        response
-            .json::<Vec<EsploraUtxo>>()
-            .map_err(|e| ChainError::Parse(e.to_string()))
+        self.get_json(
+            &format!("/address/{address}/utxo"),
+            "utxo lookup",
+        )
     }
 
     fn address_txs(&self, address: &str) -> Result<Vec<EsploraTx>, ChainError> {
-        let response = self
-            .client
-            .get(self.url(&format!("/address/{address}/txs")))
-            .send()
-            .map_err(|e| ChainError::Http(e.to_string()))?;
-
-        if !response.status().is_success() {
-            return Err(ChainError::Api(format!(
-                "tx history failed with status {}",
-                response.status()
-            )));
-        }
-
-        response
-            .json::<Vec<EsploraTx>>()
-            .map_err(|e| ChainError::Parse(e.to_string()))
+        self.get_json(
+            &format!("/address/{address}/txs"),
+            "tx history",
+        )
     }
+}
+
+fn is_retryable(status: StatusCode) -> bool {
+    status == StatusCode::TOO_MANY_REQUESTS
+        || status == StatusCode::SERVICE_UNAVAILABLE
+        || status == StatusCode::GATEWAY_TIMEOUT
+}
+
+fn retry_after_delay(response: &reqwest::blocking::Response) -> Option<Duration> {
+    let header = response.headers().get(RETRY_AFTER)?;
+    let raw = header.to_str().ok()?;
+    // Esplora / CDNs usually send seconds as an integer.
+    let secs = raw.parse::<u64>().ok()?;
+    Some(Duration::from_secs(secs.max(1)).min(MAX_BACKOFF))
 }
 
 impl BlockchainBackend for EsploraBackend {
@@ -181,21 +229,37 @@ impl BlockchainBackend for EsploraBackend {
     }
 
     fn broadcast(&self, tx_hex: &str) -> Result<String, ChainError> {
-        let response = self
-            .client
-            .post(self.url("/tx"))
-            .body(tx_hex.to_string())
-            .send()
-            .map_err(|e| ChainError::Http(e.to_string()))?;
+        self.pace();
+        let mut backoff = INITIAL_BACKOFF;
+        let mut last_body = String::new();
 
-        if !response.status().is_success() {
-            let body = response.text().unwrap_or_default();
-            return Err(ChainError::Broadcast(body));
+        for attempt in 0..MAX_RETRIES {
+            let response = self
+                .client
+                .post(self.url("/tx"))
+                .body(tx_hex.to_string())
+                .send()
+                .map_err(|e| ChainError::Http(e.to_string()))?;
+
+            let status = response.status();
+            if status.is_success() {
+                return response
+                    .text()
+                    .map_err(|e| ChainError::Parse(e.to_string()));
+            }
+
+            last_body = response.text().unwrap_or_else(|_| status.to_string());
+            if is_retryable(status) && attempt + 1 < MAX_RETRIES {
+                std::thread::sleep(backoff);
+                backoff = (backoff.saturating_mul(2)).min(MAX_BACKOFF);
+                self.pace();
+                continue;
+            }
+
+            return Err(ChainError::Broadcast(last_body));
         }
 
-        response
-            .text()
-            .map_err(|e| ChainError::Parse(e.to_string()))
+        Err(ChainError::Broadcast(last_body))
     }
 }
 
