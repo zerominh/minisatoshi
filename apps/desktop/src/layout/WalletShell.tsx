@@ -18,7 +18,6 @@ export function WalletShell() {
     busy,
     syncing,
     error,
-    message,
     runSync,
     kind,
     listPath,
@@ -29,7 +28,7 @@ export function WalletShell() {
     return <p className="muted">Loading…</p>;
   }
   if (!vault) {
-    return <pre className="error">{error}</pre>;
+    return null;
   }
 
   const label = kind === "hot" ? "Hot wallet" : "Vault";
@@ -94,8 +93,6 @@ export function WalletShell() {
         </div>
       </aside>
       <div className="vault-main">
-        {error ? <pre className="error">{error}</pre> : null}
-        {message ? <p className="status">{message}</p> : null}
         <Outlet />
       </div>
     </div>

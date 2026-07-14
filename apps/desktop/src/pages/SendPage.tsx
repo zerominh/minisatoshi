@@ -51,6 +51,8 @@ export function SendPage() {
     runSync,
     vault: shellVault,
     busy: shellBusy,
+    setError,
+    setMessage,
   } = useVault();
   const [vault, setVault] = useState<VaultDto | null>(shellVault);
   const [step, setStep] = useState<SendStep>("compose");
@@ -74,8 +76,6 @@ export function SendPage() {
   const [broadcastConfirm, setBroadcastConfirm] = useState(false);
   const [broadcastTxid, setBroadcastTxid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (shellVault) setVault(shellVault);
@@ -499,9 +499,6 @@ export function SendPage() {
           {step === "done" ? "Sent" : "Broadcast"}
         </button>
       </nav>
-
-      {error ? <pre className="error">{error}</pre> : null}
-      {message ? <p className="status">{message}</p> : null}
 
       <div className="send-wizard">
         <div

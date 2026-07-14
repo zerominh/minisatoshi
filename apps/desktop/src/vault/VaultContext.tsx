@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useParams } from "react-router-dom";
+import { useFlash } from "../flash/FlashContext";
 import { formatError, getVault, syncVault } from "../lib/api";
 import { getEsploraUrl } from "../lib/settings";
 import type { SyncResultDto, VaultDto } from "../lib/types";
@@ -73,14 +74,19 @@ export function VaultProvider({
 }: ProviderProps) {
   const { id: routeId = "" } = useParams();
   const id = vaultIdProp ?? routeId;
+  const {
+    error,
+    message,
+    setError,
+    setMessage,
+    clear: clearFlash,
+  } = useFlash();
   const [vault, setVault] = useState<VaultDto | null>(null);
   const [sync, setSync] = useState<SyncResultDto | null>(
     () => syncCache.get(id)?.result ?? null,
   );
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const syncingRef = useRef(false);
   const idRef = useRef(id);
   idRef.current = id;
@@ -125,14 +131,13 @@ export function VaultProvider({
         if (!quiet) setBusy(false);
       }
     },
-    [],
+    [setError, setMessage],
   );
 
   useEffect(() => {
     const cached = syncCache.get(id);
     setSync(cached?.result ?? null);
-    setError(null);
-    setMessage(null);
+    clearFlash();
     setBusy(false);
     let cancelled = false;
 
@@ -172,7 +177,7 @@ export function VaultProvider({
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [id, refreshVault, runSync]);
+  }, [id, refreshVault, runSync, clearFlash, setError]);
 
   const resolvedListPath =
     listPath ?? (kind === "hot" ? "/hot-wallets" : "/vaults");
