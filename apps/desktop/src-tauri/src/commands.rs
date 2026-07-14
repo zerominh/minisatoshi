@@ -20,13 +20,15 @@ use vault::VaultService;
 use crate::dto::{
     AddressDto, BalanceDto, BroadcastTxRequest, CombinePsbtRequest, CompileVaultResponse,
     CreatePsbtRequest, CreateVaultRequest, CreateWalletRequest, FinalizedTxDto, HwDeviceDto,
-    HwGetXpubRequest, HwSignPsbtRequest, HwXpubDto, PsbtDto, ServerPresetDto, SignPsbtRequest,
-    SignedPsbtDto, SparrowExportDto, SyncResultDto, VaultDto, VaultSummaryDto, WalletDto,
-    WalletSummaryDto,
+    HwGetXpubRequest, HwSignPsbtRequest, HwStatusDto, HwXpubDto, PsbtDto, ServerPresetDto,
+    SignPsbtRequest, SignedPsbtDto, SparrowExportDto, SyncResultDto, VaultDto, VaultSummaryDto,
+    WalletDto, WalletSummaryDto,
 };
 use crate::error::user_facing_error;
 use crate::state::AppState;
-use signing_devices::{parse_derivation_path, DeviceInfo, HwiClient};
+use signing_devices::{
+    ensure_hwi, find_hwi, parse_derivation_path, DeviceInfo, HwiClient, HwiSource, PINNED_HWI_VERSION,
+};
 
 #[tauri::command]
 pub fn compile_vault_descriptor(config: PolicyConfig) -> Result<CompileVaultResponse, String> {
@@ -333,11 +335,25 @@ pub fn sign_psbt_software(request: SignPsbtRequest) -> Result<SignedPsbtDto, Str
     })
 }
 
-fn hwi_client(hwi_path: Option<&str>) -> HwiClient {
-    match hwi_path.map(str::trim).filter(|p| !p.is_empty()) {
-        Some(path) => HwiClient::with_binary(path),
-        None => HwiClient::new(Default::default()),
-    }
+fn hwi_client(
+    state: &AppState,
+    hwi_path: Option<&str>,
+    auto_install: bool,
+) -> Result<HwiClient, String> {
+    let preferred = hwi_path
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(std::path::PathBuf::from);
+    let resolved = if auto_install {
+        ensure_hwi(preferred.as_deref(), &state.data_dir).map_err(user_facing_error)?
+    } else {
+        find_hwi(preferred.as_deref(), &state.data_dir).ok_or_else(|| {
+            format!(
+                "HWI not found — click Install HWI (downloads v{PINNED_HWI_VERSION}) or set a binary path"
+            )
+        })?
+    };
+    Ok(HwiClient::with_binary(resolved.path))
 }
 
 fn device_to_dto(d: DeviceInfo) -> HwDeviceDto {
@@ -364,18 +380,94 @@ fn count_signed_inputs(psbt: &psbt_engine::Psbt) -> usize {
         .count()
 }
 
-/// Enumerate hardware wallets via HWI (`hwi enumerate`).
+fn source_label(source: HwiSource) -> &'static str {
+    match source {
+        HwiSource::Preferred => "preferred",
+        HwiSource::Env => "env",
+        HwiSource::SystemPath => "system",
+        HwiSource::Cached => "cached",
+        HwiSource::Downloaded => "downloaded",
+    }
+}
+
+/// Probe for HWI (PATH / env / Settings / app cache). Does not download.
 #[tauri::command]
-pub fn list_hw_devices(hwi_path: Option<String>) -> Result<Vec<HwDeviceDto>, String> {
-    let client = hwi_client(hwi_path.as_deref());
+pub fn get_hwi_status(
+    state: State<'_, AppState>,
+    hwi_path: Option<String>,
+) -> Result<HwStatusDto, String> {
+    let preferred = hwi_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(std::path::PathBuf::from);
+    match find_hwi(preferred.as_deref(), &state.data_dir) {
+        Some(resolved) => Ok(HwStatusDto {
+            available: true,
+            path: Some(resolved.path.display().to_string()),
+            version: Some(resolved.version),
+            source: Some(source_label(resolved.source).to_string()),
+            pinned_version: PINNED_HWI_VERSION.to_string(),
+            message: None,
+        }),
+        None => Ok(HwStatusDto {
+            available: false,
+            path: None,
+            version: None,
+            source: None,
+            pinned_version: PINNED_HWI_VERSION.to_string(),
+            message: Some(format!(
+                "HWI missing — app can download official v{PINNED_HWI_VERSION} (~50–90 MB)"
+            )),
+        }),
+    }
+}
+
+/// Find HWI or download the pinned official release into app data.
+#[tauri::command]
+pub fn ensure_hwi_installed(
+    state: State<'_, AppState>,
+    hwi_path: Option<String>,
+) -> Result<HwStatusDto, String> {
+    let preferred = hwi_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(std::path::PathBuf::from);
+    let resolved = ensure_hwi(preferred.as_deref(), &state.data_dir).map_err(user_facing_error)?;
+    Ok(HwStatusDto {
+        available: true,
+        path: Some(resolved.path.display().to_string()),
+        version: Some(resolved.version),
+        source: Some(source_label(resolved.source).to_string()),
+        pinned_version: PINNED_HWI_VERSION.to_string(),
+        message: match resolved.source {
+            HwiSource::Downloaded => Some(format!(
+                "Downloaded HWI {PINNED_HWI_VERSION} from bitcoin-core/HWI (checksum verified)"
+            )),
+            _ => None,
+        },
+    })
+}
+
+/// Enumerate hardware wallets via HWI (`hwi enumerate`). Auto-installs HWI if missing.
+#[tauri::command]
+pub fn list_hw_devices(
+    state: State<'_, AppState>,
+    hwi_path: Option<String>,
+) -> Result<Vec<HwDeviceDto>, String> {
+    let client = hwi_client(&state, hwi_path.as_deref(), true)?;
     let devices = client.enumerate().map_err(user_facing_error)?;
     Ok(devices.into_iter().map(device_to_dto).collect())
 }
 
 /// Fetch an xpub from a connected device (`hwi getxpub`).
 #[tauri::command]
-pub fn hw_get_xpub(request: HwGetXpubRequest) -> Result<HwXpubDto, String> {
-    let client = hwi_client(request.hwi_path.as_deref());
+pub fn hw_get_xpub(
+    state: State<'_, AppState>,
+    request: HwGetXpubRequest,
+) -> Result<HwXpubDto, String> {
+    let client = hwi_client(&state, request.hwi_path.as_deref(), true)?;
     let path = parse_derivation_path(&request.derivation_path).map_err(user_facing_error)?;
     let xpub = client
         .get_xpub(request.fingerprint.trim(), &path)
@@ -389,8 +481,11 @@ pub fn hw_get_xpub(request: HwGetXpubRequest) -> Result<HwXpubDto, String> {
 
 /// Sign a PSBT on-device (`hwi signtx`). Secrets never leave the hardware.
 #[tauri::command]
-pub fn hw_sign_psbt(request: HwSignPsbtRequest) -> Result<SignedPsbtDto, String> {
-    let client = hwi_client(request.hwi_path.as_deref());
+pub fn hw_sign_psbt(
+    state: State<'_, AppState>,
+    request: HwSignPsbtRequest,
+) -> Result<SignedPsbtDto, String> {
+    let client = hwi_client(&state, request.hwi_path.as_deref(), true)?;
     let signed_b64 = client
         .sign_psbt(request.fingerprint.trim(), &request.psbt_base64)
         .map_err(user_facing_error)?;

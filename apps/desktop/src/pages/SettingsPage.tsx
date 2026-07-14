@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import {
   appVersion,
+  ensureHwiInstalled,
   formatError,
+  getHwiStatus,
   hwGetXpub,
   listHwDevices,
   listServerPresets,
@@ -17,13 +19,19 @@ import {
   setHwFingerprint,
   setPreferredNetwork,
 } from "../lib/settings";
-import type { HwDeviceDto, NetworkName, ServerPresetDto } from "../lib/types";
+import type {
+  HwDeviceDto,
+  HwStatusDto,
+  NetworkName,
+  ServerPresetDto,
+} from "../lib/types";
 
 export function SettingsPage() {
   const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
   const [esploraUrl, setUrl] = useState(getEsploraUrl());
   const [hwiPath, setHwiPathState] = useState(getHwiPath());
   const [hwFingerprint, setHwFingerprintState] = useState(getHwFingerprint());
+  const [hwiStatus, setHwiStatus] = useState<HwStatusDto | null>(null);
   const [devices, setDevices] = useState<HwDeviceDto[]>([]);
   const [xpubPath, setXpubPath] = useState("m/86'/1'/0'");
   const [xpubResult, setXpubResult] = useState<string | null>(null);
@@ -43,6 +51,12 @@ export function SettingsPage() {
       .catch((err) => setError(formatError(err)));
   }, [network]);
 
+  useEffect(() => {
+    void getHwiStatus(hwiPath || null)
+      .then(setHwiStatus)
+      .catch(() => setHwiStatus(null));
+  }, []);
+
   function onSave(event: FormEvent) {
     event.preventDefault();
     setPreferredNetwork(network);
@@ -52,17 +66,59 @@ export function SettingsPage() {
     setMessage("Settings saved locally.");
   }
 
+  async function refreshHwiStatus() {
+    const status = await getHwiStatus(hwiPath || null);
+    setHwiStatus(status);
+    if (status.path) {
+      setHwiPathState(status.path);
+      setHwiPath(status.path);
+    }
+    return status;
+  }
+
+  async function onInstallHwi() {
+    setBusy(true);
+    setError(null);
+    setMessage(
+      `Downloading official HWI ${hwiStatus?.pinnedVersion ?? ""} (checksum verified)…`,
+    );
+    try {
+      const status = await ensureHwiInstalled(hwiPath || null);
+      setHwiStatus(status);
+      if (status.path) {
+        setHwiPathState(status.path);
+        setHwiPath(status.path);
+      }
+      setMessage(
+        status.message ??
+          `HWI ready${status.version ? ` · ${status.version}` : ""}`,
+      );
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onRefreshDevices() {
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
       setHwiPath(hwiPath);
+      await refreshHwiStatus().catch(() => undefined);
       const list = await listHwDevices(hwiPath || null);
+      // After auto-install, path may be in app data — refresh status
+      const status = await getHwiStatus(hwiPath || null);
+      setHwiStatus(status);
+      if (status.path && !getHwiPath()) {
+        setHwiPathState(status.path);
+        setHwiPath(status.path);
+      }
       setDevices(list);
       setMessage(
         list.length === 0
-          ? "No devices found — install HWI and connect a wallet."
+          ? "No devices found — connect a hardware wallet."
           : `Found ${list.length} device(s).`,
       );
     } catch (err) {
@@ -133,24 +189,31 @@ export function SettingsPage() {
       <div className="panel form-grid">
         <h3>Signing devices (HWI)</h3>
         <p className="muted">
-          Requires the{" "}
+          If HWI is missing, the app downloads the official{" "}
           <a
-            href="https://github.com/bitcoin-core/HWI"
+            href="https://github.com/bitcoin-core/HWI/releases"
             target="_blank"
             rel="noreferrer"
           >
-            HWI
+            bitcoin-core/HWI
           </a>{" "}
-          binary on PATH, or set an absolute path below. Secrets never leave the
-          device.
+          binary (v{hwiStatus?.pinnedVersion ?? "…"}, SHA-256 verified) into app
+          data. Secrets never leave the device.
         </p>
+        {hwiStatus ? (
+          <p className={hwiStatus.available ? "status" : "muted"}>
+            {hwiStatus.available
+              ? `HWI ready · ${hwiStatus.version ?? "unknown"} · ${hwiStatus.source ?? ""} · ${hwiStatus.path ?? ""}`
+              : (hwiStatus.message ?? "HWI not found")}
+          </p>
+        ) : null}
         <label>
-          HWI binary path (optional)
+          HWI binary path (optional override)
           <input
             className="mono"
             value={hwiPath}
             onChange={(e) => setHwiPathState(e.target.value)}
-            placeholder="hwi or C:\path\to\hwi.exe"
+            placeholder="auto / PATH / app-managed"
           />
         </label>
         <label>
@@ -172,6 +235,13 @@ export function SettingsPage() {
           />
         </label>
         <div className="row-actions">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void onInstallHwi()}
+          >
+            {hwiStatus?.available ? "Verify HWI" : "Install HWI"}
+          </button>
           <button
             type="button"
             disabled={busy}

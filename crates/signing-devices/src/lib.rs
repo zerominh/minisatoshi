@@ -2,14 +2,18 @@
 
 mod error;
 mod hwi;
+mod install;
 mod types;
 
 pub use error::SignError;
 pub use hwi::{parse_derivation_path, parse_enumerate_json, HwiClient, HwiConfig, HwiDeviceSigner};
+pub use install::{
+    bundled_hwi_binary, ensure_hwi, find_hwi, hwi_works, install_hwi, HwiSource, ResolvedHwi,
+    PINNED_HWI_VERSION,
+};
 pub use types::{DeviceInfo, DeviceType};
 
 use bitcoin::bip32::DerivationPath;
-
 /// Common interface for hardware (or mock) signers.
 pub trait HardwareSigner: Send + Sync {
     fn device_id(&self) -> &str;

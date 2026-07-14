@@ -16,6 +16,8 @@ commands.allow = [
   "list_hw_devices",
   "hw_get_xpub",
   "hw_sign_psbt",
+  "get_hwi_status",
+  "ensure_hwi_installed",
   "combine_psbts",
   "finalize_psbt_cmd",
   "broadcast_psbt_cmd",

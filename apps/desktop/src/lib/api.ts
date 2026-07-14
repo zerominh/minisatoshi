@@ -24,6 +24,7 @@ import type {
   HwDeviceDto,
   HwGetXpubRequest,
   HwSignPsbtRequest,
+  HwStatusDto,
   HwXpubDto,
 } from "./types";
 
@@ -107,6 +108,18 @@ export async function hwSignPsbt(
   request: HwSignPsbtRequest,
 ): Promise<SignedPsbtDto> {
   return invoke("hw_sign_psbt", { request });
+}
+
+export async function getHwiStatus(
+  hwiPath?: string | null,
+): Promise<HwStatusDto> {
+  return invoke("get_hwi_status", { hwiPath: hwiPath ?? null });
+}
+
+export async function ensureHwiInstalled(
+  hwiPath?: string | null,
+): Promise<HwStatusDto> {
+  return invoke("ensure_hwi_installed", { hwiPath: hwiPath ?? null });
 }
 
 export async function combinePsbts(

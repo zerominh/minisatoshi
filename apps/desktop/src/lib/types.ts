@@ -174,6 +174,15 @@ export interface HwSignPsbtRequest {
   hwiPath?: string | null;
 }
 
+export interface HwStatusDto {
+  available: boolean;
+  path?: string | null;
+  version?: string | null;
+  source?: string | null;
+  pinnedVersion: string;
+  message?: string | null;
+}
+
 export interface SignedPsbtDto {
   base64: string;
   inputCount: number;

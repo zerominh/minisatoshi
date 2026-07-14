@@ -661,7 +661,8 @@ Thêm crate `crates/signing-devices`:
 - [x] Tauri: `list_hw_devices`, `hw_get_xpub`, `hw_sign_psbt`
 - [x] Settings → Signing devices (path HWI, refresh, get xpub, fingerprint)
 - [x] Send: optional “Sign with hardware”
-- [x] Unit: enumerate JSON fixture + path parse + cancel mapping
+- [x] Auto-install HWI if missing (official 3.2.0 release, SHA-256 verify → app data)
+- [x] Unit: enumerate JSON fixture + path parse + cancel mapping + install helpers
 
 **Deliverable:** App enumerates HW và lấy xpub + fingerprint; ký PSBT qua HWI. ✅
 

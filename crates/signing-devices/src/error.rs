@@ -22,4 +22,13 @@ pub enum SignError {
 
     #[error("invalid derivation path: {0}")]
     InvalidPath(String),
+
+    #[error("failed to install HWI: {0}")]
+    Install(String),
+
+    #[error("failed to download HWI: {0}")]
+    Download(String),
+
+    #[error("HWI checksum mismatch (expected {expected}, got {actual})")]
+    ChecksumMismatch { expected: String, actual: String },
 }

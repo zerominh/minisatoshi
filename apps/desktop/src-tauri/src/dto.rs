@@ -173,6 +173,17 @@ pub struct HwSignPsbtRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct HwStatusDto {
+    pub available: bool,
+    pub path: Option<String>,
+    pub version: Option<String>,
+    pub source: Option<String>,
+    pub pinned_version: String,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SignedPsbtDto {
     pub base64: String,
     pub input_count: usize,

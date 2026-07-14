@@ -7,13 +7,16 @@ use wallet_core::WalletStore;
 
 pub struct AppState {
     pub store: Mutex<WalletStore>,
+    /// App data directory (DB, bundled HWI, …).
+    pub data_dir: PathBuf,
 }
 
 impl AppState {
-    pub fn open(db_path: PathBuf) -> Result<Self, String> {
+    pub fn open(data_dir: PathBuf, db_path: PathBuf) -> Result<Self, String> {
         let store = WalletStore::open(&db_path).map_err(|e| e.to_string())?;
         Ok(Self {
             store: Mutex::new(store),
+            data_dir,
         })
     }
 
