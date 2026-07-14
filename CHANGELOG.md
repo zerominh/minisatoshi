@@ -5,6 +5,19 @@ All notable changes to Minisatoshi are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] — 2026-07-14
+
+### Fixed
+
+- Hot wallet signing produced **invalid Taproot script-path signatures** for multipath descriptors (`[fp/origin]account/<0;1>/*`). Secrets now use `[fp]master/86'/…'/<0;1>/*`; existing keystores rebuild the path from the mnemonic on sign.
+- Finalize errors now include the underlying Miniscript/interpreter reason (e.g. bad Schnorr signature).
+- Software signing verifies tap_script_sigs after Sign so a wrong key fails immediately instead of at Finalize.
+
+### Added
+
+- Hot wallets: Sparrow-style numbered BIP-39 word grid (12/24) with autocomplete
+- SeedQR import: camera or image scan (Standard + Compact SeedQR / plain words / JSON)
+
 ## [0.3.1] — 2026-07-14
 
 ### Added

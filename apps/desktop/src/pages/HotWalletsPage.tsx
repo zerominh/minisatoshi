@@ -1,6 +1,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  MnemonicGrid,
+  mnemonicIsComplete,
+  wordsToMnemonic,
+  type WordCount,
+} from "../components/MnemonicGrid";
+import {
   createHotKeystore,
   deleteHotWallet,
   formatError,
@@ -31,7 +37,10 @@ export function HotWalletsPage() {
   const [hotWallets, setHotWallets] = useState<HotWalletSummaryDto[]>([]);
   const [password, setPassword] = useState("");
   const [name, setName] = useState("Test hot");
-  const [mnemonic, setMnemonic] = useState("");
+  const [wordCount, setWordCount] = useState<WordCount>(24);
+  const [words, setWords] = useState<string[]>(() => Array(24).fill(""));
+  const [advancedJson, setAdvancedJson] = useState(false);
+  const [jsonPayload, setJsonPayload] = useState("");
   const [passphrase, setPassphrase] = useState("");
   const [walletId, setWalletId] = useState(getActiveWalletId() ?? "");
   const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
@@ -110,18 +119,30 @@ export function HotWalletsPage() {
       setError("Select a parent wallet first");
       return;
     }
+    const mnemonicOrJson = advancedJson
+      ? jsonPayload.trim()
+      : wordsToMnemonic(words);
+    if (!advancedJson && !mnemonicIsComplete(words, wordCount)) {
+      setError(`Enter all ${wordCount} valid BIP-39 words (or paste / scan SeedQR)`);
+      return;
+    }
+    if (!mnemonicOrJson) {
+      setError("Mnemonic required");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const result = await importHotWallet({
         name,
-        mnemonicOrJson: mnemonic,
+        mnemonicOrJson,
         bip39Passphrase: passphrase || undefined,
         network,
         walletId,
         createNestedVault: createNested,
       });
-      setMnemonic("");
+      setWords(Array(wordCount).fill(""));
+      setJsonPayload("");
       setPassphrase("");
       setMessage(
         result.vault
@@ -152,13 +173,17 @@ export function HotWalletsPage() {
     }
   }
 
+  const canImport = advancedJson
+    ? jsonPayload.trim().length > 0
+    : mnemonicIsComplete(words, wordCount);
+
   return (
     <section>
       <header className="page-header">
         <div>
           <h2>Hot wallets</h2>
           <p>
-            BIP-39 import for quick test signing (Sparrow-like software wallet).
+            BIP-39 import for quick test signing (Sparrow-like grid + SeedQR).
             Nested vault lives under a Minisatoshi wallet. Encrypted with master
             password (Argon2id + XChaCha20).
           </p>
@@ -211,7 +236,7 @@ export function HotWalletsPage() {
       {status?.unlocked ? (
         <>
           <form className="panel form-grid" onSubmit={(e) => void onImport(e)}>
-            <h3>Import BIP-39 / Sparrow seed JSON</h3>
+            <h3>Import BIP-39 seed</h3>
             <label>
               Parent wallet (nested vault)
               <select
@@ -239,17 +264,38 @@ export function HotWalletsPage() {
                 required
               />
             </label>
-            <label>
-              Mnemonic (12/24 words) or JSON {"{ \"mnemonic\": \"…\" }"}
-              <textarea
-                className="mono"
-                rows={4}
-                value={mnemonic}
-                onChange={(e) => setMnemonic(e.target.value)}
-                required
-                autoComplete="off"
+
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={advancedJson}
+                onChange={(e) => setAdvancedJson(e.target.checked)}
               />
+              <span>Paste JSON / raw text instead of word grid</span>
             </label>
+
+            {advancedJson ? (
+              <label>
+                Mnemonic JSON {"{ \"mnemonic\": \"…\" }"} or raw words
+                <textarea
+                  className="mono"
+                  rows={4}
+                  value={jsonPayload}
+                  onChange={(e) => setJsonPayload(e.target.value)}
+                  required
+                  autoComplete="off"
+                />
+              </label>
+            ) : (
+              <MnemonicGrid
+                wordCount={wordCount}
+                onWordCountChange={setWordCount}
+                words={words}
+                onWordsChange={setWords}
+                disabled={busy}
+              />
+            )}
+
             <label>
               BIP-39 passphrase (optional)
               <input
@@ -267,14 +313,14 @@ export function HotWalletsPage() {
               />
               <span>
                 Create nested Taproot vault (policy <span className="mono">A</span>
-                ) under parent wallet — Sparrow-style “wallet in wallet”
+                ) under parent wallet
               </span>
             </label>
             <p className="muted">
-              Derives BIP-86 account on {formatNetwork(network)}. Use testnet /
-              signet for experiments.
+              Derives BIP-86 on {formatNetwork(network)}. SeedQR: Sparrow “Show
+              SeedQR” or SeedSigner (standard + compact). Prefer offline scan.
             </p>
-            <button type="submit" disabled={busy || !mnemonic.trim()}>
+            <button type="submit" disabled={busy || !canImport}>
               {busy ? "Importing…" : "Import hot wallet"}
             </button>
           </form>

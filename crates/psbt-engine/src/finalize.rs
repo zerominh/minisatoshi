@@ -9,9 +9,11 @@ use crate::error::PsbtError;
 pub fn finalize_psbt(psbt: &mut Psbt) -> Result<Transaction, PsbtError> {
     let secp = Secp256k1::verification_only();
     psbt.finalize_mut(&secp).map_err(|errors| {
+        let details: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
         PsbtError::Finalize(format!(
-            "could not finalize PSBT ({} failure(s))",
-            errors.len()
+            "could not finalize PSBT ({} failure(s)): {}",
+            errors.len(),
+            details.join("; ")
         ))
     })?;
 

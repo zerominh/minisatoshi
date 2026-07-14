@@ -51,8 +51,51 @@ impl Signer for SoftwareSigner {
                 ))
             })?,
         };
+        verify_tap_script_sigs(psbt)?;
         Ok(signed.len())
     }
+}
+
+/// Reject PSBTs where taproot script-path signatures don't verify (wrong key / stale tx).
+fn verify_tap_script_sigs(psbt: &Psbt) -> Result<(), PsbtError> {
+    use bitcoin::hashes::Hash;
+    use bitcoin::secp256k1::Message;
+    use bitcoin::sighash::{Prevouts, SighashCache};
+
+    let secp = Secp256k1::verification_only();
+    let prevouts: Result<Vec<_>, _> = (0..psbt.inputs.len())
+        .map(|i| {
+            psbt.spend_utxo(i)
+                .map(|o| o.clone())
+                .map_err(|_| PsbtError::Signing("missing spend utxo while verifying signature".into()))
+        })
+        .collect();
+    let prevouts = prevouts?;
+    let mut cache = SighashCache::new(&psbt.unsigned_tx);
+
+    for (index, input) in psbt.inputs.iter().enumerate() {
+        for ((pk, leaf), sig) in &input.tap_script_sigs {
+            let msg = cache
+                .taproot_script_spend_signature_hash(
+                    index,
+                    &Prevouts::All(&prevouts),
+                    *leaf,
+                    sig.sighash_type,
+                )
+                .map_err(|e| PsbtError::Signing(format!("sighash failed while verifying: {e}")))?;
+            secp.verify_schnorr(
+                &sig.signature,
+                &Message::from_digest(msg.to_byte_array()),
+                pk,
+            )
+            .map_err(|_| {
+                PsbtError::Signing(format!(
+                    "invalid taproot script signature for key {pk} (input {index}) — wrong private key or PSBT changed after signing"
+                ))
+            })?;
+        }
+    }
+    Ok(())
 }
 
 pub fn sign_psbt(psbt: &mut Psbt, signer: &dyn Signer) -> Result<SignProgress, PsbtError> {

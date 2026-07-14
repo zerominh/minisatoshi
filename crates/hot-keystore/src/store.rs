@@ -180,7 +180,17 @@ impl HotKeystore {
     }
 
     pub fn descriptor_secret(&self, id: &str) -> Result<String, HotKeystoreError> {
-        Ok(self.get(id)?.descriptor_secret.clone())
+        let rec = self.get(id)?;
+        // Rebuild from mnemonic so vaults imported before the path-format fix
+        // still sign correctly (invalid `[fp/origin]account/…` secrets).
+        let (fresh, _) = crate::derive::derive_bip86_account(&crate::derive::ImportHotWalletRequest {
+            name: rec.name.clone(),
+            mnemonic: rec.mnemonic.clone(),
+            bip39_passphrase: rec.bip39_passphrase.clone(),
+            network: rec.network,
+            account_path: Some(format!("m/{}", rec.origin_path.trim_start_matches("m/"))),
+        })?;
+        Ok(fresh.descriptor_secret)
     }
 
     fn persist(&self) -> Result<(), HotKeystoreError> {

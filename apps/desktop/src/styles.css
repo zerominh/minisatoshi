@@ -330,6 +330,85 @@ button:disabled {
   width: auto;
 }
 
+.mnemonic-panel {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #2f384c;
+  border-radius: 12px;
+  background: #0d111a;
+}
+
+.mnemonic-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.mnemonic-title {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.mnemonic-title strong {
+  font-size: 1.05rem;
+  color: #f0f2f7;
+}
+
+.mnemonic-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.mnemonic-col {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.mnemonic-cell {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0;
+}
+
+.mnemonic-index {
+  font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: #8b93a7;
+  text-align: right;
+}
+
+.mnemonic-cell input {
+  padding: 0.4rem 0.55rem;
+  font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
+}
+
+.seedqr-camera {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.seedqr-camera video {
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #000;
+  border: 1px solid #2f384c;
+}
+
+.error.compact {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.85rem;
+}
+
 .sparrow-box {
   margin-top: 1rem;
   padding-top: 1rem;
@@ -353,6 +432,10 @@ button:disabled {
   }
 
   .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .mnemonic-grid {
     grid-template-columns: 1fr;
   }
 

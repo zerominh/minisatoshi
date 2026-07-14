@@ -78,8 +78,10 @@ pub fn derive_bip86_account(
     let origin_path = account_path.to_string();
     let fp_hex = format!("{master_fp:08x}");
     let xpub_str = account_xpub.to_string();
-    // Descriptor secret used by miniscript SoftwareSigner (multipath receive/change).
-    let descriptor_secret = format!("[{fp_hex}/{origin_path}]{account}/<0;1>/*");
+    // IMPORTANT: use master xprv + full path, NOT `[fp/origin]account/<0;1>/*`.
+    // Miniscript GetKey with origin+nonempty derivation_path signs with the wrong
+    // child (account/i instead of account/0/i), producing invalid taproot sigs.
+    let descriptor_secret = format!("[{fp_hex}]{master}/{origin_path}/<0;1>/*");
 
     let id = uuid::Uuid::new_v4().to_string();
     let now = unix_now();

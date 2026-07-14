@@ -18,5 +18,6 @@ thiserror.workspace = true
 wallet-core.workspace = true
 
 [dev-dependencies]
+bip39 = "2"
 policy-engine.workspace = true
 tempfile = "3"

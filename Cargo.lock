@@ -2996,6 +2996,7 @@ version = "0.1.0"
 dependencies = [
  "address-engine",
  "base64 0.22.1",
+ "bip39",
  "bitcoin",
  "blockchain",
  "descriptor-engine",

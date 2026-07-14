@@ -134,4 +134,154 @@ mod integration_tests {
         let exported = export_psbt(&psbt, ExportFormat::Base64).unwrap();
         assert!(exported.starts_with(b"cHNidP8"));
     }
+
+    /// Hot-wallet style secrets: `[fp/86'/coin'/0']account_xprv/<0;1>/*` — mirrors hot-keystore.
+    fn hot_style_secret(mnemonic: &str, network: NetworkName) -> (policy_engine::KeyConfig, String) {
+        use bitcoin::bip32::{ChildNumber, DerivationPath, Fingerprint, Xpriv, Xpub};
+        use bitcoin::key::Secp256k1;
+        use bip39::Mnemonic;
+
+        let mnemonic = Mnemonic::parse_normalized(mnemonic).unwrap();
+        let seed = mnemonic.to_seed("");
+        let secp = Secp256k1::new();
+        let btc_net = network.to_bitcoin_network();
+        let master = Xpriv::new_master(btc_net, &seed).unwrap();
+        let master_fp: Fingerprint = master.fingerprint(&secp);
+        let ct = if network == NetworkName::Mainnet { 0 } else { 1 };
+        let account_path = DerivationPath::from(vec![
+            ChildNumber::from_hardened_idx(86).unwrap(),
+            ChildNumber::from_hardened_idx(ct).unwrap(),
+            ChildNumber::from_hardened_idx(0).unwrap(),
+        ]);
+        let account = master.derive_priv(&secp, &account_path).unwrap();
+        let account_xpub = Xpub::from_priv(&secp, &account);
+        let origin_path = account_path.to_string();
+        let fp_hex = format!("{master_fp:08x}");
+        let secret = format!("[{fp_hex}]{master}/{origin_path}/<0;1>/*");
+        let key = policy_engine::KeyConfig {
+            id: "X".into(),
+            role: policy_engine::KeyRole::Other,
+            xpub: account_xpub.to_string(),
+            fingerprint: fp_hex,
+            origin_path: Some(origin_path),
+        };
+        (key, secret)
+    }
+
+    #[test]
+    fn abc_hot_style_multipath_sign_finalize() {
+        use bitcoin::hashes::Hash;
+        use bitcoin::secp256k1::{Message, Secp256k1};
+        use bitcoin::sighash::{Prevouts, SighashCache};
+        use policy_engine::{FallbackPolicy, KeyRole};
+
+        let (mut key_a, secret_a) = hot_style_secret(
+            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+            NetworkName::Regtest,
+        );
+        key_a.id = "A".into();
+        key_a.role = KeyRole::Investor;
+        let (mut key_b, secret_b) = hot_style_secret(
+            "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong",
+            NetworkName::Regtest,
+        );
+        key_b.id = "B".into();
+        key_b.role = KeyRole::Manager;
+        let (mut key_c, _secret_c) = hot_style_secret(
+            "legal winner thank year wave sausage worth useful legal winner thank yellow",
+            NetworkName::Regtest,
+        );
+        key_c.id = "C".into();
+        key_c.role = KeyRole::Recovery;
+
+        let policy = PolicyConfig {
+            version: POLICY_SCHEMA_VERSION,
+            network: NetworkName::Regtest,
+            script_type: ScriptTypeName::Taproot,
+            keys: vec![key_a, key_b, key_c],
+            policy: PolicyExpression {
+                primary: "(A && B) || (A && C)".into(),
+                fallback: Some(FallbackPolicy {
+                    after: "1y".into(),
+                    allow: "A".into(),
+                }),
+                fallbacks: vec![],
+            },
+        };
+        let descriptor = descriptor_engine::compile_descriptor_from_config(&policy).unwrap();
+        let vault = Vault {
+            id: "v1".into(),
+            wallet_id: "w1".into(),
+            name: "abc".into(),
+            policy,
+            descriptor,
+            script_type: ScriptTypeName::Taproot,
+            created_at: 0,
+        };
+        let receive =
+            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 2).unwrap();
+        let recipient =
+            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+        let mut psbt = create_psbt(
+            &vault,
+            &[PsbtRecipient {
+                address: recipient.address,
+                amount_sats: 50_000,
+            }],
+            FeeRate::new(2),
+            &[SpendingUtxo::new(
+                blockchain::Utxo {
+                    txid: "aa".repeat(32),
+                    vout: 1,
+                    value_sats: 125_353,
+                    address: receive.address,
+                    confirmed: true,
+                    block_height: None,
+                    derivation_index: 2,
+                    is_change: false,
+                },
+                2,
+                false,
+            )],
+            CreatePsbtOptions::default(),
+        )
+        .unwrap();
+
+        sign_psbt(
+            &mut psbt,
+            &SoftwareSigner::from_secret(DescriptorSecretKey::from_str(&secret_a).unwrap()),
+        )
+        .unwrap();
+        sign_psbt(
+            &mut psbt,
+            &SoftwareSigner::from_secret(DescriptorSecretKey::from_str(&secret_b).unwrap()),
+        )
+        .unwrap();
+
+        let secp = Secp256k1::verification_only();
+        let utxo = psbt.inputs[0].witness_utxo.as_ref().unwrap().clone();
+        let mut cache = SighashCache::new(&psbt.unsigned_tx);
+        assert!(
+            !psbt.inputs[0].tap_script_sigs.is_empty(),
+            "expected tap script signatures"
+        );
+        for ((pk, leaf), sig) in &psbt.inputs[0].tap_script_sigs {
+            let msg = cache
+                .taproot_script_spend_signature_hash(
+                    0,
+                    &Prevouts::All(std::slice::from_ref(&utxo)),
+                    *leaf,
+                    sig.sighash_type,
+                )
+                .unwrap();
+            secp.verify_schnorr(
+                &sig.signature,
+                &Message::from_digest(msg.to_byte_array()),
+                pk,
+            )
+            .unwrap_or_else(|e| panic!("invalid hot-style sig for {pk} leaf {leaf}: {e}"));
+        }
+
+        finalize_psbt(&mut psbt).expect("finalize abc hot-style");
+    }
 }
