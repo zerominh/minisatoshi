@@ -9,6 +9,7 @@ commands.allow = [
   "import_descriptor",
   "import_vault_backup",
   "export_vault_backup",
+  "export_bsms",
   "list_vaults",
   "get_vault",
   "new_receive_address",

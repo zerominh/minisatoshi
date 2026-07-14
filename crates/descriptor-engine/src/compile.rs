@@ -66,6 +66,22 @@ pub fn verify_descriptor_checksum(descriptor: &str) -> Result<(), DescriptorErro
         .map_err(|e| DescriptorError::Parse(format!("invalid checksum: {e}")))
 }
 
+/// Append a BIP-380 checksum when missing; verify if already present.
+pub fn ensure_descriptor_checksum(descriptor: &str) -> Result<String, DescriptorError> {
+    let desc = descriptor.trim();
+    if desc.is_empty() {
+        return Err(DescriptorError::Parse("descriptor is empty".into()));
+    }
+    if desc.contains('#') {
+        verify_descriptor_checksum(desc)?;
+        return Ok(desc.to_string());
+    }
+    let mut eng = miniscript::descriptor::checksum::Engine::new();
+    eng.input(desc)
+        .map_err(|e| DescriptorError::Parse(format!("checksum engine: {e}")))?;
+    Ok(format!("{desc}#{}", eng.checksum()))
+}
+
 fn compile_taproot(
     config: &PolicyConfig,
 ) -> Result<Descriptor<DescriptorPublicKey>, DescriptorError> {

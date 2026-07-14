@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { formatError, importVaultBackup, listWallets } from "../lib/api";
+import { coalesceDescriptorPaste } from "../lib/qrChunks";
 import {
   formatNetwork,
   getActiveWalletId,
@@ -10,6 +11,7 @@ import type { WalletSummaryDto } from "../lib/types";
 
 export function ImportVaultPage() {
   const navigate = useNavigate();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [wallets, setWallets] = useState<WalletSummaryDto[]>([]);
   const [walletId, setWalletId] = useState(getActiveWalletId() ?? "");
   const [name, setName] = useState("");
@@ -40,7 +42,7 @@ export function ImportVaultPage() {
     try {
       const vault = await importVaultBackup({
         walletId,
-        payload,
+        payload: coalesceDescriptorPaste(payload),
         name: name.trim() || null,
       });
       setActiveWalletId(walletId);
@@ -52,14 +54,31 @@ export function ImportVaultPage() {
     }
   }
 
+  async function onPickFile(file: File | null) {
+    if (!file) return;
+    setError(null);
+    try {
+      const text = await file.text();
+      setPayload(coalesceDescriptorPaste(text));
+      if (!name.trim()) {
+        const base = file.name.replace(/\.(json|txt|bsms|dat)$/i, "");
+        if (base) setName(base);
+      }
+    } catch (err) {
+      setError(formatError(err));
+    }
+  }
+
   return (
     <section>
       <header className="page-header">
         <div>
           <h2>Import vault</h2>
           <p>
-            Paste a <span className="mono">minisatoshi-vault-v1.json</span>{" "}
-            backup or a checksummed descriptor (`tr(…)#…`).
+            Watch-only import — paste or load a descriptor,{" "}
+            <span className="mono">minisatoshi-vault-v1.json</span>, BSMS 1.0,
+            or Liana/Nunchuk-ish JSON. Multi-QR paste uses{" "}
+            <span className="mono">MSDESC1</span> framing.
           </p>
         </div>
         <Link className="button-link" to="/vaults">
@@ -93,24 +112,41 @@ export function ImportVaultPage() {
             placeholder="Uses backup name / “Imported vault”"
           />
         </label>
+        <div className="row-actions">
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => fileRef.current?.click()}
+          >
+            Load file…
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json,.txt,.bsms,.dat,text/plain,application/json"
+            hidden
+            onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
+          />
+        </div>
         <label>
-          Backup JSON or descriptor
+          Backup / BSMS / descriptor / multi-QR paste
           <textarea
             className="mono"
             rows={10}
             value={payload}
             onChange={(e) => setPayload(e.target.value)}
-            placeholder='{"formatVersion":"minisatoshi-vault-v1", …} or tr(…)#checksum'
+            placeholder='{"formatVersion":"minisatoshi-vault-v1", …} · tr(…)#… · BSMS 1.0 · MSDESC1/1/2/…'
             required
           />
         </label>
         <p className="muted">
-          Network must match the wallet. Checksum is verified (BIP-380). Policy
-          JSON is restored when present in the backup.
+          Network must match the wallet when the payload includes one. Checksum is
+          verified or computed (BIP-380). Imported vaults stay watch-only — no
+          seeds are imported.
         </p>
         {error ? <pre className="error">{error}</pre> : null}
         <button type="submit" disabled={busy || !payload.trim()}>
-          {busy ? "Importing…" : "Import vault"}
+          {busy ? "Importing…" : "Import watch-only vault"}
         </button>
       </form>
     </section>

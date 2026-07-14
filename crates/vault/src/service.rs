@@ -48,11 +48,26 @@ impl<'a> VaultService<'a> {
             .import_vault_backup(wallet_id, backup, name_override)?)
     }
 
+    pub fn import_watch_only_payload(
+        &self,
+        wallet_id: &str,
+        payload: &str,
+        name_override: Option<&str>,
+    ) -> Result<Vault, VaultError> {
+        Ok(self
+            .store
+            .import_watch_only_payload(wallet_id, payload, name_override)?)
+    }
+
     pub fn export_vault_backup(
         &self,
         vault_id: &str,
     ) -> Result<wallet_core::VaultBackup, VaultError> {
         Ok(self.store.export_vault_backup(vault_id)?)
+    }
+
+    pub fn export_bsms(&self, vault_id: &str) -> Result<String, VaultError> {
+        Ok(self.store.export_bsms(vault_id)?)
     }
 
     pub fn create_vault_with_receive_address(

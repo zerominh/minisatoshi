@@ -57,6 +57,8 @@ export interface VaultDto {
   descriptor: string;
   scriptType: ScriptTypeName;
   createdAt: number;
+  /** Private keys are never persisted. */
+  watchOnly: boolean;
 }
 
 export interface VaultSummaryDto {
@@ -65,6 +67,8 @@ export interface VaultSummaryDto {
   name: string;
   scriptType: ScriptTypeName;
   createdAt: number;
+  /** Private keys are never persisted. */
+  watchOnly: boolean;
 }
 
 export interface AddressDto {
@@ -285,6 +289,11 @@ export interface VaultBackupDto {
   createdAt: number;
   json: string;
   descriptorTxt: string;
+}
+
+export interface BsmsExportDto {
+  text: string;
+  firstAddress: string;
 }
 
 export interface SignedPsbtDto {

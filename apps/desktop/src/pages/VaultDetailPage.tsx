@@ -173,12 +173,16 @@ export function VaultDetailPage() {
         <div>
           <h2>{vault.name}</h2>
           <p>
-            {vault.scriptType} · {formatNetwork(vault.policy.network)}
+            {vault.scriptType} · {formatNetwork(vault.policy.network)}{" "}
+            <span className="badge watch-only">Watch-only</span>
           </p>
         </div>
         <div className="row-actions">
           <Link className="button-link" to={`/vaults/${vault.id}/receive`}>
             Receive
+          </Link>
+          <Link className="button-link" to={`/vaults/${vault.id}/share`}>
+            Share
           </Link>
           <Link className="button-link" to={`/vaults/${vault.id}/send`}>
             Send
@@ -236,6 +240,9 @@ export function VaultDetailPage() {
           >
             Export vault backup
           </button>
+          <Link className="button-link" to={`/vaults/${vault.id}/share`}>
+            Share (QR / BSMS)
+          </Link>
         </div>
       </div>
 

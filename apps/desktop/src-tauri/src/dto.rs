@@ -34,6 +34,8 @@ pub struct VaultDto {
     pub descriptor: String,
     pub script_type: ScriptTypeName,
     pub created_at: i64,
+    /// Always true: private keys are never persisted in Minisatoshi.
+    pub watch_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,6 +46,8 @@ pub struct VaultSummaryDto {
     pub name: String,
     pub script_type: ScriptTypeName,
     pub created_at: i64,
+    /// Always true: private keys are never persisted in Minisatoshi.
+    pub watch_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -224,7 +228,7 @@ pub struct ImportDescriptorRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ImportVaultBackupRequest {
     pub wallet_id: String,
-    /// Raw JSON (`minisatoshi-vault-v1`) or a bare descriptor string.
+    /// Raw JSON / BSMS / bare descriptor (watch-only import).
     pub payload: String,
     #[serde(default)]
     pub name: Option<String>,
@@ -242,6 +246,13 @@ pub struct VaultBackupDto {
     pub created_at: i64,
     pub json: String,
     pub descriptor_txt: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BsmsExportDto {
+    pub text: String,
+    pub first_address: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -329,6 +340,7 @@ impl From<Vault> for VaultDto {
             descriptor: value.descriptor,
             script_type: value.script_type,
             created_at: value.created_at,
+            watch_only: true,
         }
     }
 }
@@ -341,6 +353,7 @@ impl From<VaultSummary> for VaultSummaryDto {
             name: value.name,
             script_type: value.script_type,
             created_at: value.created_at,
+            watch_only: true,
         }
     }
 }

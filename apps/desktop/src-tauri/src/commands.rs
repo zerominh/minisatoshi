@@ -18,12 +18,13 @@ use tauri::State;
 use vault::VaultService;
 
 use crate::dto::{
-    AddressDto, AnalyzePsbtRequest, BalanceDto, BroadcastTxRequest, CombinePsbtRequest,
-    CompileVaultResponse, CreatePsbtRequest, CreateVaultRequest, CreateWalletRequest,
-    FinalizedTxDto, HwDeviceDto, HwGetXpubRequest, HwRegisterRequest, HwRegisterResultDto,
-    HwSignPsbtRequest, HwStatusDto, HwXpubDto, ImportDescriptorRequest, ImportVaultBackupRequest,
-    PsbtDto, ServerPresetDto, SignPsbtRequest, SignedPsbtDto, SparrowExportDto, SyncResultDto,
-    VaultBackupDto, VaultDto, VaultSummaryDto, WalletDto, WalletSummaryDto,
+    AddressDto, AnalyzePsbtRequest, BalanceDto, BroadcastTxRequest, BsmsExportDto,
+    CombinePsbtRequest, CompileVaultResponse, CreatePsbtRequest, CreateVaultRequest,
+    CreateWalletRequest, FinalizedTxDto, HwDeviceDto, HwGetXpubRequest, HwRegisterRequest,
+    HwRegisterResultDto, HwSignPsbtRequest, HwStatusDto, HwXpubDto, ImportDescriptorRequest,
+    ImportVaultBackupRequest, PsbtDto, ServerPresetDto, SignPsbtRequest, SignedPsbtDto,
+    SparrowExportDto, SyncResultDto, VaultBackupDto, VaultDto, VaultSummaryDto, WalletDto,
+    WalletSummaryDto,
 };
 use crate::error::user_facing_error;
 use crate::state::AppState;
@@ -102,7 +103,7 @@ pub fn import_descriptor(
     })
 }
 
-/// Import `minisatoshi-vault-v1.json` or a bare descriptor string.
+/// Import watch-only: `minisatoshi-vault-v1.json`, bare descriptor, BSMS, or Liana-ish JSON.
 #[tauri::command]
 pub fn import_vault_backup(
     state: State<'_, AppState>,
@@ -110,25 +111,14 @@ pub fn import_vault_backup(
 ) -> Result<VaultDto, String> {
     state.with_store(|store| {
         let service = VaultService::new(store);
-        let payload = request.payload.trim();
-        if payload.starts_with('{') {
-            let backup = wallet_core::VaultBackup::from_json(payload).map_err(user_facing_error)?;
-            service
-                .import_vault_backup(&request.wallet_id, &backup, request.name.as_deref())
-                .map(VaultDto::from)
-                .map_err(user_facing_error)
-        } else {
-            let name = request
-                .name
-                .as_deref()
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .unwrap_or("Imported vault");
-            service
-                .import_descriptor(&request.wallet_id, name, payload, None)
-                .map(VaultDto::from)
-                .map_err(user_facing_error)
-        }
+        service
+            .import_watch_only_payload(
+                &request.wallet_id,
+                &request.payload,
+                request.name.as_deref(),
+            )
+            .map(VaultDto::from)
+            .map_err(user_facing_error)
     })
 }
 
@@ -156,6 +146,25 @@ pub fn export_vault_backup(
             json,
             descriptor_txt,
         })
+    })
+}
+
+/// Export BIP-129-ish BSMS descriptor record (watch-only share).
+#[tauri::command]
+pub fn export_bsms(
+    state: State<'_, AppState>,
+    vault_id: String,
+) -> Result<BsmsExportDto, String> {
+    state.with_store(|store| {
+        let service = VaultService::new(store);
+        let text = service.export_bsms(&vault_id).map_err(user_facing_error)?;
+        let first_address = text
+            .lines()
+            .nth(3)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        Ok(BsmsExportDto { text, first_address })
     })
 }
 

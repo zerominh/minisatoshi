@@ -95,11 +95,22 @@ export function VaultsPage() {
                   <li key={vault.id} className="list-item">
                     <div>
                       <strong>{vault.name}</strong>
-                      <div className="muted">{vault.scriptType}</div>
+                      <div className="muted">
+                        {vault.scriptType}{" "}
+                        {vault.watchOnly ? (
+                          <span className="badge watch-only">Watch-only</span>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="row-actions">
                       <Link className="button-link" to={`/vaults/${vault.id}`}>
                         Open
+                      </Link>
+                      <Link
+                        className="button-link"
+                        to={`/vaults/${vault.id}/share`}
+                      >
+                        Share
                       </Link>
                       <Link
                         className="button-link"

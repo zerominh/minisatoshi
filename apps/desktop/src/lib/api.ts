@@ -35,6 +35,7 @@ import type {
   ImportDescriptorRequest,
   ImportVaultBackupRequest,
   VaultBackupDto,
+  BsmsExportDto,
 } from "./types";
 
 export async function compileVaultDescriptor(
@@ -75,6 +76,10 @@ export async function exportVaultBackup(
   vaultId: string,
 ): Promise<VaultBackupDto> {
   return invoke("export_vault_backup", { vaultId });
+}
+
+export async function exportBsms(vaultId: string): Promise<BsmsExportDto> {
+  return invoke("export_bsms", { vaultId });
 }
 
 export async function listVaults(

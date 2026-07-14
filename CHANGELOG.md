@@ -5,6 +5,14 @@ All notable changes to Minisatoshi are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] — 2026-07-14
+
+### Added
+
+- **Watch-only share:** Vault → Share with chunked descriptor QR (`MSDESC1`), file + BSMS 1.0 export, instructions for third-party balance tracking
+- **Import:** best-effort BSMS / Liana-ish JSON / multi-QR paste; BIP-380 checksum computed when missing
+- **Watch-only badge** on vault list and detail (no private keys stored)
+
 ## [0.2.1] — 2026-07-14
 
 ### Added

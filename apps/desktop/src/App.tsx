@@ -5,6 +5,7 @@ import { ImportVaultPage } from "./pages/ImportVaultPage";
 import { ReceivePage } from "./pages/ReceivePage";
 import { SendPage } from "./pages/SendPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { ShareVaultPage } from "./pages/ShareVaultPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
 import { VaultDetailPage } from "./pages/VaultDetailPage";
 import { VaultsPage } from "./pages/VaultsPage";
@@ -20,6 +21,7 @@ function App() {
         <Route path="vaults/new" element={<NewVaultPage />} />
         <Route path="vaults/import" element={<ImportVaultPage />} />
         <Route path="vaults/:id" element={<VaultDetailPage />} />
+        <Route path="vaults/:id/share" element={<ShareVaultPage />} />
         <Route path="vaults/:id/receive" element={<ReceivePage />} />
         <Route path="vaults/:id/send" element={<SendPage />} />
         <Route path="transactions" element={<TransactionsPage />} />

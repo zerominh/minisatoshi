@@ -191,6 +191,17 @@ button:disabled {
   font-size: 0.75rem;
 }
 
+.badge.watch-only {
+  background: #2a2418;
+  color: #e0c070;
+  margin-left: 0.35rem;
+}
+
+.badge.muted-badge {
+  background: #1a1f2a;
+  color: #8b93a7;
+}
+
 .muted {
   color: #8b93a7;
 }

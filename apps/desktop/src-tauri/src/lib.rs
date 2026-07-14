@@ -5,11 +5,11 @@ mod state;
 
 use commands::{
     analyze_psbt_status, app_version, broadcast_psbt_cmd, combine_psbts, compile_vault_descriptor,
-    create_psbt, create_vault, create_wallet, ensure_hwi_installed, export_sparrow_wallet,
-    export_vault_backup, finalize_psbt_cmd, get_balance, get_hwi_status, get_vault, hw_get_xpub,
-    hw_register_vault, hw_sign_psbt, import_descriptor, import_vault_backup, list_hw_devices,
-    list_server_presets, list_spending_paths, list_vaults, list_wallets, new_receive_address,
-    prepare_hw_registration, save_text_file, sign_psbt_software, sync_vault,
+    create_psbt, create_vault, create_wallet, ensure_hwi_installed, export_bsms,
+    export_sparrow_wallet, export_vault_backup, finalize_psbt_cmd, get_balance, get_hwi_status,
+    get_vault, hw_get_xpub, hw_register_vault, hw_sign_psbt, import_descriptor, import_vault_backup,
+    list_hw_devices, list_server_presets, list_spending_paths, list_vaults, list_wallets,
+    new_receive_address, prepare_hw_registration, save_text_file, sign_psbt_software, sync_vault,
 };
 use state::AppState;
 use tauri::Manager;
@@ -39,6 +39,7 @@ pub fn run() {
             import_descriptor,
             import_vault_backup,
             export_vault_backup,
+            export_bsms,
             list_vaults,
             get_vault,
             new_receive_address,

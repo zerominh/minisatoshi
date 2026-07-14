@@ -724,19 +724,19 @@ Thêm crate `crates/signing-devices`:
 
 #### Sprint 14 — QR, watch-only workflows, BSMS-ish
 
-- QR cho: receive address (đã có), **descriptor** (chunked nếu dài — UR hoặc multi-QR đơn giản).
-- Watch-only mode badge: vault không có signing device gắn.
-- Optional: export **BSMS** / wallet configuration tương thích Nunchuk (nếu schema ổn định).
-- Import watch-only từ file mô tả Liana/Nunchuk **best-effort** (parse descriptor; fail rõ nếu không hỗ trợ).
+- [x] QR cho: receive address (đã có), **descriptor** (chunked `MSDESC1/i/n/…` multi-QR)
+- [x] Watch-only mode badge: vault không lưu private key; Share hiện “No signing device attached” nếu HW fingerprint Settings không khớp policy keys
+- [x] Optional: export **BSMS** 1.0 descriptor record (watch-only)
+- [x] Import watch-only từ BSMS / Liana-ish JSON / file / multi-QR paste **best-effort**
 
 **UI**
 
 | Route / surface | Nội dung |
 |---|---|
-| `/vaults/import` | Paste / file / QR descriptor |
-| Vault → Share | QR + file + “watch-only instructions” |
+| `/vaults/import` | Paste / file / multi-QR descriptor + BSMS |
+| Vault → Share | QR + file + BSMS + “watch-only instructions” |
 
-**Deliverable:** Chia sẻ vault cho bên thứ ba chỉ theo dõi số dư (xpub/descriptor), không seed.
+**Deliverable:** Chia sẻ vault cho bên thứ ba chỉ theo dõi số dư (xpub/descriptor), không seed. ✅
 
 ---
 

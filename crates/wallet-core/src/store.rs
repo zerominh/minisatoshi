@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use address_engine::{new_change_address, new_receive_address, DerivedAddress};
-use descriptor_engine::{compile_descriptor_from_config, verify_descriptor_checksum};
+use descriptor_engine::{compile_descriptor_from_config, ensure_descriptor_checksum};
 use policy_engine::{NetworkName, PolicyConfig, ScriptTypeName};
 use storage::{Database, NewAddress, NewVault, NewWallet, StorageError};
 use uuid::Uuid;
@@ -221,6 +221,50 @@ impl WalletStore {
         self.import_descriptor(wallet_id, name, &backup.descriptor, backup.policy.clone())
     }
 
+    /// Import watch-only from backup / bare descriptor / BSMS / Liana-ish JSON.
+    pub fn import_watch_only_payload(
+        &self,
+        wallet_id: &str,
+        payload: &str,
+        name_override: Option<&str>,
+    ) -> Result<Vault, WalletError> {
+        let parsed = crate::import_parse::parse_watch_only_payload(payload)?;
+        let wallet = self.db.get_wallet(wallet_id)?;
+        let wallet_network =
+            network_from_str(&wallet.network).map_err(WalletError::InvalidNetwork)?;
+        if let Some(network) = parsed.network {
+            if network != wallet_network {
+                return Err(WalletError::NetworkMismatch {
+                    wallet: network_to_str(wallet_network).into(),
+                    provided: network_to_str(network).into(),
+                });
+            }
+        }
+        let name = name_override
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .or(parsed.name.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+            .unwrap_or("Imported vault");
+        self.import_descriptor(wallet_id, name, &parsed.descriptor, parsed.policy)
+    }
+
+    /// BIP-129-ish BSMS descriptor record for watch-only sharing.
+    pub fn export_bsms(&self, vault_id: &str) -> Result<String, WalletError> {
+        let vault = self.get_vault(vault_id)?;
+        let first = self
+            .list_addresses(vault_id)?
+            .into_iter()
+            .find(|a| !a.is_change && a.index == 0)
+            .map(Ok)
+            .unwrap_or_else(|| {
+                new_receive_address(&vault.policy, &vault.descriptor, 0).map_err(WalletError::from)
+            })?;
+        Ok(crate::import_parse::format_bsms(
+            &vault.descriptor,
+            &first.address,
+        ))
+    }
+
     pub fn get_vault(&self, vault_id: &str) -> Result<Vault, WalletError> {
         vault_from_record(self.db.get_vault(vault_id)?)
     }
@@ -341,16 +385,11 @@ fn validate_imported_descriptor(
     if desc.is_empty() {
         return Err(WalletError::InvalidDescriptor("descriptor is empty".into()));
     }
-    if !desc.contains('#') {
-        return Err(WalletError::InvalidDescriptor(
-            "descriptor must include checksum (#…)".into(),
-        ));
-    }
-    let script_type = detect_script_type(desc)?;
-    verify_descriptor_checksum(desc).map_err(|e| {
+    let normalized = ensure_descriptor_checksum(desc).map_err(|e| {
         WalletError::InvalidDescriptor(format!("checksum or parse failed: {e}"))
     })?;
-    Ok((desc.to_string(), script_type))
+    let script_type = detect_script_type(&normalized)?;
+    Ok((normalized, script_type))
 }
 
 fn strip_checksum(descriptor: &str) -> &str {
