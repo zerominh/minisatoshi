@@ -654,29 +654,16 @@ Mở rộng những gì `psbt-engine` đã có (`SoftwareSigner`, `sign_psbt`, `
 
 #### Sprint 10 — HWI abstraction + discovery
 
-Thêm crate (hoặc module) `hwi-bridge` / `crates/signing-devices`:
+Thêm crate `crates/signing-devices`:
 
-```rust
-pub trait HardwareSigner: Send + Sync {
-    fn device_id(&self) -> &str;
-    fn fingerprint(&self) -> Result<[u8; 4], SignError>;
-    fn get_xpub(&self, path: &DerivationPath) -> Result<String, SignError>;
-    fn register_policy(&self, descriptor: &str) -> Result<(), SignError>;
-    fn sign_psbt(&self, psbt: &mut Psbt) -> Result<usize, SignError>;
-}
+- [x] `HardwareSigner` trait + `HwiClient` (subprocess: `enumerate` / `getxpub` / `signtx`)
+- [x] Parse HWI JSON stdout; cancel/disconnect → `SignError::Cancelled`; never log secrets
+- [x] Tauri: `list_hw_devices`, `hw_get_xpub`, `hw_sign_psbt`
+- [x] Settings → Signing devices (path HWI, refresh, get xpub, fingerprint)
+- [x] Send: optional “Sign with hardware”
+- [x] Unit: enumerate JSON fixture + path parse + cancel mapping
 
-pub fn list_devices() -> Result<Vec<DeviceInfo>, SignError>;
-```
-
-- Backend mặc định: binary **HWI** (subprocess) — đã quen với Bitcoin Core ecosystem.
-- Parse JSON stdout; timeout; never log xprv.
-- Tauri commands: `list_hw_devices`, `hw_get_xpub`, `hw_sign_psbt`.
-
-**UI:** Settings → Signing devices (danh sách, refresh, đường dẫn HWI).
-
-**Tests:** mock HWI fixture JSON; lỗi device disconnected / user abort.
-
-**Deliverable:** App enumerates HW và lấy xpub + fingerprint thay vì paste tay (wizard).
+**Deliverable:** App enumerates HW và lấy xpub + fingerprint; ký PSBT qua HWI. ✅
 
 ---
 
@@ -956,13 +943,13 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Giai đoạn 3: Sprint 9 software sign ✅
-  → Sprint 10–11 HWI + Coldcard/Ledger
+Giai đoạn 3: Sprint 9 software sign ✅ · Sprint 10 HWI ✅
+  → Sprint 11 Coldcard/Ledger register + tapscript
   → Sprint 12 UX hardening
 ```
 
-Pipeline: Policy → Descriptor → Address → Balance → PSBT → **Sign/Combine/Finalize/Broadcast** → UI ✅ (Sprint 9).
-Bước kế: **Sprint 10 — HWI discovery**.
+Pipeline: Policy → Descriptor → Address → Balance → PSBT → **Sign (software|HWI) / Combine / Finalize / Broadcast** → UI ✅.
+Bước kế: **Sprint 11 — Ledger / Coldcard policy register**.
 
 ---
 

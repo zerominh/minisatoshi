@@ -7,10 +7,17 @@ import {
   finalizePsbt,
   formatError,
   getVault,
+  hwSignPsbt,
   signPsbtSoftware,
   syncVault,
 } from "../lib/api";
-import { copyText, formatSats, getEsploraUrl } from "../lib/settings";
+import {
+  copyText,
+  formatSats,
+  getEsploraUrl,
+  getHwFingerprint,
+  getHwiPath,
+} from "../lib/settings";
 import type {
   FinalizedTxDto,
   PsbtDto,
@@ -30,6 +37,7 @@ export function SendPage() {
   const [inputSequence, setInputSequence] = useState("");
   const [psbt, setPsbt] = useState<PsbtDto | null>(null);
   const [secretKey, setSecretKey] = useState("");
+  const [hwFingerprint, setHwFingerprint] = useState(getHwFingerprint());
   const [allowMainnetHotKeys, setAllowMainnetHotKeys] = useState(false);
   const [cosignerPsbt, setCosignerPsbt] = useState("");
   const [finalized, setFinalized] = useState<FinalizedTxDto | null>(null);
@@ -131,6 +139,31 @@ export function SendPage() {
     }
   }
 
+  async function onHwSign() {
+    if (!psbt || !hwFingerprint.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const signed = await hwSignPsbt({
+        fingerprint: hwFingerprint.trim(),
+        psbtBase64: psbt.base64,
+        hwiPath: getHwiPath() || null,
+      });
+      setPsbt({
+        base64: signed.base64,
+        inputCount: signed.inputCount,
+        outputCount: signed.outputCount,
+      });
+      setMessage(
+        `Hardware signed ${signed.signedInputs}/${signed.totalInputs} input(s) (confirm on device).`,
+      );
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onCombine() {
     if (!psbt || !cosignerPsbt.trim()) return;
     setBusy(true);
@@ -188,8 +221,7 @@ export function SendPage() {
         <div>
           <h2>Send</h2>
           <p>
-            {vault?.name ?? "Vault"} · PSBT · software sign (Sprint 9) ·
-            broadcast
+            {vault?.name ?? "Vault"} · PSBT · software / HWI sign · broadcast
           </p>
         </div>
         <Link className="button-link" to={`/vaults/${id}`}>
@@ -338,6 +370,23 @@ export function SendPage() {
             onClick={() => void onSign()}
           >
             Sign with software key
+          </button>
+          <label>
+            Hardware fingerprint (HWI)
+            <input
+              className="mono"
+              value={hwFingerprint}
+              onChange={(e) => setHwFingerprint(e.target.value)}
+              placeholder="Set in Settings or paste here"
+            />
+          </label>
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy || !hwFingerprint.trim()}
+            onClick={() => void onHwSign()}
+          >
+            Sign with hardware
           </button>
           <label>
             Cosigner PSBT (base64)

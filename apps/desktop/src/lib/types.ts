@@ -145,6 +145,35 @@ export interface SignPsbtRequest {
   allowMainnetHotKeys?: boolean;
 }
 
+export interface HwDeviceDto {
+  id: string;
+  fingerprint: string;
+  deviceType: string;
+  model: string;
+  path?: string | null;
+  needsPin: boolean;
+  needsPassphrase: boolean;
+  error?: string | null;
+}
+
+export interface HwGetXpubRequest {
+  fingerprint: string;
+  derivationPath: string;
+  hwiPath?: string | null;
+}
+
+export interface HwXpubDto {
+  fingerprint: string;
+  derivationPath: string;
+  xpub: string;
+}
+
+export interface HwSignPsbtRequest {
+  fingerprint: string;
+  psbtBase64: string;
+  hwiPath?: string | null;
+}
+
 export interface SignedPsbtDto {
   base64: string;
   inputCount: number;

@@ -9,6 +9,7 @@ members = [
     "crates/blockchain",
     "crates/storage",
     "crates/vault",
+    "crates/signing-devices",
     "apps/desktop/src-tauri",
 ]
 
@@ -33,6 +34,7 @@ address-engine = { path = "crates/address-engine" }
 vault = { path = "crates/vault" }
 blockchain = { path = "crates/blockchain" }
 psbt-engine = { path = "crates/psbt-engine" }
+signing-devices = { path = "crates/signing-devices" }
 # Note: desktop crate is a workspace member via apps/desktop/src-tauri
 rusqlite = { version = "0.32", features = ["bundled"] }
 

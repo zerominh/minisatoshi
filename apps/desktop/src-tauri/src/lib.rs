@@ -6,8 +6,8 @@ mod state;
 use commands::{
     app_version, broadcast_psbt_cmd, combine_psbts, compile_vault_descriptor, create_psbt,
     create_vault, create_wallet, export_sparrow_wallet, finalize_psbt_cmd, get_balance, get_vault,
-    list_server_presets, list_vaults, list_wallets, new_receive_address, save_text_file,
-    sign_psbt_software, sync_vault,
+    hw_get_xpub, hw_sign_psbt, list_hw_devices, list_server_presets, list_vaults, list_wallets,
+    new_receive_address, save_text_file, sign_psbt_software, sync_vault,
 };
 use state::AppState;
 use tauri::Manager;
@@ -41,6 +41,9 @@ pub fn run() {
             sync_vault,
             create_psbt,
             sign_psbt_software,
+            list_hw_devices,
+            hw_get_xpub,
+            hw_sign_psbt,
             combine_psbts,
             finalize_psbt_cmd,
             broadcast_psbt_cmd,

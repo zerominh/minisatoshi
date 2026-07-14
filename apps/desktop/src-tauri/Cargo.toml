@@ -24,6 +24,7 @@ vault.workspace = true
 blockchain.workspace = true
 psbt-engine.workspace = true
 address-engine.workspace = true
+signing-devices.workspace = true
 miniscript.workspace = true
 bitcoin.workspace = true
 

@@ -19,12 +19,14 @@ use vault::VaultService;
 
 use crate::dto::{
     AddressDto, BalanceDto, BroadcastTxRequest, CombinePsbtRequest, CompileVaultResponse,
-    CreatePsbtRequest, CreateVaultRequest, CreateWalletRequest, FinalizedTxDto, PsbtDto,
-    ServerPresetDto, SignPsbtRequest, SignedPsbtDto, SparrowExportDto, SyncResultDto, VaultDto,
-    VaultSummaryDto, WalletDto, WalletSummaryDto,
+    CreatePsbtRequest, CreateVaultRequest, CreateWalletRequest, FinalizedTxDto, HwDeviceDto,
+    HwGetXpubRequest, HwSignPsbtRequest, HwXpubDto, PsbtDto, ServerPresetDto, SignPsbtRequest,
+    SignedPsbtDto, SparrowExportDto, SyncResultDto, VaultDto, VaultSummaryDto, WalletDto,
+    WalletSummaryDto,
 };
 use crate::error::user_facing_error;
 use crate::state::AppState;
+use signing_devices::{parse_derivation_path, DeviceInfo, HwiClient};
 
 #[tauri::command]
 pub fn compile_vault_descriptor(config: PolicyConfig) -> Result<CompileVaultResponse, String> {
@@ -328,6 +330,77 @@ pub fn sign_psbt_software(request: SignPsbtRequest) -> Result<SignedPsbtDto, Str
         output_count: psbt.outputs.len(),
         signed_inputs: progress.signed_inputs,
         total_inputs: progress.total_inputs,
+    })
+}
+
+fn hwi_client(hwi_path: Option<&str>) -> HwiClient {
+    match hwi_path.map(str::trim).filter(|p| !p.is_empty()) {
+        Some(path) => HwiClient::with_binary(path),
+        None => HwiClient::new(Default::default()),
+    }
+}
+
+fn device_to_dto(d: DeviceInfo) -> HwDeviceDto {
+    HwDeviceDto {
+        id: d.id,
+        fingerprint: d.fingerprint,
+        device_type: d.device_type.as_str().to_string(),
+        model: d.model,
+        path: d.path,
+        needs_pin: d.needs_pin,
+        needs_passphrase: d.needs_passphrase,
+        error: d.error,
+    }
+}
+
+fn count_signed_inputs(psbt: &psbt_engine::Psbt) -> usize {
+    psbt.inputs
+        .iter()
+        .filter(|input| {
+            !input.partial_sigs.is_empty()
+                || input.tap_key_sig.is_some()
+                || !input.tap_script_sigs.is_empty()
+        })
+        .count()
+}
+
+/// Enumerate hardware wallets via HWI (`hwi enumerate`).
+#[tauri::command]
+pub fn list_hw_devices(hwi_path: Option<String>) -> Result<Vec<HwDeviceDto>, String> {
+    let client = hwi_client(hwi_path.as_deref());
+    let devices = client.enumerate().map_err(user_facing_error)?;
+    Ok(devices.into_iter().map(device_to_dto).collect())
+}
+
+/// Fetch an xpub from a connected device (`hwi getxpub`).
+#[tauri::command]
+pub fn hw_get_xpub(request: HwGetXpubRequest) -> Result<HwXpubDto, String> {
+    let client = hwi_client(request.hwi_path.as_deref());
+    let path = parse_derivation_path(&request.derivation_path).map_err(user_facing_error)?;
+    let xpub = client
+        .get_xpub(request.fingerprint.trim(), &path)
+        .map_err(user_facing_error)?;
+    Ok(HwXpubDto {
+        fingerprint: request.fingerprint.trim().to_string(),
+        derivation_path: format!("m/{path}"),
+        xpub,
+    })
+}
+
+/// Sign a PSBT on-device (`hwi signtx`). Secrets never leave the hardware.
+#[tauri::command]
+pub fn hw_sign_psbt(request: HwSignPsbtRequest) -> Result<SignedPsbtDto, String> {
+    let client = hwi_client(request.hwi_path.as_deref());
+    let signed_b64 = client
+        .sign_psbt(request.fingerprint.trim(), &request.psbt_base64)
+        .map_err(user_facing_error)?;
+    let psbt = parse_psbt_b64(&signed_b64)?;
+    Ok(SignedPsbtDto {
+        base64: signed_b64,
+        input_count: psbt.inputs.len(),
+        output_count: psbt.outputs.len(),
+        signed_inputs: count_signed_inputs(&psbt),
+        total_inputs: psbt.inputs.len(),
     })
 }
 

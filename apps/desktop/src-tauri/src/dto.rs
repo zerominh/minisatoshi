@@ -134,6 +134,45 @@ pub struct SignPsbtRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct HwDeviceDto {
+    pub id: String,
+    pub fingerprint: String,
+    pub device_type: String,
+    pub model: String,
+    pub path: Option<String>,
+    pub needs_pin: bool,
+    pub needs_passphrase: bool,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HwGetXpubRequest {
+    pub fingerprint: String,
+    pub derivation_path: String,
+    #[serde(default)]
+    pub hwi_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HwXpubDto {
+    pub fingerprint: String,
+    pub derivation_path: String,
+    pub xpub: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HwSignPsbtRequest {
+    pub fingerprint: String,
+    pub psbt_base64: String,
+    #[serde(default)]
+    pub hwi_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SignedPsbtDto {
     pub base64: String,
     pub input_count: usize,

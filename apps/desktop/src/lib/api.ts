@@ -21,6 +21,10 @@ import type {
   WalletSummaryDto,
   BroadcastTxRequest,
   CombinePsbtRequest,
+  HwDeviceDto,
+  HwGetXpubRequest,
+  HwSignPsbtRequest,
+  HwXpubDto,
 } from "./types";
 
 export async function compileVaultDescriptor(
@@ -85,6 +89,24 @@ export async function signPsbtSoftware(
   request: SignPsbtRequest,
 ): Promise<SignedPsbtDto> {
   return invoke("sign_psbt_software", { request });
+}
+
+export async function listHwDevices(
+  hwiPath?: string | null,
+): Promise<HwDeviceDto[]> {
+  return invoke("list_hw_devices", { hwiPath: hwiPath ?? null });
+}
+
+export async function hwGetXpub(
+  request: HwGetXpubRequest,
+): Promise<HwXpubDto> {
+  return invoke("hw_get_xpub", { request });
+}
+
+export async function hwSignPsbt(
+  request: HwSignPsbtRequest,
+): Promise<SignedPsbtDto> {
+  return invoke("hw_sign_psbt", { request });
 }
 
 export async function combinePsbts(

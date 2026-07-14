@@ -3,6 +3,8 @@ import type { NetworkName } from "./types";
 const ACTIVE_WALLET_KEY = "minisatoshi.activeWalletId";
 const ESPLORA_URL_KEY = "minisatoshi.esploraUrl";
 const NETWORK_KEY = "minisatoshi.preferredNetwork";
+const HWI_PATH_KEY = "minisatoshi.hwiPath";
+const HW_FINGERPRINT_KEY = "minisatoshi.hwFingerprint";
 
 export function getActiveWalletId(): string | null {
   return localStorage.getItem(ACTIVE_WALLET_KEY);
@@ -20,6 +22,24 @@ export function getEsploraUrl(): string {
 export function setEsploraUrl(url: string) {
   if (url.trim()) localStorage.setItem(ESPLORA_URL_KEY, url.trim());
   else localStorage.removeItem(ESPLORA_URL_KEY);
+}
+
+export function getHwiPath(): string {
+  return localStorage.getItem(HWI_PATH_KEY) ?? "";
+}
+
+export function setHwiPath(path: string) {
+  if (path.trim()) localStorage.setItem(HWI_PATH_KEY, path.trim());
+  else localStorage.removeItem(HWI_PATH_KEY);
+}
+
+export function getHwFingerprint(): string {
+  return localStorage.getItem(HW_FINGERPRINT_KEY) ?? "";
+}
+
+export function setHwFingerprint(fp: string) {
+  if (fp.trim()) localStorage.setItem(HW_FINGERPRINT_KEY, fp.trim());
+  else localStorage.removeItem(HW_FINGERPRINT_KEY);
 }
 
 export function getPreferredNetwork(): NetworkName {
