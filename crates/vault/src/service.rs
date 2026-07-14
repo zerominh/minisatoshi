@@ -88,6 +88,14 @@ impl<'a> VaultService<'a> {
         Ok(self.store.list_vaults(wallet_id)?)
     }
 
+    pub fn delete_vault(&self, vault_id: &str) -> Result<(), VaultError> {
+        Ok(self.store.delete_vault(vault_id)?)
+    }
+
+    pub fn delete_wallet(&self, wallet_id: &str) -> Result<(), VaultError> {
+        Ok(self.store.delete_wallet(wallet_id)?)
+    }
+
     pub fn get_vault(&self, vault_id: &str) -> Result<Vault, VaultError> {
         Ok(self.store.get_vault(vault_id)?)
     }

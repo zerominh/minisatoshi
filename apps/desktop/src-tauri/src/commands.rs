@@ -72,6 +72,23 @@ pub fn list_wallets(state: State<'_, AppState>) -> Result<Vec<WalletSummaryDto>,
 }
 
 #[tauri::command]
+pub fn delete_wallet(state: State<'_, AppState>, wallet_id: String) -> Result<(), String> {
+    state.with_store(|store| {
+        store
+            .delete_wallet(&wallet_id)
+            .map_err(user_facing_error)
+    })
+}
+
+#[tauri::command]
+pub fn delete_vault(state: State<'_, AppState>, vault_id: String) -> Result<(), String> {
+    state.with_store(|store| {
+        let service = VaultService::new(store);
+        service.delete_vault(&vault_id).map_err(user_facing_error)
+    })
+}
+
+#[tauri::command]
 pub fn create_vault(
     state: State<'_, AppState>,
     request: CreateVaultRequest,

@@ -19,6 +19,7 @@ impl Database {
             std::fs::create_dir_all(parent)?;
         }
         let conn = Connection::open(path)?;
+        conn.pragma_update(None, "foreign_keys", true)?;
         let db = Self { conn };
         db.migrate()?;
         Ok(db)
@@ -26,6 +27,7 @@ impl Database {
 
     pub fn open_in_memory() -> Result<Self, StorageError> {
         let conn = Connection::open_in_memory()?;
+        conn.pragma_update(None, "foreign_keys", true)?;
         let db = Self { conn };
         db.migrate()?;
         Ok(db)
@@ -325,6 +327,46 @@ impl Database {
 
         Ok(value.map(|index| index as u32))
     }
+
+    /// Delete a vault and related addresses / txs / labels (CASCADE + labels cleanup).
+    pub fn delete_vault(&self, id: &str) -> Result<(), StorageError> {
+        self.get_vault(id)?;
+        self.conn.execute(
+            "DELETE FROM labels WHERE target_type = 'vault' AND target_id = ?1",
+            params![id],
+        )?;
+        let changed = self
+            .conn
+            .execute("DELETE FROM vaults WHERE id = ?1", params![id])?;
+        if changed == 0 {
+            return Err(StorageError::VaultNotFound(id.to_string()));
+        }
+        Ok(())
+    }
+
+    /// Delete a wallet and all nested vaults (CASCADE).
+    pub fn delete_wallet(&self, id: &str) -> Result<(), StorageError> {
+        self.get_wallet(id)?;
+        // Clean labels for this wallet and its vaults before CASCADE removes children.
+        let vaults = self.list_vaults_for_wallet(id)?;
+        for vault in &vaults {
+            self.conn.execute(
+                "DELETE FROM labels WHERE target_type = 'vault' AND target_id = ?1",
+                params![vault.id],
+            )?;
+        }
+        self.conn.execute(
+            "DELETE FROM labels WHERE target_type = 'wallet' AND target_id = ?1",
+            params![id],
+        )?;
+        let changed = self
+            .conn
+            .execute("DELETE FROM wallets WHERE id = ?1", params![id])?;
+        if changed == 0 {
+            return Err(StorageError::WalletNotFound(id.to_string()));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -361,5 +403,59 @@ mod tests {
 
         assert_eq!(vault.wallet_id, wallet.id);
         assert_eq!(db.list_vaults_for_wallet(&wallet.id).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn delete_wallet_cascades_vaults() {
+        let db = Database::open_in_memory().unwrap();
+        let now = 1_700_000_000_i64;
+        let wallet = db
+            .insert_wallet(&NewWallet {
+                id: "w1".into(),
+                name: "Test".into(),
+                network: "testnet".into(),
+                created_at: now,
+            })
+            .unwrap();
+        db.insert_vault(&NewVault {
+            id: "v1".into(),
+            wallet_id: wallet.id.clone(),
+            name: "Vault 1".into(),
+            policy_json: "{}".into(),
+            descriptor: "tr(...)".into(),
+            script_type: "taproot".into(),
+            created_at: now,
+        })
+        .unwrap();
+        db.delete_wallet(&wallet.id).unwrap();
+        assert!(db.get_wallet(&wallet.id).is_err());
+        assert!(db.get_vault("v1").is_err());
+    }
+
+    #[test]
+    fn delete_vault_removes_row() {
+        let db = Database::open_in_memory().unwrap();
+        let now = 1_700_000_000_i64;
+        let wallet = db
+            .insert_wallet(&NewWallet {
+                id: "w1".into(),
+                name: "Test".into(),
+                network: "testnet".into(),
+                created_at: now,
+            })
+            .unwrap();
+        db.insert_vault(&NewVault {
+            id: "v1".into(),
+            wallet_id: wallet.id.clone(),
+            name: "Vault 1".into(),
+            policy_json: "{}".into(),
+            descriptor: "tr(...)".into(),
+            script_type: "taproot".into(),
+            created_at: now,
+        })
+        .unwrap();
+        db.delete_vault("v1").unwrap();
+        assert!(db.get_vault("v1").is_err());
+        assert!(db.get_wallet(&wallet.id).is_ok());
     }
 }

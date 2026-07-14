@@ -70,6 +70,16 @@ impl WalletStore {
         Ok(summaries)
     }
 
+    pub fn delete_wallet(&self, wallet_id: &str) -> Result<(), WalletError> {
+        self.db.delete_wallet(wallet_id)?;
+        Ok(())
+    }
+
+    pub fn delete_vault(&self, vault_id: &str) -> Result<(), WalletError> {
+        self.db.delete_vault(vault_id)?;
+        Ok(())
+    }
+
     pub fn backup_wallet(&self, _id: &str, destination: &Path) -> Result<(), WalletError> {
         if let Some(parent) = destination.parent() {
             std::fs::create_dir_all(parent).map_err(StorageError::from)?;

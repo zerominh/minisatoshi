@@ -61,6 +61,14 @@ export async function listWallets(): Promise<WalletSummaryDto[]> {
   return invoke("list_wallets");
 }
 
+export async function deleteWallet(walletId: string): Promise<void> {
+  return invoke("delete_wallet", { walletId });
+}
+
+export async function deleteVault(vaultId: string): Promise<void> {
+  return invoke("delete_vault", { vaultId });
+}
+
 export async function createVault(
   request: CreateVaultRequest,
 ): Promise<VaultDto> {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { formatError, listVaults, listWallets } from "../lib/api";
+import { deleteVault, formatError, listVaults, listWallets } from "../lib/api";
 import { formatNetwork, getActiveWalletId, setActiveWalletId } from "../lib/settings";
 import type { VaultSummaryDto, WalletSummaryDto } from "../lib/types";
 
@@ -8,7 +8,16 @@ export function VaultsPage() {
   const [wallets, setWallets] = useState<WalletSummaryDto[]>([]);
   const [walletId, setWalletId] = useState<string | null>(getActiveWalletId());
   const [vaults, setVaults] = useState<VaultSummaryDto[]>([]);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function refreshVaults(id: string | null) {
+    if (!id) {
+      setVaults([]);
+      return;
+    }
+    setVaults(await listVaults(id));
+  }
 
   useEffect(() => {
     void (async () => {
@@ -30,14 +39,25 @@ export function VaultsPage() {
   }, []);
 
   useEffect(() => {
-    if (!walletId) {
-      setVaults([]);
-      return;
-    }
-    void listVaults(walletId)
-      .then(setVaults)
-      .catch((err) => setError(formatError(err)));
+    void refreshVaults(walletId).catch((err) => setError(formatError(err)));
   }, [walletId]);
+
+  async function onDelete(vault: VaultSummaryDto) {
+    const ok = window.confirm(
+      `Delete vault “${vault.name}”? Local addresses and sync data for this vault will be removed. This cannot be undone.`,
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteVault(vault.id);
+      await refreshVaults(walletId);
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <section>
@@ -124,6 +144,14 @@ export function VaultsPage() {
                       >
                         Send
                       </Link>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => void onDelete(vault)}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </li>
                 ))}

@@ -1,6 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { createWallet, formatError, listWallets } from "../lib/api";
+import {
+  createWallet,
+  deleteWallet,
+  formatError,
+  listWallets,
+} from "../lib/api";
 import {
   formatNetwork,
   getActiveWalletId,
@@ -20,9 +25,16 @@ export function WalletsPage() {
   async function refresh() {
     const items = await listWallets();
     setWallets(items);
-    if (!activeId && items.length > 0) {
+    const stillActive =
+      activeId && items.some((w) => w.id === activeId) ? activeId : null;
+    if (stillActive) {
+      setActiveId(stillActive);
+    } else if (items.length > 0) {
       setActiveWalletId(items[0].id);
       setActiveId(items[0].id);
+    } else {
+      setActiveWalletId(null);
+      setActiveId(null);
     }
   }
 
@@ -50,6 +62,23 @@ export function WalletsPage() {
   function selectWallet(id: string) {
     setActiveWalletId(id);
     setActiveId(id);
+  }
+
+  async function onDelete(wallet: WalletSummaryDto) {
+    const ok = window.confirm(
+      `Delete wallet “${wallet.name}” and all ${wallet.vaultCount} vault(s)? This cannot be undone.`,
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteWallet(wallet.id);
+      await refresh();
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -122,6 +151,14 @@ export function WalletsPage() {
                   <Link className="button-link" to="/vaults">
                     Vaults
                   </Link>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => void onDelete(wallet)}
+                  >
+                    Delete
+                  </button>
                 </div>
               </li>
             ))}

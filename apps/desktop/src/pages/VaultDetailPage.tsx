@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  deleteVault,
   exportVaultBackup,
   formatError,
   getVault,
@@ -26,6 +27,7 @@ import type {
 
 export function VaultDetailPage() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const [vault, setVault] = useState<VaultDto | null>(null);
   const [sync, setSync] = useState<SyncResultDto | null>(null);
   const [registration, setRegistration] =
@@ -89,6 +91,23 @@ export function VaultDetailPage() {
     } catch (err) {
       setError(formatError(err));
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeleteVault() {
+    if (!vault) return;
+    const ok = window.confirm(
+      `Delete vault “${vault.name}”? This removes local data only (not funds on-chain). Export a backup first if you need it.`,
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteVault(id);
+      navigate("/vaults");
+    } catch (err) {
+      setError(formatError(err));
       setBusy(false);
     }
   }
@@ -189,6 +208,14 @@ export function VaultDetailPage() {
           </Link>
           <button type="button" disabled={busy} onClick={() => void onSync()}>
             {busy ? "Syncing…" : "Sync chain"}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={() => void onDeleteVault()}
+          >
+            Delete vault
           </button>
         </div>
       </header>
