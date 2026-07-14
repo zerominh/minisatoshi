@@ -275,38 +275,54 @@ pub fn get_balance(
     vault_id: String,
     esplora_url: Option<String>,
 ) -> Result<BalanceDto, String> {
-    state.with_store(|store| {
+    // Do not hold the wallet-store mutex during Esplora HTTP (would freeze the UI).
+    let query = state.with_store(|store| {
         let service = VaultService::new(store);
-        let vault = service.get_vault(&vault_id).map_err(user_facing_error)?;
-        let backend = match esplora_url {
-            Some(url) => EsploraBackend::new(url).map_err(user_facing_error)?,
-            None => EsploraBackend::for_network(vault.policy.network).map_err(user_facing_error)?,
-        };
         service
-            .vault_balance(&vault_id, &backend)
-            .map(BalanceDto::from)
+            .descriptor_query(&vault_id)
             .map_err(user_facing_error)
-    })
+    })?;
+    let backend = esplora_backend(esplora_url, query.network())?;
+    backend
+        .get_balance(&query)
+        .map(BalanceDto::from)
+        .map_err(user_facing_error)
 }
 
 #[tauri::command]
-pub fn sync_vault(
+pub async fn sync_vault(
     state: State<'_, AppState>,
     vault_id: String,
     esplora_url: Option<String>,
 ) -> Result<SyncResultDto, String> {
-    state.with_store(|store| {
+    // Snapshot descriptor under a short lock, then sync on a worker thread.
+    let query = state.with_store(|store| {
         let service = VaultService::new(store);
-        let vault = service.get_vault(&vault_id).map_err(user_facing_error)?;
-        let backend = match esplora_url {
-            Some(url) => EsploraBackend::new(url).map_err(user_facing_error)?,
-            None => EsploraBackend::for_network(vault.policy.network).map_err(user_facing_error)?,
-        };
         service
-            .sync_vault(&vault_id, &backend, &|_| {})
+            .descriptor_query(&vault_id)
+            .map_err(user_facing_error)
+    })?;
+    let network = query.network();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let backend = esplora_backend(esplora_url, network)?;
+        backend
+            .sync(&query, &|_| {})
             .map(SyncResultDto::from)
             .map_err(user_facing_error)
     })
+    .await
+    .map_err(|e| format!("sync task failed: {e}"))?
+}
+
+fn esplora_backend(
+    esplora_url: Option<String>,
+    network: NetworkName,
+) -> Result<EsploraBackend, String> {
+    match esplora_url {
+        Some(url) => EsploraBackend::new(url).map_err(user_facing_error),
+        None => EsploraBackend::for_network(network).map_err(user_facing_error),
+    }
 }
 
 #[tauri::command]
@@ -807,27 +823,25 @@ pub fn broadcast_psbt_cmd(
     state: State<'_, AppState>,
     request: BroadcastTxRequest,
 ) -> Result<String, String> {
-    state.with_store(|store| {
+    let network = state.with_store(|store| {
         let service = VaultService::new(store);
-        let vault = service
+        service
             .get_vault(&request.vault_id)
-            .map_err(user_facing_error)?;
-        let backend = match &request.esplora_url {
-            Some(url) => EsploraBackend::new(url.clone()).map_err(user_facing_error)?,
-            None => EsploraBackend::for_network(vault.policy.network).map_err(user_facing_error)?,
-        };
+            .map(|v| v.policy.network)
+            .map_err(user_facing_error)
+    })?;
+    let backend = esplora_backend(request.esplora_url.clone(), network)?;
 
-        if let Some(hex) = request.tx_hex.as_ref().filter(|h| !h.trim().is_empty()) {
-            return backend.broadcast(hex.trim()).map_err(user_facing_error);
-        }
+    if let Some(hex) = request.tx_hex.as_ref().filter(|h| !h.trim().is_empty()) {
+        return backend.broadcast(hex.trim()).map_err(user_facing_error);
+    }
 
-        let psbt_b64 = request
-            .psbt_base64
-            .as_ref()
-            .ok_or_else(|| "provide psbtBase64 or txHex".to_string())?;
-        let psbt = parse_psbt_b64(psbt_b64)?;
-        broadcast_psbt(&psbt, &backend).map_err(user_facing_error)
-    })
+    let psbt_b64 = request
+        .psbt_base64
+        .as_ref()
+        .ok_or_else(|| "provide psbtBase64 or txHex".to_string())?;
+    let psbt = parse_psbt_b64(psbt_b64)?;
+    broadcast_psbt(&psbt, &backend).map_err(user_facing_error)
 }
 
 fn hot_summary_dto(s: hot_keystore::HotWalletSummary) -> HotWalletSummaryDto {

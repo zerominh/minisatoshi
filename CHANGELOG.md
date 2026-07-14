@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Sync no longer freezes the UI: Esplora HTTP runs off the wallet-store lock (and sync_vault on a worker thread)
 - Esplora sync: ~250ms between calls, longer 429 backoff; empty wallet still needs ~40 address probes (gap 20 × receive+change) so public Blockstream can 429 on first open
 - Hot wallet open after parent SQLite wallet was deleted (or BIP-86 migration recreated storage): heal stale `linked_wallet_id` instead of `wallet not found`
 - Hot wallet rename still updates the keystore name when the linked vault row is missing
