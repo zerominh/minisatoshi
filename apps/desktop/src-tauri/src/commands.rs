@@ -1017,7 +1017,23 @@ pub fn open_hot_wallet(
                 .map(VaultDto::from)
                 .map_err(user_facing_error)
         }) {
-            Ok(vault) => return Ok(vault),
+            Ok(vault) => {
+                // Hot singlesig used to compile as tr(NUMS,{pk(A)}) — wrong addresses vs Sparrow BIP-86.
+                if vault.policy.keys.len() == 1
+                    && vault.policy.policy.primary.trim() == "A"
+                    && vault.policy.policy.all_fallbacks().is_empty()
+                    && vault
+                        .descriptor
+                        .contains(descriptor_engine::NUMS_UNSPENDABLE_KEY)
+                {
+                    let _ = state.with_store(|store| {
+                        let service = VaultService::new(store);
+                        service.delete_vault(vault_id).map_err(user_facing_error)
+                    });
+                } else {
+                    return Ok(vault);
+                }
+            }
             Err(_) => {
                 // Linked row was deleted — recreate below.
             }

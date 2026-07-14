@@ -6,7 +6,8 @@ use miniscript::policy::compiler;
 use miniscript::policy::Concrete;
 use miniscript::{DescriptorPublicKey, Miniscript, Segwitv0, Tap};
 use policy_engine::{
-    compile_leaf_policies, compile_miniscript, KeyTranslator, PolicyConfig, ScriptTypeName,
+    compile_leaf_policies, compile_miniscript, descriptor_key_expression, KeyTranslator,
+    PolicyConfig, ScriptTypeName,
 };
 use std::str::FromStr;
 
@@ -86,6 +87,13 @@ fn compile_taproot(
     config: &PolicyConfig,
 ) -> Result<Descriptor<DescriptorPublicKey>, DescriptorError> {
     let leaf_policies = compile_leaf_policies(config).map_err(DescriptorError::Policy)?;
+
+    // Single-key Taproot (hot wallets / BIP-86): key-path spend `tr(xpub/…)` —
+    // NOT `tr(NUMS,{pk(A)})` which yields different addresses and breaks Sparrow parity.
+    if let Some(key_id) = single_key_policy_id(&leaf_policies) {
+        return compile_bip86_keypath(config, key_id);
+    }
+
     let mut compiled_leaves = Vec::with_capacity(leaf_policies.len());
 
     for leaf in leaf_policies {
@@ -104,6 +112,35 @@ fn compile_taproot(
     descriptor
         .translate_pk(&mut KeyTranslator { config })
         .map_err(|e| DescriptorError::Compile(format!("{e:?}")))
+}
+
+/// `["pk(A)"]` → Some("A"); multi-key / and / or → None.
+fn single_key_policy_id(leaves: &[String]) -> Option<&str> {
+    if leaves.len() != 1 {
+        return None;
+    }
+    let leaf = leaves[0].trim();
+    let inner = leaf.strip_prefix("pk(")?.strip_suffix(')')?;
+    if inner.is_empty() || inner.contains(['(', ')', ',']) {
+        return None;
+    }
+    Some(inner)
+}
+
+fn compile_bip86_keypath(
+    config: &PolicyConfig,
+    key_id: &str,
+) -> Result<Descriptor<DescriptorPublicKey>, DescriptorError> {
+    let key = config
+        .keys
+        .iter()
+        .find(|k| k.id == key_id)
+        .ok_or_else(|| DescriptorError::Compile(format!("unknown key '{key_id}'")))?;
+    let expr = descriptor_key_expression(key).map_err(DescriptorError::Policy)?;
+    let dpk: DescriptorPublicKey = expr
+        .parse()
+        .map_err(|e| DescriptorError::Compile(format!("invalid BIP-86 key '{key_id}': {e}")))?;
+    Descriptor::new_tr(dpk, None).map_err(|e| DescriptorError::Compile(e.to_string()))
 }
 
 fn combine_taptree(mut leaves: Vec<Arc<Miniscript<String, Tap>>>) -> TapTree<String> {
@@ -170,6 +207,33 @@ mod tests {
                 origin_path: Some("84'/0'/0'".into()),
             },
         ]
+    }
+
+    #[test]
+    fn singlesig_taproot_uses_bip86_keypath_not_nums() {
+        let config = PolicyConfig {
+            version: 1,
+            network: NetworkName::Testnet,
+            script_type: ScriptTypeName::Taproot,
+            keys: vec![KeyConfig {
+                id: "A".into(),
+                role: KeyRole::Other,
+                xpub: TEST_XPUB_A.into(),
+                fingerprint: "78412e3a".into(),
+                origin_path: Some("86'/1'/0'".into()),
+            }],
+            policy: PolicyExpression {
+                primary: "A".into(),
+                fallback: None,
+                fallbacks: vec![],
+            },
+        };
+        let descriptor = compile_descriptor_from_config(&config).unwrap();
+        assert!(descriptor.starts_with("tr("));
+        assert!(descriptor.contains("[78412e3a/86'/1'/0']"));
+        assert!(descriptor.contains("/<0;1>/*"));
+        assert!(!descriptor.contains(NUMS_UNSPENDABLE_KEY));
+        assert!(!descriptor.contains('{'));
     }
 
     #[test]

@@ -9,7 +9,7 @@ export function VaultTransactionsPage() {
       <header className="page-header">
         <div>
           <h2>Transactions</h2>
-          <p>History for this vault after chain sync.</p>
+          <p>History after chain sync.</p>
         </div>
         <button type="button" disabled={busy} onClick={() => void runSync()}>
           {busy ? "Syncing…" : "Sync chain"}
