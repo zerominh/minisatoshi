@@ -143,6 +143,8 @@ impl BlockchainBackend for ElectrumBackend {
                     } else {
                         None
                     },
+                    derivation_index: scanned.index,
+                    is_change: scanned.is_change,
                 });
             }
 

@@ -208,3 +208,56 @@ impl From<blockchain::Balance> for BalanceDto {
         }
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TxSummaryDto {
+    pub txid: String,
+    pub amount_sats: i64,
+    pub confirmed: bool,
+    pub block_height: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncResultDto {
+    pub balance: BalanceDto,
+    pub utxos: Vec<UtxoDto>,
+    pub history: Vec<TxSummaryDto>,
+}
+
+impl From<blockchain::Utxo> for UtxoDto {
+    fn from(value: blockchain::Utxo) -> Self {
+        Self {
+            txid: value.txid,
+            vout: value.vout,
+            value_sats: value.value_sats,
+            address: value.address,
+            confirmed: value.confirmed,
+            block_height: value.block_height,
+            derivation_index: value.derivation_index,
+            is_change: value.is_change,
+        }
+    }
+}
+
+impl From<blockchain::TxSummary> for TxSummaryDto {
+    fn from(value: blockchain::TxSummary) -> Self {
+        Self {
+            txid: value.txid,
+            amount_sats: value.amount_sats,
+            confirmed: value.confirmed,
+            block_height: value.block_height,
+        }
+    }
+}
+
+impl From<blockchain::SyncResult> for SyncResultDto {
+    fn from(value: blockchain::SyncResult) -> Self {
+        Self {
+            balance: BalanceDto::from(value.balance),
+            utxos: value.utxos.into_iter().map(UtxoDto::from).collect(),
+            history: value.history.into_iter().map(TxSummaryDto::from).collect(),
+        }
+    }
+}

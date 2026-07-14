@@ -5,6 +5,7 @@ mod state;
 use commands::{
     compile_vault_descriptor, create_psbt, create_vault, create_wallet, export_sparrow_wallet,
     get_balance, get_vault, list_server_presets, list_vaults, list_wallets, new_receive_address,
+    sync_vault,
 };
 use state::AppState;
 use tauri::Manager;
@@ -34,6 +35,7 @@ pub fn run() {
             get_vault,
             new_receive_address,
             get_balance,
+            sync_vault,
             create_psbt,
             export_sparrow_wallet,
             list_server_presets,

@@ -150,6 +150,8 @@ impl BlockchainBackend for EsploraBackend {
                     address: scanned.address.clone(),
                     confirmed,
                     block_height: utxo.status.block_height,
+                    derivation_index: scanned.index,
+                    is_change: scanned.is_change,
                 });
             }
 

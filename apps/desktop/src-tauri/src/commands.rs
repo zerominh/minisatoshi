@@ -14,8 +14,8 @@ use vault::VaultService;
 
 use crate::dto::{
     AddressDto, BalanceDto, CompileVaultResponse, CreatePsbtRequest, CreateVaultRequest,
-    CreateWalletRequest, PsbtDto, ServerPresetDto, SparrowExportDto, VaultDto, VaultSummaryDto,
-    WalletDto, WalletSummaryDto,
+    CreateWalletRequest, PsbtDto, ServerPresetDto, SparrowExportDto, SyncResultDto, VaultDto,
+    VaultSummaryDto, WalletDto, WalletSummaryDto,
 };
 use crate::state::AppState;
 
@@ -130,6 +130,28 @@ pub fn get_balance(
 }
 
 #[tauri::command]
+pub fn sync_vault(
+    state: State<'_, AppState>,
+    vault_id: String,
+    esplora_url: Option<String>,
+) -> Result<SyncResultDto, String> {
+    state.with_store(|store| {
+        let service = VaultService::new(store);
+        let vault = service.get_vault(&vault_id).map_err(|e| e.to_string())?;
+        let backend = match esplora_url {
+            Some(url) => EsploraBackend::new(url).map_err(|e| e.to_string())?,
+            None => {
+                EsploraBackend::for_network(vault.policy.network).map_err(|e| e.to_string())?
+            }
+        };
+        service
+            .sync_vault(&vault_id, &backend, &|_| {})
+            .map(SyncResultDto::from)
+            .map_err(|e| e.to_string())
+    })
+}
+
+#[tauri::command]
 pub fn create_psbt(
     state: State<'_, AppState>,
     request: CreatePsbtRequest,
@@ -161,6 +183,8 @@ pub fn create_psbt(
                         address: u.address,
                         confirmed: u.confirmed,
                         block_height: u.block_height,
+                        derivation_index: u.derivation_index,
+                        is_change: u.is_change,
                     },
                     u.derivation_index,
                     u.is_change,

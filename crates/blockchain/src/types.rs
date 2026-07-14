@@ -41,6 +41,8 @@ pub struct Utxo {
     pub address: String,
     pub confirmed: bool,
     pub block_height: Option<u32>,
+    pub derivation_index: u32,
+    pub is_change: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

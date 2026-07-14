@@ -500,7 +500,7 @@ Hiển thị: Balance, Recent TX, UTXO, Policy, Descriptor
 Address → Amount → Fee → Create PSBT → Export (file / base64 → Sparrow)
 ```
 
-**Deliverable:** End-to-end flow trên testnet: tạo vault → nhận address → tạo PSBT.
+**Deliverable:** End-to-end flow trên testnet: tạo vault → nhận address → tạo PSBT. ✅
 
 ---
 
@@ -628,13 +628,13 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Sprint 7: UI MVP
-  - Routes: wallets, vaults, vaults/new wizard, receive, send, settings
-  - Wire create_vault / receive / PSBT export into real pages
+Sprint 8: Hardening + release v0.1.0
+  - Integration tests, CHANGELOG, policy-format docs
+  - Friendly errors, icons, Windows/macOS/Linux release builds
 ```
 
-Pipeline hiện tại: `Policy → Descriptor → Address → Balance → PSBT → Tauri IPC` ✅ (Sprint 1–6).
-Tiếp theo: UI MVP (Sprint 7).
+Pipeline hiện tại: `Policy → Descriptor → Address → Balance → PSBT → Tauri IPC → UI MVP` ✅ (Sprint 1–7).
+Tiếp theo: release hardening (Sprint 8).
 
 ---
 

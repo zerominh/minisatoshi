@@ -102,6 +102,19 @@ export interface UtxoDto {
   isChange: boolean;
 }
 
+export interface TxSummaryDto {
+  txid: string;
+  amountSats: number;
+  confirmed: boolean;
+  blockHeight?: number | null;
+}
+
+export interface SyncResultDto {
+  balance: BalanceDto;
+  utxos: UtxoDto[];
+  history: TxSummaryDto[];
+}
+
 export interface PsbtRecipientDto {
   address: string;
   amountSats: number;

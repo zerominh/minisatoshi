@@ -10,6 +10,7 @@ commands.allow = [
   "get_vault",
   "new_receive_address",
   "get_balance",
+  "sync_vault",
   "create_psbt",
   "export_sparrow_wallet",
   "list_server_presets"

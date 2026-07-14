@@ -11,6 +11,7 @@ import type {
   PsbtDto,
   ServerPresetDto,
   SparrowExportDto,
+  SyncResultDto,
   VaultDto,
   VaultSummaryDto,
   WalletDto,
@@ -62,6 +63,13 @@ export async function getBalance(
   return invoke("get_balance", { vaultId, esploraUrl: esploraUrl ?? null });
 }
 
+export async function syncVault(
+  vaultId: string,
+  esploraUrl?: string,
+): Promise<SyncResultDto> {
+  return invoke("sync_vault", { vaultId, esploraUrl: esploraUrl ?? null });
+}
+
 export async function createPsbt(
   request: CreatePsbtRequest,
 ): Promise<PsbtDto> {
@@ -78,4 +86,10 @@ export async function listServerPresets(
   network: NetworkName,
 ): Promise<ServerPresetDto[]> {
   return invoke("list_server_presets", { network });
+}
+
+export function formatError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return String(err);
 }

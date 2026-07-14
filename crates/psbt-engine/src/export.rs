@@ -94,6 +94,8 @@ mod tests {
                     address: receive.address,
                     confirmed: true,
                     block_height: None,
+                    derivation_index: 0,
+                    is_change: false,
                 },
                 0,
                 false,
