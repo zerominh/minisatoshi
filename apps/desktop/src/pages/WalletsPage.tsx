@@ -5,6 +5,7 @@ import {
   deleteWallet,
   formatError,
   listWallets,
+  renameWallet,
 } from "../lib/api";
 import {
   formatNetwork,
@@ -62,6 +63,21 @@ export function WalletsPage() {
   function selectWallet(id: string) {
     setActiveWalletId(id);
     setActiveId(id);
+  }
+
+  async function onRename(wallet: WalletSummaryDto) {
+    const next = window.prompt("Rename wallet", wallet.name)?.trim();
+    if (!next || next === wallet.name) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await renameWallet(wallet.id, next);
+      await refresh();
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onDelete(wallet: WalletSummaryDto) {
@@ -151,6 +167,14 @@ export function WalletsPage() {
                   <Link className="button-link" to="/vaults">
                     Vaults
                   </Link>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => void onRename(wallet)}
+                  >
+                    Rename
+                  </button>
                   <button
                     type="button"
                     className="secondary"

@@ -170,6 +170,27 @@ impl HotKeystore {
         Ok(summary)
     }
 
+    pub fn rename(
+        &mut self,
+        id: &str,
+        name: &str,
+    ) -> Result<HotWalletSummary, HotKeystoreError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(HotKeystoreError::Message("name required".into()));
+        }
+        let rec = self
+            .payload
+            .wallets
+            .iter_mut()
+            .find(|w| w.id == id)
+            .ok_or_else(|| HotKeystoreError::NotFound(id.into()))?;
+        rec.name = name.to_string();
+        let summary = HotWalletSummary::from(&*rec);
+        self.persist()?;
+        Ok(summary)
+    }
+
     pub fn remove(&mut self, id: &str) -> Result<(), HotKeystoreError> {
         let before = self.payload.wallets.len();
         self.payload.wallets.retain(|w| w.id != id);

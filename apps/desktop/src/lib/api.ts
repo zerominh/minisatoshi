@@ -65,8 +65,22 @@ export async function deleteWallet(walletId: string): Promise<void> {
   return invoke("delete_wallet", { walletId });
 }
 
+export async function renameWallet(
+  walletId: string,
+  name: string,
+): Promise<WalletDto> {
+  return invoke("rename_wallet", { walletId, name });
+}
+
 export async function deleteVault(vaultId: string): Promise<void> {
   return invoke("delete_vault", { vaultId });
+}
+
+export async function renameVault(
+  vaultId: string,
+  name: string,
+): Promise<VaultDto> {
+  return invoke("rename_vault", { vaultId, name });
 }
 
 export async function createVault(
@@ -190,6 +204,13 @@ export async function openHotWallet(
     hotWalletId,
     walletId: walletId ?? null,
   });
+}
+
+export async function renameHotWallet(
+  hotWalletId: string,
+  name: string,
+): Promise<HotWalletSummaryDto> {
+  return invoke("rename_hot_wallet", { hotWalletId, name });
 }
 
 export async function deleteHotWallet(hotWalletId: string): Promise<void> {

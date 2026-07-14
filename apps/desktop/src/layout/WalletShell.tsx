@@ -16,6 +16,7 @@ export function WalletShell() {
     vault,
     sync,
     busy,
+    syncing,
     error,
     message,
     runSync,
@@ -64,8 +65,9 @@ export function WalletShell() {
             className="secondary"
             disabled={busy}
             onClick={() => void runSync()}
+            title="Sync now (background refresh every 2 min; does not lock the UI)"
           >
-            {busy ? "Syncing…" : "Sync"}
+            {busy ? "Syncing…" : syncing ? "Updating…" : sync ? "Synced" : "Sync"}
           </button>
         </div>
         <nav>

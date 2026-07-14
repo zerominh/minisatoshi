@@ -14,7 +14,6 @@ import {
   listSpendingPaths,
   signPsbtHot,
   signPsbtSoftware,
-  syncVault,
 } from "../lib/api";
 import { formatTimelockLabel } from "../lib/duration";
 import {
@@ -31,16 +30,20 @@ import type {
   PsbtDto,
   SigningStatusDto,
   SpendingPathDto,
-  SyncResultDto,
   UtxoDto,
   VaultDto,
 } from "../lib/types";
-import { useVaultIdFromRouteOrContext } from "../vault/VaultContext";
+import { useVault, useVaultIdFromRouteOrContext } from "../vault/VaultContext";
 
 export function SendPage() {
   const id = useVaultIdFromRouteOrContext();
-  const [vault, setVault] = useState<VaultDto | null>(null);
-  const [sync, setSync] = useState<SyncResultDto | null>(null);
+  const {
+    sync,
+    runSync,
+    vault: shellVault,
+    busy: shellBusy,
+  } = useVault();
+  const [vault, setVault] = useState<VaultDto | null>(shellVault);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [address, setAddress] = useState("");
   const [amount, setAmount] = useState("");
@@ -62,6 +65,10 @@ export function SendPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (shellVault) setVault(shellVault);
+  }, [shellVault]);
 
   useEffect(() => {
     void getVault(id)
@@ -128,12 +135,27 @@ export function SendPage() {
     }
   }
 
+  useEffect(() => {
+    if (!sync) return;
+    setSelected((prev) => {
+      const keys = Object.keys(prev);
+      if (keys.length === 0) {
+        const next: Record<string, boolean> = {};
+        for (const utxo of sync.utxos) {
+          next[`${utxo.txid}:${utxo.vout}`] = true;
+        }
+        return next;
+      }
+      return prev;
+    });
+  }, [sync]);
+
   async function onSync() {
     setBusy(true);
     setError(null);
     try {
-      const result = await syncVault(id, getEsploraUrl() || undefined);
-      setSync(result);
+      const result = await runSync();
+      if (!result) return;
       const next: Record<string, boolean> = {};
       for (const utxo of result.utxos) {
         next[`${utxo.txid}:${utxo.vout}`] = true;
@@ -353,10 +375,7 @@ export function SendPage() {
       });
       setBroadcastConfirm(false);
       setMessage(`Broadcast ok · ${formatNetwork(vault?.policy.network ?? "testnet")} · txid ${txid}`);
-      if (sync) {
-        const result = await syncVault(id, getEsploraUrl() || undefined);
-        setSync(result);
-      }
+      await runSync({ quiet: true });
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -383,8 +402,8 @@ export function SendPage() {
       </header>
 
       <div className="panel row-actions">
-        <button type="button" disabled={busy} onClick={() => void onSync()}>
-          {busy ? "Working…" : "1. Sync UTXOs"}
+        <button type="button" disabled={busy || shellBusy} onClick={() => void onSync()}>
+          {busy || shellBusy ? "Working…" : sync ? "Refresh UTXOs" : "1. Sync UTXOs"}
         </button>
         {sync ? (
           <span className="muted">

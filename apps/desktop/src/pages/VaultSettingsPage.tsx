@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   deleteVault,
@@ -6,6 +6,8 @@ import {
   formatError,
   hwRegisterVault,
   prepareHwRegistration,
+  renameHotWallet,
+  renameVault,
 } from "../lib/api";
 import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
 import { formatTimelockLabel } from "../lib/duration";
@@ -27,8 +29,10 @@ export function VaultSettingsPage() {
     setMessage,
     kind,
     hotWalletId,
+    refreshVault,
   } = useVault();
   const [localBusy, setLocalBusy] = useState(false);
+  const [displayName, setDisplayName] = useState("");
   const [registration, setRegistration] =
     useState<RegistrationPackageDto | null>(null);
   const [regFingerprint, setRegFingerprint] = useState(getHwFingerprint());
@@ -36,7 +40,32 @@ export function VaultSettingsPage() {
 
   const working = vaultBusy || localBusy;
 
+  useEffect(() => {
+    setDisplayName(vault?.name ?? "");
+  }, [vault?.name]);
+
   if (!vault) return null;
+
+  async function onRename(event: FormEvent) {
+    event.preventDefault();
+    const next = displayName.trim();
+    if (!next || next === vault!.name) return;
+    setLocalBusy(true);
+    setError(null);
+    try {
+      if (kind === "hot" && hotWalletId) {
+        await renameHotWallet(hotWalletId, next);
+      } else {
+        await renameVault(vaultId, next);
+      }
+      await refreshVault();
+      setMessage(`Renamed to “${next}”`);
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setLocalBusy(false);
+    }
+  }
 
   async function onSaveDescriptorFile() {
     setError(null);
@@ -167,6 +196,26 @@ export function VaultSettingsPage() {
           <p>Policy, descriptor, hardware registration, and danger zone.</p>
         </div>
       </header>
+
+      <form className="panel form-grid" onSubmit={(e) => void onRename(e)}>
+        <h3>Name</h3>
+        <label>
+          Display name
+          <input
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            required
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={
+            working || !displayName.trim() || displayName.trim() === vault.name
+          }
+        >
+          {working ? "…" : "Save name"}
+        </button>
+      </form>
 
       <div className="panel">
         <h3>Policy</h3>

@@ -116,6 +116,32 @@ impl Database {
         Ok(())
     }
 
+    pub fn rename_wallet(
+        &self,
+        id: &str,
+        name: &str,
+        updated_at: i64,
+    ) -> Result<WalletRecord, StorageError> {
+        let changed = self.conn.execute(
+            "UPDATE wallets SET name = ?2, updated_at = ?3 WHERE id = ?1",
+            params![id, name, updated_at],
+        )?;
+        if changed == 0 {
+            return Err(StorageError::WalletNotFound(id.to_string()));
+        }
+        self.get_wallet(id)
+    }
+
+    pub fn rename_vault(&self, id: &str, name: &str) -> Result<VaultRecord, StorageError> {
+        let changed = self
+            .conn
+            .execute("UPDATE vaults SET name = ?2 WHERE id = ?1", params![id, name])?;
+        if changed == 0 {
+            return Err(StorageError::VaultNotFound(id.to_string()));
+        }
+        self.get_vault(id)
+    }
+
     pub fn insert_vault(&self, vault: &NewVault) -> Result<VaultRecord, StorageError> {
         self.conn.execute(
             "INSERT INTO vaults (id, wallet_id, name, policy_json, descriptor, script_type, created_at)

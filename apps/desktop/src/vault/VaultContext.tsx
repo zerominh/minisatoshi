@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -14,12 +15,30 @@ import type { SyncResultDto, VaultDto } from "../lib/types";
 
 export type WalletShellKind = "vault" | "hot";
 
+/** Background refresh while the wallet shell is open (does not lock the UI). */
+export const AUTO_SYNC_INTERVAL_MS = 120_000;
+/** Skip open-sync if cache is newer than this. */
+const FRESH_SYNC_MS = 30_000;
+
+type SyncOptions = {
+  /** Background sync: no busy lock, no toast, soft errors. */
+  quiet?: boolean;
+};
+
+type CacheEntry = {
+  result: SyncResultDto;
+  at: number;
+};
+
 type VaultContextValue = {
   /** Internal storage id (descriptor / UTXOs) — same engine for vault & hot. */
   vaultId: string;
   vault: VaultDto | null;
   sync: SyncResultDto | null;
+  /** True only during a manual Sync click — backgrounds never set this. */
   busy: boolean;
+  /** True while any sync (manual or auto) is in flight. */
+  syncing: boolean;
   error: string | null;
   message: string | null;
   kind: WalletShellKind;
@@ -29,12 +48,12 @@ type VaultContextValue = {
   setError: (value: string | null) => void;
   setMessage: (value: string | null) => void;
   refreshVault: () => Promise<void>;
-  runSync: () => Promise<SyncResultDto | null>;
+  runSync: (options?: SyncOptions) => Promise<SyncResultDto | null>;
 };
 
 const VaultContext = createContext<VaultContextValue | null>(null);
 
-const syncCache = new Map<string, SyncResultDto>();
+const syncCache = new Map<string, CacheEntry>();
 
 type ProviderProps = {
   children: ReactNode;
@@ -56,11 +75,15 @@ export function VaultProvider({
   const id = vaultIdProp ?? routeId;
   const [vault, setVault] = useState<VaultDto | null>(null);
   const [sync, setSync] = useState<SyncResultDto | null>(
-    () => syncCache.get(id) ?? null,
+    () => syncCache.get(id)?.result ?? null,
   );
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const syncingRef = useRef(false);
+  const idRef = useRef(id);
+  idRef.current = id;
 
   const refreshVault = useCallback(async () => {
     if (!id) return;
@@ -68,30 +91,88 @@ export function VaultProvider({
     setVault(next);
   }, [id]);
 
+  const runSync = useCallback(
+    async (options?: SyncOptions) => {
+      const quiet = options?.quiet === true;
+      const vaultId = idRef.current;
+      if (!vaultId || syncingRef.current) return null;
+      if (quiet && typeof document !== "undefined" && document.hidden) {
+        return null;
+      }
+
+      syncingRef.current = true;
+      setSyncing(true);
+      if (!quiet) {
+        setBusy(true);
+        setError(null);
+      }
+      try {
+        const result = await syncVault(vaultId, getEsploraUrl() || undefined);
+        // Drop result if user navigated away mid-flight.
+        if (idRef.current !== vaultId) return null;
+        syncCache.set(vaultId, { result, at: Date.now() });
+        setSync(result);
+        if (!quiet) setMessage("Chain sync complete");
+        return result;
+      } catch (err) {
+        if (idRef.current !== vaultId) return null;
+        // Background failures must not freeze tabs with a blocking error banner.
+        if (!quiet) setError(formatError(err));
+        return null;
+      } finally {
+        syncingRef.current = false;
+        setSyncing(false);
+        if (!quiet) setBusy(false);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
-    setSync(syncCache.get(id) ?? null);
+    const cached = syncCache.get(id);
+    setSync(cached?.result ?? null);
     setError(null);
     setMessage(null);
-    void refreshVault().catch((err) => setError(formatError(err)));
-  }, [id, refreshVault]);
+    setBusy(false);
+    let cancelled = false;
 
-  const runSync = useCallback(async () => {
-    if (!id) return null;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await syncVault(id, getEsploraUrl() || undefined);
-      syncCache.set(id, result);
-      setSync(result);
-      setMessage("Chain sync complete");
-      return result;
-    } catch (err) {
-      setError(formatError(err));
-      return null;
-    } finally {
-      setBusy(false);
-    }
-  }, [id]);
+    void (async () => {
+      try {
+        await refreshVault();
+      } catch (err) {
+        if (!cancelled) setError(formatError(err));
+        return;
+      }
+      if (cancelled) return;
+
+      const age = cached ? Date.now() - cached.at : Number.POSITIVE_INFINITY;
+      if (age < FRESH_SYNC_MS) return;
+
+      // Let the shell paint first — Esplora scan is slow.
+      await new Promise((r) => window.setTimeout(r, 400));
+      if (cancelled) return;
+      await runSync({ quiet: true });
+    })();
+
+    const timer = window.setInterval(() => {
+      if (cancelled || document.hidden) return;
+      void runSync({ quiet: true });
+    }, AUTO_SYNC_INTERVAL_MS);
+
+    const onVisible = () => {
+      if (document.hidden || cancelled) return;
+      const entry = syncCache.get(idRef.current);
+      const age = entry ? Date.now() - entry.at : Number.POSITIVE_INFINITY;
+      if (age >= FRESH_SYNC_MS) void runSync({ quiet: true });
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [id, refreshVault, runSync]);
 
   const resolvedListPath =
     listPath ?? (kind === "hot" ? "/hot-wallets" : "/vaults");
@@ -102,6 +183,7 @@ export function VaultProvider({
       vault,
       sync,
       busy,
+      syncing,
       error,
       message,
       kind,
@@ -117,6 +199,7 @@ export function VaultProvider({
       vault,
       sync,
       busy,
+      syncing,
       error,
       message,
       kind,

@@ -14,6 +14,7 @@ import {
   importHotWallet,
   listHotWallets,
   lockHotKeystore,
+  renameHotWallet,
   unlockHotKeystore,
 } from "../lib/api";
 import { formatNetwork, getPreferredNetwork } from "../lib/settings";
@@ -127,6 +128,22 @@ export function HotWalletsPage() {
       setMessage(`Imported “${result.hotWallet.name}”`);
       await refresh();
       navigate(`/hot-wallets/${result.hotWallet.id}`);
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRename(hw: HotWalletSummaryDto) {
+    const next = window.prompt("Rename hot wallet", hw.name)?.trim();
+    if (!next || next === hw.name) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await renameHotWallet(hw.id, next);
+      setMessage(`Renamed to “${next}”`);
+      await refresh();
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -313,6 +330,14 @@ export function HotWalletsPage() {
                       </div>
                     </button>
                     <div className="row-actions">
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => void onRename(hw)}
+                      >
+                        Rename
+                      </button>
                       <button
                         type="button"
                         className="secondary"

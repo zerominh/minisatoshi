@@ -7,6 +7,7 @@ import {
   listHotWallets,
   listVaults,
   listWallets,
+  renameVault,
 } from "../lib/api";
 import { formatNetwork, getActiveWalletId, setActiveWalletId } from "../lib/settings";
 import type { VaultSummaryDto, WalletSummaryDto } from "../lib/types";
@@ -64,6 +65,21 @@ export function VaultsPage() {
   useEffect(() => {
     void refreshVaults(walletId).catch((err) => setError(formatError(err)));
   }, [walletId]);
+
+  async function onRename(vault: VaultSummaryDto) {
+    const next = window.prompt("Rename vault", vault.name)?.trim();
+    if (!next || next === vault.name) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await renameVault(vault.id, next);
+      await refreshVaults(walletId);
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onDelete(vault: VaultSummaryDto) {
     const ok = window.confirm(
@@ -167,6 +183,14 @@ export function VaultsPage() {
                       >
                         Send
                       </Link>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => void onRename(vault)}
+                      >
+                        Rename
+                      </button>
                       <button
                         type="button"
                         className="secondary"

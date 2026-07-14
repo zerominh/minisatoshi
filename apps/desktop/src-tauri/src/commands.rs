@@ -89,6 +89,35 @@ pub fn delete_vault(state: State<'_, AppState>, vault_id: String) -> Result<(), 
 }
 
 #[tauri::command]
+pub fn rename_wallet(
+    state: State<'_, AppState>,
+    wallet_id: String,
+    name: String,
+) -> Result<WalletDto, String> {
+    state.with_store(|store| {
+        store
+            .rename_wallet(&wallet_id, &name)
+            .map(WalletDto::from)
+            .map_err(user_facing_error)
+    })
+}
+
+#[tauri::command]
+pub fn rename_vault(
+    state: State<'_, AppState>,
+    vault_id: String,
+    name: String,
+) -> Result<VaultDto, String> {
+    state.with_store(|store| {
+        let service = VaultService::new(store);
+        service
+            .rename_vault(&vault_id, &name)
+            .map(VaultDto::from)
+            .map_err(user_facing_error)
+    })
+}
+
+#[tauri::command]
 pub fn create_vault(
     state: State<'_, AppState>,
     request: CreateVaultRequest,
@@ -1090,6 +1119,39 @@ pub fn open_hot_wallet(
     })?;
 
     Ok(vault)
+}
+
+#[tauri::command]
+pub fn rename_hot_wallet(
+    state: State<'_, AppState>,
+    hot_wallet_id: String,
+    name: String,
+) -> Result<HotWalletSummaryDto, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("name required".into());
+    }
+
+    let linked_vault_id = state.with_hot_unlocked(|ks| {
+        ks.get(&hot_wallet_id)
+            .map(|r| r.linked_vault_id.clone())
+            .map_err(user_facing_error)
+    })?;
+
+    if let Some(vault_id) = linked_vault_id.as_ref() {
+        let _ = state.with_store(|store| {
+            let service = VaultService::new(store);
+            service
+                .rename_vault(vault_id, &name)
+                .map_err(user_facing_error)
+        })?;
+    }
+
+    state.with_hot_unlocked_mut(|ks| {
+        ks.rename(&hot_wallet_id, &name)
+            .map(hot_summary_dto)
+            .map_err(user_facing_error)
+    })
 }
 
 #[tauri::command]

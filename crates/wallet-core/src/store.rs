@@ -80,6 +80,21 @@ impl WalletStore {
         Ok(())
     }
 
+    pub fn rename_wallet(&self, wallet_id: &str, name: &str) -> Result<Wallet, WalletError> {
+        if name.trim().is_empty() {
+            return Err(WalletError::EmptyWalletName);
+        }
+        let now = unix_now();
+        wallet_from_record(self.db.rename_wallet(wallet_id, name.trim(), now)?)
+    }
+
+    pub fn rename_vault(&self, vault_id: &str, name: &str) -> Result<Vault, WalletError> {
+        if name.trim().is_empty() {
+            return Err(WalletError::EmptyVaultName);
+        }
+        vault_from_record(self.db.rename_vault(vault_id, name.trim())?)
+    }
+
     pub fn backup_wallet(&self, _id: &str, destination: &Path) -> Result<(), WalletError> {
         if let Some(parent) = destination.parent() {
             std::fs::create_dir_all(parent).map_err(StorageError::from)?;
