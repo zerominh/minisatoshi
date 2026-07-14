@@ -453,7 +453,7 @@ async fn create_psbt_cmd(req: CreatePsbtRequest) -> Result<PsbtDto, String>;
 
 **TypeScript types** generate từ `ts-rs` hoặc `specta` để đồng bộ Rust ↔ TS.
 
-**Deliverable:** React gọi được `create_vault` qua Tauri IPC.
+**Deliverable:** React gọi được `create_vault` qua Tauri IPC. ✅
 
 ---
 
@@ -628,13 +628,13 @@ tests/
 ## Session Cursor tiếp theo
 
 ```
-Sprint 6: Tauri commands + TypeScript type bridge
-  - create_vault_cmd, get_balance_cmd, create_psbt_cmd
-  - specta or ts-rs for Rust ↔ TS types
+Sprint 7: UI MVP
+  - Routes: wallets, vaults, vaults/new wizard, receive, send, settings
+  - Wire create_vault / receive / PSBT export into real pages
 ```
 
-Pipeline hiện tại: `Policy → Descriptor → Address → Balance → PSBT` ✅ (Sprint 1–5).
-Tiếp theo: wire desktop UI qua Tauri IPC.
+Pipeline hiện tại: `Policy → Descriptor → Address → Balance → PSBT → Tauri IPC` ✅ (Sprint 1–6).
+Tiếp theo: UI MVP (Sprint 7).
 
 ---
 

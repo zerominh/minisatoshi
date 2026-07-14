@@ -1,0 +1,16 @@
+[[permission]]
+identifier = "app-commands"
+description = "Allow Minisatoshi desktop IPC commands"
+commands.allow = [
+  "compile_vault_descriptor",
+  "create_wallet",
+  "list_wallets",
+  "create_vault",
+  "list_vaults",
+  "get_vault",
+  "new_receive_address",
+  "get_balance",
+  "create_psbt",
+  "export_sparrow_wallet",
+  "list_server_presets"
+]

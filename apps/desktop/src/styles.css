@@ -62,3 +62,63 @@ body {
   color: #4ade80;
   font-size: 0.9rem;
 }
+
+.ipc-panel {
+  margin-top: 2rem;
+  max-width: 720px;
+  padding: 1.25rem;
+  border: 1px solid #2a3142;
+  border-radius: 10px;
+  background: #121722;
+}
+
+.ipc-panel h3 {
+  margin-top: 0;
+}
+
+.ipc-panel button {
+  margin-top: 0.5rem;
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: 8px;
+  background: #f7931a;
+  color: #111;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ipc-panel button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.result {
+  margin-top: 1.25rem;
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.5rem 1rem;
+}
+
+.result dt {
+  color: #8b93a7;
+  font-size: 0.85rem;
+}
+
+.result dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+}
+
+.error {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: #3b1212;
+  color: #fda4a4;
+  white-space: pre-wrap;
+}

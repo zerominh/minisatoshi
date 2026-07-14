@@ -18,6 +18,11 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 policy-engine.workspace = true
 descriptor-engine.workspace = true
+wallet-core.workspace = true
+vault.workspace = true
+blockchain.workspace = true
+psbt-engine.workspace = true
+address-engine.workspace = true
 
 [features]
 default = ["custom-protocol"]
