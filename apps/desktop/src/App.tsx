@@ -29,7 +29,8 @@ function App() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        <Route index element={<Navigate to="/workspaces" replace />} />
+        <Route index element={<Navigate to="/wallets" replace />} />
+        {/* Advanced: auto-created per network; keep route for power users. */}
         <Route path="workspaces" element={<WorkspacesPage />} />
         <Route path="wallets" element={<WalletsPage />} />
         <Route path="wallets/new" element={<NewWalletPage />} />
@@ -69,7 +70,7 @@ function App() {
         />
         <Route path="vaults/:id/*" element={<LegacyVaultDetailRedirect />} />
 
-        <Route path="*" element={<Navigate to="/workspaces" replace />} />
+        <Route path="*" element={<Navigate to="/wallets" replace />} />
       </Route>
     </Routes>
   );

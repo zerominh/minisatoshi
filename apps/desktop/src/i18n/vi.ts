@@ -63,7 +63,7 @@ export const vi = {
   "settings.language": "Ngôn ngữ",
   "settings.languageHint": "Ngôn ngữ giao diện ứng dụng.",
   "settings.saved": "Đã lưu cài đặt trên máy này.",
-  "settings.preferredNetwork": "Mạng ưu tiên (không gian mới)",
+  "settings.preferredNetwork": "Mạng ưu tiên (ví mới)",
   "settings.esploraOverride": "URL Esplora tùy chỉnh (tùy chọn)",
   "settings.signingDevices": "Thiết bị ký (HWI)",
   "settings.hwiHint":
@@ -109,12 +109,15 @@ export const vi = {
   "workspaces.network": "Mạng",
 
   "wallets.title": "Ví",
+  "wallets.subtitle": "Tạo hoặc mở ví dùng được — chọn mạng khi cần.",
   "wallets.create": "Tạo ví",
   "wallets.import": "Nhập ví",
   "wallets.empty": "Chưa có ví nào.",
   "wallets.renamePrompt": "Đổi tên ví",
   "wallets.renamed": "Đã đổi tên thành “{name}”",
   "wallets.deleteConfirm": "Xóa ví “{name}”?",
+  "wallets.network": "Mạng",
+  "wallets.allNetworks": "Mọi mạng",
   "wallets.workspaceFilter": "Không gian",
 
   "hotWallets.title": "Ví nóng",

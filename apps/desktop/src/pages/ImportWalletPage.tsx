@@ -1,51 +1,34 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { formatError, importWalletBackup, listWorkspaces } from "../lib/api";
+import { formatError, importWalletBackup } from "../lib/api";
 import { coalesceDescriptorPaste } from "../lib/qrChunks";
 import {
   formatNetwork,
-  getActiveWorkspaceId,
-  setActiveWorkspaceId,
+  getPreferredNetwork,
 } from "../lib/settings";
-import type { WorkspaceSummaryDto } from "../lib/types";
+import { ensureWorkspaceForNetwork } from "../lib/workspaceAuto";
+import type { NetworkName } from "../lib/types";
 
 export function ImportWalletPage() {
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [workspaces, setWorkspaces] = useState<WorkspaceSummaryDto[]>([]);
-  const [workspaceId, setWorkspaceId] = useState(getActiveWorkspaceId() ?? "");
+  const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
   const [name, setName] = useState("");
   const [payload, setPayload] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void listWorkspaces()
-      .then((items) => {
-        setWorkspaces(items);
-        if (!workspaceId && items[0]) {
-          setWorkspaceId(items[0].id);
-          setActiveWorkspaceId(items[0].id);
-        }
-      })
-      .catch((err) => setError(formatError(err)));
-  }, []);
-
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!workspaceId) {
-      setError("Select a workspace first.");
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
+      const workspaceId = await ensureWorkspaceForNetwork(network);
       const wallet = await importWalletBackup({
         workspaceId,
         payload: coalesceDescriptorPaste(payload),
         name: name.trim() || null,
       });
-      setActiveWorkspaceId(workspaceId);
       navigate(`/wallets/${wallet.id}`);
     } catch (err) {
       setError(formatError(err));
@@ -88,22 +71,21 @@ export function ImportWalletPage() {
 
       <form className="panel form-grid" onSubmit={(e) => void onSubmit(e)}>
         <label>
-          Target workspace
+          Network
           <select
-            value={workspaceId}
-            onChange={(e) => {
-              setWorkspaceId(e.target.value);
-              setActiveWorkspaceId(e.target.value);
-            }}
-            required
+            value={network}
+            onChange={(e) => setNetwork(e.target.value as NetworkName)}
           >
-            {workspaces.map((workspace) => (
-              <option key={workspace.id} value={workspace.id}>
-                {workspace.name} ({formatNetwork(workspace.network)})
-              </option>
-            ))}
+            <option value="testnet">Testnet3</option>
+            <option value="testnet4">Testnet4</option>
+            <option value="signet">Signet</option>
+            <option value="regtest">Regtest</option>
+            <option value="mainnet">Mainnet</option>
           </select>
         </label>
+        <p className="muted">
+          Import into {formatNetwork(network)} (created automatically if needed).
+        </p>
         <label>
           Name override (optional)
           <input
@@ -140,7 +122,7 @@ export function ImportWalletPage() {
           />
         </label>
         <p className="muted">
-          Network must match the workspace when the payload includes one.
+          When the payload includes a network, it must match the selection.
           Checksum is verified or computed (BIP-380). Imported wallets stay
           watch-only — no seeds are imported.
         </p>

@@ -68,7 +68,7 @@ export const en = {
   "settings.language": "Language",
   "settings.languageHint": "App interface language.",
   "settings.saved": "Settings saved locally.",
-  "settings.preferredNetwork": "Preferred network (new workspaces)",
+  "settings.preferredNetwork": "Preferred network (new wallets)",
   "settings.esploraOverride": "Esplora URL override (optional)",
   "settings.signingDevices": "Signing devices (HWI)",
   "settings.hwiHint":
@@ -113,12 +113,15 @@ export const en = {
   "workspaces.network": "Network",
 
   "wallets.title": "Wallets",
+  "wallets.subtitle": "Create or open a spendable wallet — pick the network when you need it.",
   "wallets.create": "Create wallet",
   "wallets.import": "Import wallet",
   "wallets.empty": "No wallets yet.",
   "wallets.renamePrompt": "Rename wallet",
   "wallets.renamed": "Renamed to “{name}”",
   "wallets.deleteConfirm": "Delete wallet “{name}”?",
+  "wallets.network": "Network",
+  "wallets.allNetworks": "All networks",
   "wallets.workspaceFilter": "Workspace",
 
   "hotWallets.title": "Hot wallets",

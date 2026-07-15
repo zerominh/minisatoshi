@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HwConnectKeyPanel } from "../components/HwConnectKeyPanel";
 import { useT } from "../i18n/LocaleContext";
@@ -6,16 +6,14 @@ import {
   compileWalletDescriptor,
   createWallet,
   formatError,
-  listWorkspaces,
 } from "../lib/api";
 import {
   formatNetwork,
-  getActiveWorkspaceId,
   getPreferredNetwork,
-  setActiveWorkspaceId,
 } from "../lib/settings";
 import { durationToBlocks, type TimelockUnit } from "../lib/duration";
 import type { KeyConfig, KeyRole, NetworkName } from "../lib/types";
+import { ensureWorkspaceForNetwork } from "../lib/workspaceAuto";
 import {
   POLICY_TEMPLATES,
   buildPolicyConfig,
@@ -42,10 +40,7 @@ export function NewWalletPage() {
   const t = useT();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>(1);
-  const [workspaceId, setWorkspaceId] = useState(getActiveWorkspaceId() ?? "");
-  const [workspaces, setWorkspaces] = useState<
-    { id: string; name: string; network: NetworkName }[]
-  >([]);
+  const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
   const [templateId, setTemplateId] = useState<TemplateId>("abc");
   const [name, setName] = useState("ABC Wallet");
   const [keys, setKeys] = useState<KeyConfig[]>(() =>
@@ -62,22 +57,6 @@ export function NewWalletPage() {
 
   const template =
     POLICY_TEMPLATES.find((t) => t.id === templateId) ?? POLICY_TEMPLATES[0];
-
-  useEffect(() => {
-    void listWorkspaces()
-      .then((items) => {
-        setWorkspaces(items);
-        if (!workspaceId && items[0]) {
-          setWorkspaceId(items[0].id);
-          setActiveWorkspaceId(items[0].id);
-        }
-      })
-      .catch((err) => setError(formatError(err)));
-  }, []);
-
-  const network =
-    workspaces.find((w) => w.id === workspaceId)?.network ??
-    getPreferredNetwork();
 
   const policy = useMemo(
     () =>
@@ -149,7 +128,6 @@ export function NewWalletPage() {
   }
 
   function canAdvance(): string | null {
-    if (!workspaceId) return "Select a workspace";
     if (step === 2) {
       const ids = new Set<string>();
       for (const key of keys) {
@@ -201,6 +179,7 @@ export function NewWalletPage() {
     setBusy(true);
     setError(null);
     try {
+      const workspaceId = await ensureWorkspaceForNetwork(network);
       const wallet = await createWallet({
         workspaceId,
         name,
@@ -237,27 +216,23 @@ export function NewWalletPage() {
       <form className="panel" onSubmit={(e) => void onSubmit(e)}>
         {step === 1 && (
           <div className="form-grid">
-            <h3>Step 1 · Template & workspace</h3>
+            <h3>Step 1 · Template & network</h3>
             <label>
-              Workspace
+              Network
               <select
-                value={workspaceId}
-                onChange={(e) => {
-                  setWorkspaceId(e.target.value);
-                  setActiveWorkspaceId(e.target.value);
-                }}
-                required
+                value={network}
+                onChange={(e) => setNetwork(e.target.value as NetworkName)}
               >
-                <option value="" disabled>
-                  Select workspace
-                </option>
-                {workspaces.map((workspace) => (
-                  <option key={workspace.id} value={workspace.id}>
-                    {workspace.name} ({formatNetwork(workspace.network)})
-                  </option>
-                ))}
+                <option value="testnet">Testnet3</option>
+                <option value="testnet4">Testnet4</option>
+                <option value="signet">Signet</option>
+                <option value="regtest">Regtest</option>
+                <option value="mainnet">Mainnet</option>
               </select>
             </label>
+            <p className="muted">
+              Policies are created on {formatNetwork(network)}.
+            </p>
             <div className="template-grid">
               {POLICY_TEMPLATES.map((tpl) => (
                 <button

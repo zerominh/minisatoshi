@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Terminology (breaking):** container entity renamed **Wallet → Workspace**; spendable Miniscript entity **Vault → Wallet** (UI: Không gian / Ví). SQLite schema v2 (`workspaces` + `wallets`), Tauri IPC (`create_workspace`, `create_wallet`, …), routes `/workspaces` + `/wallets` (legacy `/vaults/*` redirects). Hot keystore: `linked_workspace_id` + `linked_wallet_id` with migrate-on-read. Backup format `minisatoshi-wallet-v1` (still imports `minisatoshi-vault-v1`). See `docs/workspace-wallet-rename.md`.
+- **Terminology (breaking):** container entity renamed **Wallet → Workspace**; spendable Miniscript entity **Vault → Wallet** (UI: Ví). SQLite schema v2 (`workspaces` + `wallets`), Tauri IPC (`create_workspace`, `create_wallet`, …), routes `/wallets` (legacy `/vaults/*` redirects; `/workspaces` advanced-only). Primary UX: pick **network**, workspace auto get-or-create. Hot keystore: `linked_workspace_id` + `linked_wallet_id` with migrate-on-read. Backup format `minisatoshi-wallet-v1` (still imports `minisatoshi-vault-v1`). See `docs/workspace-wallet-rename.md`.
 
 ## [0.3.2] — 2026-07-14
 
