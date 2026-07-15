@@ -1,18 +1,25 @@
-import { FormEvent, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { HwConnectKeyPanel } from "../components/HwConnectKeyPanel";
 import { useT } from "../i18n/LocaleContext";
 import {
   compileWalletDescriptor,
   createWallet,
   formatError,
+  hotKeystoreStatus,
+  listHotWallets,
 } from "../lib/api";
 import {
   formatNetwork,
   getPreferredNetwork,
 } from "../lib/settings";
 import { durationToBlocks, type TimelockUnit } from "../lib/duration";
-import type { KeyConfig, KeyRole, NetworkName } from "../lib/types";
+import type {
+  HotWalletSummaryDto,
+  KeyConfig,
+  KeyRole,
+  NetworkName,
+} from "../lib/types";
 import { ensureWorkspaceForNetwork } from "../lib/workspaceAuto";
 import {
   POLICY_TEMPLATES,
@@ -54,9 +61,50 @@ export function NewWalletPage() {
   const [error, setError] = useState<string | null>(null);
   const [hwHint, setHwHint] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [hotWallets, setHotWallets] = useState<HotWalletSummaryDto[]>([]);
+  const [hotUnlocked, setHotUnlocked] = useState(false);
+  /** key id → hot wallet id used to fill that slot */
+  const [hotPickByKeyId, setHotPickByKeyId] = useState<
+    Record<string, string>
+  >({});
 
   const template =
     POLICY_TEMPLATES.find((t) => t.id === templateId) ?? POLICY_TEMPLATES[0];
+
+  const hotOnNetwork = useMemo(
+    () => hotWallets.filter((h) => h.network === network),
+    [hotWallets, network],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const st = await hotKeystoreStatus();
+        if (cancelled) return;
+        setHotUnlocked(st.unlocked);
+        if (!st.unlocked) {
+          setHotWallets([]);
+          return;
+        }
+        const list = await listHotWallets();
+        if (!cancelled) setHotWallets(list);
+      } catch {
+        if (!cancelled) {
+          setHotUnlocked(false);
+          setHotWallets([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [step]);
+
+  useEffect(() => {
+    // Hot wallets are network-specific — drop picks when chain changes.
+    setHotPickByKeyId({});
+  }, [network]);
 
   const policy = useMemo(
     () =>
@@ -74,6 +122,7 @@ export function NewWalletPage() {
     setKeys(keysFromTemplate(next));
     setPrimary(next.defaultPrimary);
     setName(next.label);
+    setHotPickByKeyId({});
     if (next.defaultFallback) {
       setRecoveryPaths([
         {
@@ -86,6 +135,25 @@ export function NewWalletPage() {
       setRecoveryPaths([]);
     }
     setPreview(null);
+  }
+
+  function applyHotWallet(index: number, keyId: string, hotId: string) {
+    if (!hotId) {
+      setHotPickByKeyId((prev) => {
+        const next = { ...prev };
+        delete next[keyId];
+        return next;
+      });
+      return;
+    }
+    const hw = hotWallets.find((h) => h.id === hotId);
+    if (!hw) return;
+    setHotPickByKeyId((prev) => ({ ...prev, [keyId]: hotId }));
+    updateKey(index, {
+      xpub: hw.xpub,
+      fingerprint: hw.fingerprint,
+      origin_path: hw.originPath || undefined,
+    });
   }
 
   function syncMultiManagerPrimary(nextKeys: KeyConfig[]) {
@@ -258,9 +326,22 @@ export function NewWalletPage() {
             <h3>Step 2 · Keys</h3>
             <p className="muted">
               Add investors, managers, or recovery keys. Id must match the
-              primary / recovery expressions (A, B, C…). Connect a hardware
-              wallet per key, or paste xpub + fingerprint manually.
+              primary / recovery expressions (A, B, C…). Pick an imported hot
+              wallet, connect hardware, or paste xpub + fingerprint.
             </p>
+            {!hotUnlocked ? (
+              <p className="muted">
+                Hot keystore locked —{" "}
+                <Link to="/hot-wallets">unlock under Hot wallets</Link> to pick
+                imported seeds here.
+              </p>
+            ) : hotOnNetwork.length === 0 ? (
+              <p className="muted">
+                No hot wallets on {formatNetwork(network)}.{" "}
+                <Link to="/hot-wallets">Import a seed</Link> first, or use
+                hardware / paste.
+              </p>
+            ) : null}
             {hwHint ? <p className="status">{hwHint}</p> : null}
             {keys.map((key, index) => (
               <div key={`${key.id}-${index}`} className="key-block">
@@ -305,26 +386,57 @@ export function NewWalletPage() {
                     ))}
                   </select>
                 </label>
+                <label>
+                  Hot wallet
+                  <select
+                    value={hotPickByKeyId[key.id] ?? ""}
+                    disabled={!hotUnlocked || hotOnNetwork.length === 0}
+                    onChange={(e) =>
+                      applyHotWallet(index, key.id, e.target.value)
+                    }
+                  >
+                    <option value="">
+                      {hotOnNetwork.length === 0
+                        ? "None available on this network"
+                        : "Select imported hot wallet…"}
+                    </option>
+                    {hotOnNetwork.map((hw) => (
+                      <option key={hw.id} value={hw.id}>
+                        {hw.name} · fp {hw.fingerprint}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <HwConnectKeyPanel
                   network={network}
                   onError={setError}
                   onHint={setHwHint}
-                  onApplied={(fields) =>
+                  onApplied={(fields) => {
+                    setHotPickByKeyId((prev) => {
+                      const next = { ...prev };
+                      delete next[key.id];
+                      return next;
+                    });
                     updateKey(index, {
                       xpub: fields.xpub,
                       fingerprint: fields.fingerprint,
                       origin_path: fields.origin_path,
-                    })
-                  }
+                    });
+                  }}
                 />
                 <label>
                   XPUB
                   <textarea
                     rows={2}
                     value={key.xpub}
-                    onChange={(e) =>
-                      updateKey(index, { xpub: e.target.value.trim() })
-                    }
+                    onChange={(e) => {
+                      setHotPickByKeyId((prev) => {
+                        const next = { ...prev };
+                        delete next[key.id];
+                        return next;
+                      });
+                      updateKey(index, { xpub: e.target.value.trim() });
+                    }}
                     placeholder="xpub… or tpub…"
                     required
                   />
