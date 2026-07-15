@@ -34,6 +34,8 @@ type VaultContextValue = {
   vaultId: string;
   vault: VaultDto | null;
   sync: SyncResultDto | null;
+  /** Client timestamp of last successful sync (`null` if never). */
+  lastSyncedAt: number | null;
   /** True only during a manual Sync click — backgrounds never set this. */
   busy: boolean;
   /** True while any sync (manual or auto) is in flight. */
@@ -83,6 +85,9 @@ export function VaultProvider({
   const [sync, setSync] = useState<SyncResultDto | null>(
     () => syncCache.get(id)?.result ?? null,
   );
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(
+    () => syncCache.get(id)?.at ?? null,
+  );
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const syncingRef = useRef(false);
@@ -114,8 +119,10 @@ export function VaultProvider({
         const result = await syncVault(vaultId, getEsploraUrl() || undefined);
         // Drop result if user navigated away mid-flight.
         if (idRef.current !== vaultId) return null;
-        syncCache.set(vaultId, { result, at: Date.now() });
+        const at = Date.now();
+        syncCache.set(vaultId, { result, at });
         setSync(result);
+        setLastSyncedAt(at);
         if (!quiet) setMessage("Chain sync complete");
         return result;
       } catch (err) {
@@ -135,6 +142,7 @@ export function VaultProvider({
   useEffect(() => {
     const cached = syncCache.get(id);
     setSync(cached?.result ?? null);
+    setLastSyncedAt(cached?.at ?? null);
     clearFlash();
     setBusy(false);
     let cancelled = false;
@@ -170,6 +178,7 @@ export function VaultProvider({
       vaultId: id,
       vault,
       sync,
+      lastSyncedAt,
       busy,
       syncing,
       error,
@@ -186,6 +195,7 @@ export function VaultProvider({
       id,
       vault,
       sync,
+      lastSyncedAt,
       busy,
       syncing,
       error,

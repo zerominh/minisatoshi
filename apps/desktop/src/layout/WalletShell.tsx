@@ -1,4 +1,6 @@
+import { useCallback, useState } from "react";
 import { NavLink, Outlet, Link } from "react-router-dom";
+import { formatSyncAge } from "../lib/formatSyncAge";
 import { formatNetwork, formatSats } from "../lib/settings";
 import { useVault } from "../vault/VaultContext";
 
@@ -16,6 +18,7 @@ export function WalletShell() {
   const {
     vault,
     sync,
+    lastSyncedAt,
     busy,
     syncing,
     error,
@@ -24,6 +27,13 @@ export function WalletShell() {
     listPath,
     hotWalletId,
   } = useVault();
+  const [syncTitle, setSyncTitle] = useState(() =>
+    formatSyncAge(lastSyncedAt),
+  );
+
+  const refreshSyncTitle = useCallback(() => {
+    setSyncTitle(formatSyncAge(lastSyncedAt));
+  }, [lastSyncedAt]);
 
   if (!vault && !error) {
     return <p className="muted">Loading…</p>;
@@ -65,7 +75,9 @@ export function WalletShell() {
             className="secondary"
             disabled={busy}
             onClick={() => void runSync()}
-            title="Sync now (background refresh every 2 min; does not lock the UI)"
+            onMouseEnter={refreshSyncTitle}
+            onFocus={refreshSyncTitle}
+            title={syncTitle}
           >
             {busy ? "Syncing…" : syncing ? "Updating…" : sync ? "Synced" : "Sync"}
           </button>

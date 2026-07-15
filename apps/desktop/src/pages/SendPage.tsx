@@ -20,6 +20,7 @@ import {
   signPsbtSoftware,
 } from "../lib/api";
 import { formatTimelockLabel } from "../lib/duration";
+import { formatSyncAge } from "../lib/formatSyncAge";
 import {
   copyText,
   formatNetwork,
@@ -54,6 +55,7 @@ export function SendPage() {
   const id = useVaultIdFromRouteOrContext();
   const {
     sync,
+    lastSyncedAt,
     runSync,
     vault: shellVault,
     busy: shellBusy,
@@ -91,6 +93,12 @@ export function SendPage() {
     pulse === "combine"
       ? pulse
       : null;
+  const [syncTitle, setSyncTitle] = useState(() =>
+    formatSyncAge(lastSyncedAt),
+  );
+  const refreshSyncTitle = useCallback(() => {
+    setSyncTitle(formatSyncAge(lastSyncedAt));
+  }, [lastSyncedAt]);
 
   useEffect(() => {
     if (shellVault) setVault(shellVault);
@@ -550,6 +558,9 @@ export function SendPage() {
                 type="button"
                 disabled={busy || shellBusy}
                 onClick={() => void onSync()}
+                onMouseEnter={refreshSyncTitle}
+                onFocus={refreshSyncTitle}
+                title={syncTitle}
               >
                 {busy || shellBusy
                   ? "Working…"

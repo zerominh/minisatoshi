@@ -1,8 +1,16 @@
+import { useCallback, useState } from "react";
+import { formatSyncAge } from "../lib/formatSyncAge";
 import { formatSats } from "../lib/settings";
 import { useVault } from "../vault/VaultContext";
 
 export function VaultTransactionsPage() {
-  const { sync, busy, runSync } = useVault();
+  const { sync, lastSyncedAt, busy, runSync } = useVault();
+  const [syncTitle, setSyncTitle] = useState(() =>
+    formatSyncAge(lastSyncedAt),
+  );
+  const refreshSyncTitle = useCallback(() => {
+    setSyncTitle(formatSyncAge(lastSyncedAt));
+  }, [lastSyncedAt]);
 
   return (
     <section>
@@ -11,7 +19,14 @@ export function VaultTransactionsPage() {
           <h2>Transactions</h2>
           <p>History after chain sync.</p>
         </div>
-        <button type="button" disabled={busy} onClick={() => void runSync()}>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void runSync()}
+          onMouseEnter={refreshSyncTitle}
+          onFocus={refreshSyncTitle}
+          title={syncTitle}
+        >
           {busy ? "Syncing…" : "Sync chain"}
         </button>
       </header>
