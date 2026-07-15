@@ -9,6 +9,8 @@ import {
   listServerPresets,
 } from "../lib/api";
 import { useFlash } from "../flash/FlashContext";
+import { LOCALES, type Locale } from "../i18n/en";
+import { useLocale, useT } from "../i18n/LocaleContext";
 import {
   formatNetwork,
   getEsploraUrl,
@@ -28,6 +30,8 @@ import type {
 } from "../lib/types";
 
 export function SettingsPage() {
+  const t = useT();
+  const { locale, setLocale } = useLocale();
   const { setError, setMessage } = useFlash();
   const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
   const [esploraUrl, setUrl] = useState(getEsploraUrl());
@@ -49,7 +53,7 @@ export function SettingsPage() {
     void listServerPresets(network)
       .then(setPresets)
       .catch((err) => setError(formatError(err)));
-  }, [network]);
+  }, [network, setError]);
 
   useEffect(() => {
     void getHwiStatus(hwiPath || null)
@@ -63,7 +67,7 @@ export function SettingsPage() {
     setEsploraUrl(esploraUrl);
     setHwiPath(hwiPath);
     setHwFingerprint(hwFingerprint);
-    setMessage("Settings saved locally.");
+    setMessage(t("settings.saved"));
   }
 
   async function refreshHwiStatus() {
@@ -80,7 +84,9 @@ export function SettingsPage() {
     setBusy(true);
     setError(null);
     setMessage(
-      `Downloading official HWI ${hwiStatus?.pinnedVersion ?? ""} (checksum verified)…`,
+      t("settings.downloadingHwi", {
+        version: hwiStatus?.pinnedVersion ?? "",
+      }),
     );
     try {
       const status = await ensureHwiInstalled(hwiPath || null);
@@ -91,7 +97,7 @@ export function SettingsPage() {
       }
       setMessage(
         status.message ??
-          `HWI ready${status.version ? ` · ${status.version}` : ""}`,
+          `${t("settings.hwiReady")}${status.version ? ` · ${status.version}` : ""}`,
       );
     } catch (err) {
       setError(formatError(err));
@@ -108,7 +114,6 @@ export function SettingsPage() {
       setHwiPath(hwiPath);
       await refreshHwiStatus().catch(() => undefined);
       const list = await listHwDevices(hwiPath || null);
-      // After auto-install, path may be in app data — refresh status
       const status = await getHwiStatus(hwiPath || null);
       setHwiStatus(status);
       if (status.path && !getHwiPath()) {
@@ -118,8 +123,8 @@ export function SettingsPage() {
       setDevices(list);
       setMessage(
         list.length === 0
-          ? "No devices found — connect a hardware wallet."
-          : `Found ${list.length} device(s).`,
+          ? t("settings.noDevicesFound")
+          : t("settings.foundDevices", { n: list.length }),
       );
     } catch (err) {
       setError(formatError(err));
@@ -153,17 +158,33 @@ export function SettingsPage() {
     <section>
       <header className="page-header">
         <div>
-          <h2>Settings</h2>
-          <p>
-            Network defaults, Esplora backends, and hardware signing (HWI).
-          </p>
+          <h2>{t("settings.title")}</h2>
+          <p>{t("settings.subtitle")}</p>
         </div>
         <p className="muted">Minisatoshi v{version}</p>
       </header>
 
+      <div className="panel form-grid">
+        <h3>{t("settings.language")}</h3>
+        <p className="muted">{t("settings.languageHint")}</p>
+        <label>
+          {t("settings.language")}
+          <select
+            value={locale}
+            onChange={(e) => setLocale(e.target.value as Locale)}
+          >
+            {LOCALES.map((item) => (
+              <option key={item.id} value={item.id}>
+                {t(item.labelKey)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       <form className="panel form-grid" onSubmit={onSave}>
         <label>
-          Preferred network (new wallets)
+          {t("settings.preferredNetwork")}
           <select
             value={network}
             onChange={(e) => setNetwork(e.target.value as NetworkName)}
@@ -176,39 +197,28 @@ export function SettingsPage() {
           </select>
         </label>
         <label>
-          Esplora URL override (optional)
+          {t("settings.esploraOverride")}
           <input
             value={esploraUrl}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://blockstream.info/testnet/api"
           />
         </label>
-        <button type="submit">Save</button>
+        <button type="submit">{t("common.save")}</button>
       </form>
 
       <div className="panel form-grid">
-        <h3>Signing devices (HWI)</h3>
-        <p className="muted">
-          If HWI is missing, the app downloads the official{" "}
-          <a
-            href="https://github.com/bitcoin-core/HWI/releases"
-            target="_blank"
-            rel="noreferrer"
-          >
-            bitcoin-core/HWI
-          </a>{" "}
-          binary (v{hwiStatus?.pinnedVersion ?? "…"}, SHA-256 verified) into app
-          data. Secrets never leave the device.
-        </p>
+        <h3>{t("settings.signingDevices")}</h3>
+        <p className="muted">{t("settings.hwiHint")}</p>
         {hwiStatus ? (
           <p className={hwiStatus.available ? "status" : "muted"}>
             {hwiStatus.available
-              ? `HWI ready · ${hwiStatus.version ?? "unknown"} · ${hwiStatus.source ?? ""} · ${hwiStatus.path ?? ""}`
-              : (hwiStatus.message ?? "HWI not found")}
+              ? `${t("settings.hwiReady")} · ${hwiStatus.version ?? "unknown"} · ${hwiStatus.source ?? ""} · ${hwiStatus.path ?? ""}`
+              : (hwiStatus.message ?? t("settings.hwiNotFound"))}
           </p>
         ) : null}
         <label>
-          HWI binary path (optional override)
+          {t("settings.hwiPath")}
           <input
             className="mono"
             value={hwiPath}
@@ -217,7 +227,7 @@ export function SettingsPage() {
           />
         </label>
         <label>
-          Preferred device fingerprint (for Send)
+          {t("settings.preferredFingerprint")}
           <input
             className="mono"
             value={hwFingerprint}
@@ -226,7 +236,7 @@ export function SettingsPage() {
           />
         </label>
         <label>
-          Derivation path for xpub
+          {t("settings.derivationPath")}
           <input
             className="mono"
             value={xpubPath}
@@ -240,14 +250,16 @@ export function SettingsPage() {
             disabled={busy}
             onClick={() => void onInstallHwi()}
           >
-            {hwiStatus?.available ? "Verify HWI" : "Install HWI"}
+            {hwiStatus?.available
+              ? t("settings.verifyHwi")
+              : t("settings.installHwi")}
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={() => void onRefreshDevices()}
           >
-            Refresh devices
+            {t("settings.refreshDevices")}
           </button>
           <button
             type="button"
@@ -255,10 +267,10 @@ export function SettingsPage() {
             onClick={() => {
               setHwiPath(hwiPath);
               setHwFingerprint(hwFingerprint);
-              setMessage("HWI path and fingerprint saved.");
+              setMessage(t("settings.deviceSettingsSaved"));
             }}
           >
-            Save device settings
+            {t("settings.saveDevice")}
           </button>
         </div>
         {devices.length > 0 ? (
@@ -272,8 +284,10 @@ export function SettingsPage() {
                   </strong>
                   <div className="muted">
                     {device.deviceType}
-                    {device.needsPin ? " · needs PIN" : ""}
-                    {device.needsPassphrase ? " · needs passphrase" : ""}
+                    {device.needsPin ? ` · ${t("settings.needsPin")}` : ""}
+                    {device.needsPassphrase
+                      ? ` · ${t("settings.needsPassphrase")}`
+                      : ""}
                   </div>
                   {device.error ? (
                     <div className="error">{device.error}</div>
@@ -289,17 +303,21 @@ export function SettingsPage() {
                         onClick={() => {
                           setHwFingerprintState(device.fingerprint);
                           setHwFingerprint(device.fingerprint);
-                          setMessage(`Using fingerprint ${device.fingerprint}`);
+                          setMessage(
+                            t("settings.usingFingerprint", {
+                              fp: device.fingerprint,
+                            }),
+                          );
                         }}
                       >
-                        Use
+                        {t("common.use")}
                       </button>
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => void onGetXpub(device.fingerprint)}
                       >
-                        Get xpub
+                        {t("settings.getXpub")}
                       </button>
                     </>
                   ) : null}
@@ -308,23 +326,19 @@ export function SettingsPage() {
             ))}
           </ul>
         ) : (
-          <p className="muted">No devices enumerated yet.</p>
+          <p className="muted">{t("settings.noDevicesYet")}</p>
         )}
         {xpubResult ? (
           <label>
-            Last xpub
+            {t("settings.lastXpub")}
             <textarea className="mono" rows={2} readOnly value={xpubResult} />
           </label>
         ) : null}
       </div>
 
       <div className="panel">
-        <h3>Server presets (Esplora / Electrum)</h3>
-        <p className="muted">
-          Same public endpoints many Sparrow users pick for chain sync. Presets
-          do not mean Sparrow can import Miniscript vaults — fund by address;
-          sign in Minisatoshi / Core / Nunchuk (docs/interop.md).
-        </p>
+        <h3>{t("settings.serverPresets")}</h3>
+        <p className="muted">{t("settings.serverPresetsHint")}</p>
         <ul className="list">
           {presets.map((preset) => (
             <li key={`${preset.backend}-${preset.url}`} className="list-item">
@@ -342,10 +356,12 @@ export function SettingsPage() {
                   onClick={() => {
                     setUrl(preset.url);
                     setEsploraUrl(preset.url);
-                    setMessage(`Using ${preset.label}`);
+                    setMessage(
+                      t("settings.usingPreset", { label: preset.label }),
+                    );
                   }}
                 >
-                  Use
+                  {t("common.use")}
                 </button>
               ) : null}
             </li>

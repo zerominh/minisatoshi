@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useParams } from "react-router-dom";
 import { useFlash } from "../flash/FlashContext";
+import { useT } from "../i18n/LocaleContext";
 import { formatError, getVault, syncVault } from "../lib/api";
 import { getEsploraUrl } from "../lib/settings";
 import type { SyncResultDto, VaultDto } from "../lib/types";
@@ -81,6 +82,7 @@ export function VaultProvider({
     setMessage,
     clear: clearFlash,
   } = useFlash();
+  const t = useT();
   const [vault, setVault] = useState<VaultDto | null>(null);
   const [sync, setSync] = useState<SyncResultDto | null>(
     () => syncCache.get(id)?.result ?? null,
@@ -123,7 +125,7 @@ export function VaultProvider({
         syncCache.set(vaultId, { result, at });
         setSync(result);
         setLastSyncedAt(at);
-        if (!quiet) setMessage("Chain sync complete");
+        if (!quiet) setMessage(t("sync.chainComplete"));
         return result;
       } catch (err) {
         if (idRef.current !== vaultId) return null;
@@ -136,7 +138,7 @@ export function VaultProvider({
         if (!quiet) setBusy(false);
       }
     },
-    [setError, setMessage],
+    [setError, setMessage, t],
   );
 
   useEffect(() => {

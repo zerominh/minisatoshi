@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HwConnectKeyPanel } from "../components/HwConnectKeyPanel";
+import { useT } from "../i18n/LocaleContext";
 import {
   compileVaultDescriptor,
   createVault,
@@ -38,6 +39,7 @@ const ROLE_OPTIONS: KeyRole[] = [
 ];
 
 export function NewVaultPage() {
+  const t = useT();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>(1);
   const [walletId, setWalletId] = useState(getActiveWalletId() ?? "");
@@ -215,10 +217,8 @@ export function NewVaultPage() {
     <section>
       <header className="page-header">
         <div>
-          <h2>Create vault</h2>
-          <p>
-            Phase 2 · templates, multi-key, multi recovery · Taproot Miniscript.
-          </p>
+          <h2>{t("newVault.title")}</h2>
+          <p>{t("newVault.subtitle")}</p>
         </div>
       </header>
 

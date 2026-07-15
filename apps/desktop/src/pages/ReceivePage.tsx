@@ -11,8 +11,10 @@ import { copyText } from "../lib/settings";
 import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
 import type { AddressDto, SparrowExportDto, VaultDto } from "../lib/types";
 import { useVault, useVaultIdFromRouteOrContext } from "../vault/VaultContext";
+import { useT } from "../i18n/LocaleContext";
 
 export function ReceivePage() {
+  const t = useT();
   const id = useVaultIdFromRouteOrContext();
   const { setError, setMessage } = useVault();
   const [vault, setVault] = useState<VaultDto | null>(null);
@@ -83,11 +85,12 @@ export function ReceivePage() {
     <section>
       <header className="page-header">
         <div>
-          <h2>Receive</h2>
+          <h2>{t("receive.title")}</h2>
+          <p>{t("receive.subtitle")}</p>
           <p>{vault?.name ?? "Vault"} · Taproot address</p>
         </div>
         <Link className="button-link" to="../transactions" relative="path">
-          Transactions
+          {t("send.transactionsLink")}
         </Link>
       </header>
 

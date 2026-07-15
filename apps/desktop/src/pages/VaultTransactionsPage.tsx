@@ -1,23 +1,25 @@
 import { useCallback, useState } from "react";
+import { useT } from "../i18n/LocaleContext";
 import { formatSyncAge } from "../lib/formatSyncAge";
 import { formatSats } from "../lib/settings";
 import { useVault } from "../vault/VaultContext";
 
 export function VaultTransactionsPage() {
+  const t = useT();
   const { sync, lastSyncedAt, busy, runSync } = useVault();
   const [syncTitle, setSyncTitle] = useState(() =>
-    formatSyncAge(lastSyncedAt),
+    formatSyncAge(lastSyncedAt, t),
   );
   const refreshSyncTitle = useCallback(() => {
-    setSyncTitle(formatSyncAge(lastSyncedAt));
-  }, [lastSyncedAt]);
+    setSyncTitle(formatSyncAge(lastSyncedAt, t));
+  }, [lastSyncedAt, t]);
 
   return (
     <section>
       <header className="page-header">
         <div>
-          <h2>Transactions</h2>
-          <p>History after chain sync.</p>
+          <h2>{t("tx.title")}</h2>
+          <p>{t("tx.historyHint")}</p>
         </div>
         <button
           type="button"
@@ -27,29 +29,29 @@ export function VaultTransactionsPage() {
           onFocus={refreshSyncTitle}
           title={syncTitle}
         >
-          {busy ? "Syncing…" : "Sync chain"}
+          {busy ? t("common.syncing") : t("sync.syncChain")}
         </button>
       </header>
 
       <div className="grid-2">
         <div className="panel">
-          <h3>Balance</h3>
+          <h3>{t("tx.balance")}</h3>
           {sync ? (
             <>
               <p>
                 <strong>{formatSats(sync.balance.confirmedSats)}</strong>{" "}
-                confirmed
+                {t("tx.confirmed")}
               </p>
               <p className="muted">
-                {formatSats(sync.balance.unconfirmedSats)} unconfirmed
+                {formatSats(sync.balance.unconfirmedSats)} {t("tx.unconfirmed")}
               </p>
             </>
           ) : (
-            <p className="muted">Sync to load balance.</p>
+            <p className="muted">{t("tx.syncToLoad")}</p>
           )}
         </div>
         <div className="panel">
-          <h3>UTXO count</h3>
+          <h3>{t("tx.utxoCount")}</h3>
           <p>
             {sync ? (
               <strong>{sync.utxos.length}</strong>
@@ -61,11 +63,11 @@ export function VaultTransactionsPage() {
       </div>
 
       <div className="panel">
-        <h3>History</h3>
+        <h3>{t("tx.title")}</h3>
         {!sync ? (
-          <p className="muted">Sync the chain to load transactions.</p>
+          <p className="muted">{t("tx.syncToLoad")}</p>
         ) : sync.history.length === 0 ? (
-          <p className="muted">No transactions yet.</p>
+          <p className="muted">{t("tx.empty")}</p>
         ) : (
           <ul className="list">
             {sync.history.map((tx) => (
@@ -76,8 +78,8 @@ export function VaultTransactionsPage() {
                     {tx.confirmed
                       ? tx.blockHeight != null
                         ? `Block ${tx.blockHeight}`
-                        : "Confirmed"
-                      : "Unconfirmed / mempool"}
+                        : t("tx.confirmed")
+                      : t("tx.unconfirmed")}
                   </div>
                 </div>
                 <strong>

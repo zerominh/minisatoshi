@@ -4,6 +4,7 @@ import {
   PsbtSignMethodPanel,
   type SignMethod,
 } from "../components/PsbtSignMethodPanel";
+import { useT } from "../i18n/LocaleContext";
 import {
   analyzePsbtStatus,
   broadcastPsbt,
@@ -69,6 +70,7 @@ function pathSatisfied(
  * When enough signatures are present, Finalize → Broadcast → Sent (same as Send).
  */
 export function SignPsbtPage() {
+  const t = useT();
   const id = useVaultIdFromRouteOrContext();
   const {
     vault: shellVault,
@@ -435,15 +437,15 @@ export function SignPsbtPage() {
     <section>
       <header className="page-header">
         <div>
-          <h2>Import PSBT to sign</h2>
+          <h2>{t("signPsbt.title")}</h2>
           <p>
-            {vault?.name ?? "Vault"}
-            {vault ? ` · ${formatNetwork(vault.policy.network)}` : ""} · cosigner
-            / air-gap (Sparrow usually cannot sign this policy)
+            {vault?.name ?? t("shell.vault")}
+            {vault ? ` · ${formatNetwork(vault.policy.network)}` : ""} ·{" "}
+            {t("signPsbt.subtitle")}
           </p>
         </div>
         <Link className="button-link" to="../send" relative="path">
-          Send
+          {t("signPsbt.sendLink")}
         </Link>
       </header>
 
@@ -455,7 +457,7 @@ export function SignPsbtPage() {
           disabled={step === "done"}
         >
           <span className="send-step-num">1</span>
-          Import
+          {t("signPsbt.import")}
         </button>
         <span className="send-steps-divider" aria-hidden />
         <button
@@ -465,7 +467,7 @@ export function SignPsbtPage() {
           onClick={goToSign}
         >
           <span className="send-step-num">2</span>
-          Sign
+          {t("signPsbt.sign")}
         </button>
         <span className="send-steps-divider" aria-hidden />
         <button
@@ -479,7 +481,7 @@ export function SignPsbtPage() {
           onClick={goToBroadcast}
         >
           <span className="send-step-num">{step === "done" ? "✓" : "3"}</span>
-          {step === "done" ? "Sent" : "Broadcast"}
+          {step === "done" ? t("send.sent") : t("send.broadcast")}
         </button>
       </nav>
 

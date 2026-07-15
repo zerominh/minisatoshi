@@ -7,6 +7,7 @@ import {
   type WordCount,
 } from "../components/MnemonicGrid";
 import { useFlash } from "../flash/FlashContext";
+import { useT } from "../i18n/LocaleContext";
 import {
   createHotKeystore,
   deleteHotWallet,
@@ -34,6 +35,7 @@ const NETWORKS: NetworkName[] = [
 ];
 
 export function HotWalletsPage() {
+  const t = useT();
   const navigate = useNavigate();
   const { setError, setMessage } = useFlash();
   const [status, setStatus] = useState<HotKeystoreStatusDto | null>(null);
@@ -172,12 +174,8 @@ export function HotWalletsPage() {
     <section>
       <header className="page-header">
         <div>
-          <h2>Hot wallets</h2>
-          <p>
-            Import a BIP-39 seed and use it like a normal Bitcoin wallet —
-            transactions, send, receive. Seed stays encrypted (Argon2id +
-            XChaCha20).
-          </p>
+          <h2>{t("hotWallets.title")}</h2>
+          <p>{t("hotWallets.subtitle")}</p>
         </div>
       </header>
 

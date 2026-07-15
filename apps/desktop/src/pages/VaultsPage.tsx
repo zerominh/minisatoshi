@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useFlash } from "../flash/FlashContext";
+import { useT } from "../i18n/LocaleContext";
 import {
   deleteVault,
   formatError,
@@ -14,6 +15,7 @@ import { formatNetwork, getActiveWalletId, setActiveWalletId } from "../lib/sett
 import type { VaultSummaryDto, WalletSummaryDto } from "../lib/types";
 
 export function VaultsPage() {
+  const t = useT();
   const { setError, setMessage } = useFlash();
   const [wallets, setWallets] = useState<WalletSummaryDto[]>([]);
   const [walletId, setWalletId] = useState<string | null>(getActiveWalletId());
@@ -68,13 +70,13 @@ export function VaultsPage() {
   }, [walletId]);
 
   async function onRename(vault: VaultSummaryDto) {
-    const next = window.prompt("Rename vault", vault.name)?.trim();
+    const next = window.prompt(t("vaults.renamePrompt"), vault.name)?.trim();
     if (!next || next === vault.name) return;
     setBusy(true);
     setError(null);
     try {
       await renameVault(vault.id, next);
-      setMessage(`Renamed to “${next}”`);
+      setMessage(t("vaults.renamed", { name: next }));
       await refreshVaults(walletId);
     } catch (err) {
       setError(formatError(err));
@@ -84,9 +86,7 @@ export function VaultsPage() {
   }
 
   async function onDelete(vault: VaultSummaryDto) {
-    const ok = window.confirm(
-      `Delete vault “${vault.name}”? Local addresses and sync data for this vault will be removed. This cannot be undone.`,
-    );
+    const ok = window.confirm(t("vaults.deleteConfirm", { name: vault.name }));
     if (!ok) return;
     setBusy(true);
     setError(null);
@@ -104,31 +104,31 @@ export function VaultsPage() {
     <section>
       <header className="page-header">
         <div>
-          <h2>Vaults</h2>
-          <p>Policy-backed Taproot vaults for the active wallet.</p>
+          <h2>{t("vaults.title")}</h2>
+          <p>{t("newVault.subtitle")}</p>
         </div>
         <div className="row-actions">
           <Link className="button-link" to="/vaults/import">
-            Import vault
+            {t("vaults.import")}
           </Link>
           <Link className="button-link primary" to="/vaults/new">
-            New vault
+            {t("vaults.create")}
           </Link>
         </div>
       </header>
 
       {wallets.length === 0 ? (
         <div className="panel">
-          <p className="muted">Create a wallet first.</p>
+          <p className="muted">{t("wallets.empty")}</p>
           <Link className="button-link" to="/wallets">
-            Go to wallets
+            {t("nav.wallets")}
           </Link>
         </div>
       ) : (
         <>
           <div className="panel form-grid">
             <label>
-              Active wallet
+              {t("vaults.walletFilter")}
               <select
                 value={walletId ?? ""}
                 onChange={(e) => {
@@ -147,7 +147,7 @@ export function VaultsPage() {
 
           <div className="panel">
             {vaults.length === 0 ? (
-              <p className="muted">No vaults in this wallet yet.</p>
+              <p className="muted">{t("vaults.empty")}</p>
             ) : (
               <ul className="list">
                 {vaults.map((vault) => (
@@ -157,31 +157,33 @@ export function VaultsPage() {
                       <div className="muted">
                         {vault.scriptType}{" "}
                         {vault.watchOnly ? (
-                          <span className="badge watch-only">Watch-only</span>
+                          <span className="badge watch-only">
+                            {t("shell.watchOnly")}
+                          </span>
                         ) : null}
                       </div>
                     </div>
                     <div className="row-actions">
                       <Link className="button-link" to={`/vaults/${vault.id}`}>
-                        Open
+                        {t("common.open")}
                       </Link>
                       <Link
                         className="button-link"
                         to={`/vaults/${vault.id}/share`}
                       >
-                        Share
+                        {t("common.share")}
                       </Link>
                       <Link
                         className="button-link"
                         to={`/vaults/${vault.id}/receive`}
                       >
-                        Receive
+                        {t("shell.tab.receive")}
                       </Link>
                       <Link
                         className="button-link"
                         to={`/vaults/${vault.id}/send`}
                       >
-                        Send
+                        {t("shell.tab.send")}
                       </Link>
                       <button
                         type="button"
@@ -189,7 +191,7 @@ export function VaultsPage() {
                         disabled={busy}
                         onClick={() => void onRename(vault)}
                       >
-                        Rename
+                        {t("common.rename")}
                       </button>
                       <button
                         type="button"
@@ -197,7 +199,7 @@ export function VaultsPage() {
                         disabled={busy}
                         onClick={() => void onDelete(vault)}
                       >
-                        Delete
+                        {t("common.delete")}
                       </button>
                     </div>
                   </li>

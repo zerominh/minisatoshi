@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useFlash } from "../flash/FlashContext";
+import { useT } from "../i18n/LocaleContext";
 import {
   createWallet,
   deleteWallet,
@@ -17,6 +18,7 @@ import {
 import type { NetworkName, WalletSummaryDto } from "../lib/types";
 
 export function WalletsPage() {
+  const t = useT();
   const { setError, setMessage } = useFlash();
   const [wallets, setWallets] = useState<WalletSummaryDto[]>([]);
   const [name, setName] = useState("");
@@ -67,13 +69,13 @@ export function WalletsPage() {
   }
 
   async function onRename(wallet: WalletSummaryDto) {
-    const next = window.prompt("Rename wallet", wallet.name)?.trim();
+    const next = window.prompt(t("wallets.renamePrompt"), wallet.name)?.trim();
     if (!next || next === wallet.name) return;
     setBusy(true);
     setError(null);
     try {
       await renameWallet(wallet.id, next);
-      setMessage(`Renamed to “${next}”`);
+      setMessage(t("wallets.renamed", { name: next }));
       await refresh();
     } catch (err) {
       setError(formatError(err));
@@ -84,7 +86,7 @@ export function WalletsPage() {
 
   async function onDelete(wallet: WalletSummaryDto) {
     const ok = window.confirm(
-      `Delete wallet “${wallet.name}” and all ${wallet.vaultCount} vault(s)? This cannot be undone.`,
+      t("wallets.deleteConfirm", { name: wallet.name }),
     );
     if (!ok) return;
     setBusy(true);
@@ -103,15 +105,15 @@ export function WalletsPage() {
     <section>
       <header className="page-header">
         <div>
-          <h2>Wallets</h2>
-          <p>Local SQLite wallets — offline-first, watch-only.</p>
+          <h2>{t("wallets.title")}</h2>
+          <p>{t("wallets.subtitle")}</p>
         </div>
       </header>
 
       <form className="panel form-grid" onSubmit={(e) => void onSubmit(e)}>
-        <h3>Create wallet</h3>
+        <h3>{t("wallets.new")}</h3>
         <label>
-          Name
+          {t("wallets.name")}
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -120,7 +122,7 @@ export function WalletsPage() {
           />
         </label>
         <label>
-          Network
+          {t("wallets.network")}
           <select
             value={network}
             onChange={(e) => setNetwork(e.target.value as NetworkName)}
@@ -133,14 +135,14 @@ export function WalletsPage() {
           </select>
         </label>
         <button type="submit" disabled={busy || !name.trim()}>
-          {busy ? "Creating…" : "Create wallet"}
+          {busy ? t("common.busy") : t("wallets.new")}
         </button>
       </form>
 
       <div className="panel">
-        <h3>Your wallets</h3>
+        <h3>{t("wallets.title")}</h3>
         {wallets.length === 0 ? (
-          <p className="muted">No wallets yet.</p>
+          <p className="muted">{t("wallets.empty")}</p>
         ) : (
           <ul className="list">
             {wallets.map((wallet) => (
@@ -148,24 +150,24 @@ export function WalletsPage() {
                 <div>
                   <strong>{wallet.name}</strong>
                   <div className="muted">
-                    {formatNetwork(wallet.network)} · {wallet.vaultCount} vault
-                    {wallet.vaultCount === 1 ? "" : "s"}
+                    {formatNetwork(wallet.network)} ·{" "}
+                    {t("wallets.vaultCount", { n: wallet.vaultCount })}
                   </div>
                 </div>
                 <div className="row-actions">
                   {activeId === wallet.id ? (
-                    <span className="badge">Active</span>
+                    <span className="badge">{t("common.use")}</span>
                   ) : (
                     <button
                       type="button"
                       className="secondary"
                       onClick={() => selectWallet(wallet.id)}
                     >
-                      Use
+                      {t("common.use")}
                     </button>
                   )}
                   <Link className="button-link" to="/vaults">
-                    Vaults
+                    {t("nav.vaults")}
                   </Link>
                   <button
                     type="button"
@@ -173,7 +175,7 @@ export function WalletsPage() {
                     disabled={busy}
                     onClick={() => void onRename(wallet)}
                   >
-                    Rename
+                    {t("common.rename")}
                   </button>
                   <button
                     type="button"
@@ -181,7 +183,7 @@ export function WalletsPage() {
                     disabled={busy}
                     onClick={() => void onDelete(wallet)}
                   >
-                    Delete
+                    {t("common.delete")}
                   </button>
                 </div>
               </li>

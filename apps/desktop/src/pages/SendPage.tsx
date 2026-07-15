@@ -40,6 +40,7 @@ import type {
   UtxoDto,
   VaultDto,
 } from "../lib/types";
+import { useT } from "../i18n/LocaleContext";
 import { useVault, useVaultIdFromRouteOrContext } from "../vault/VaultContext";
 
 type SendStep = "compose" | "sign" | "broadcast" | "done";
@@ -52,6 +53,7 @@ const SEND_STEP_OFFSET: Record<SendStep, string> = {
 };
 
 export function SendPage() {
+  const t = useT();
   const id = useVaultIdFromRouteOrContext();
   const {
     sync,
@@ -94,11 +96,11 @@ export function SendPage() {
       ? pulse
       : null;
   const [syncTitle, setSyncTitle] = useState(() =>
-    formatSyncAge(lastSyncedAt),
+    formatSyncAge(lastSyncedAt, t),
   );
   const refreshSyncTitle = useCallback(() => {
-    setSyncTitle(formatSyncAge(lastSyncedAt));
-  }, [lastSyncedAt]);
+    setSyncTitle(formatSyncAge(lastSyncedAt, t));
+  }, [lastSyncedAt, t]);
 
   useEffect(() => {
     if (shellVault) setVault(shellVault);
@@ -498,15 +500,15 @@ export function SendPage() {
     <section>
       <header className="page-header">
         <div>
-          <h2>Send</h2>
+          <h2>{t("send.title")}</h2>
           <p>
-            {vault?.name ?? "Vault"}
-            {vault ? ` · ${formatNetwork(vault.policy.network)}` : ""} · sign
-            status · broadcast
+            {vault?.name ?? t("shell.vault")}
+            {vault ? ` · ${formatNetwork(vault.policy.network)}` : ""} ·{" "}
+            {t("send.subtitle")}
           </p>
         </div>
         <Link className="button-link" to="../transactions" relative="path">
-          Transactions
+          {t("send.transactionsLink")}
         </Link>
       </header>
 
@@ -518,7 +520,7 @@ export function SendPage() {
           disabled={step === "done"}
         >
           <span className="send-step-num">1</span>
-          Compose
+          {t("send.compose")}
         </button>
         <span className="send-steps-divider" aria-hidden />
         <button
@@ -528,7 +530,7 @@ export function SendPage() {
           onClick={goToSign}
         >
           <span className="send-step-num">2</span>
-          Sign
+          {t("send.sign")}
         </button>
         <span className="send-steps-divider" aria-hidden />
         <button
@@ -542,7 +544,7 @@ export function SendPage() {
           onClick={goToBroadcast}
         >
           <span className="send-step-num">{step === "done" ? "✓" : "3"}</span>
-          {step === "done" ? "Sent" : "Broadcast"}
+          {step === "done" ? t("send.sent") : t("send.broadcast")}
         </button>
       </nav>
 
@@ -563,10 +565,10 @@ export function SendPage() {
                 title={syncTitle}
               >
                 {busy || shellBusy
-                  ? "Working…"
+                  ? t("common.busy")
                   : sync
-                    ? "Refresh UTXOs"
-                    : "Sync UTXOs"}
+                    ? t("sync.refreshUtxos")
+                    : t("sync.syncUtxos")}
               </button>
               {sync ? (
                 <span className="muted">
@@ -684,7 +686,7 @@ export function SendPage() {
                 />
               </label>
               <button type="submit" disabled={busy}>
-                {busy ? "Creating…" : "Create PSBT →"}
+                {busy ? t("send.creating") : t("send.createPsbt")}
               </button>
             </form>
             <p className="muted">
@@ -720,7 +722,7 @@ export function SendPage() {
                   >
                     ← Edit draft
                   </button>
-                  <h3>Sign</h3>
+                  <h3>{t("send.sign")}</h3>
                 </div>
                 {signStatus ? (
                   <div className="send-sign-status">
@@ -819,10 +821,10 @@ export function SendPage() {
                     onClick={() => void onFinalize()}
                   >
                     {busy
-                      ? "Finalizing…"
+                      ? t("send.finalizing")
                       : is("finalize")
-                        ? "Finalized ✓"
-                        : "Finalize →"}
+                        ? t("send.finalized")
+                        : t("send.finalize")}
                   </button>
                   <button
                     type="button"
@@ -830,7 +832,7 @@ export function SendPage() {
                     disabled={!psbt}
                     onClick={goToBroadcast}
                   >
-                    Broadcast →
+                    {t("send.broadcast")} →
                   </button>
                 </div>
               </div>
@@ -859,7 +861,7 @@ export function SendPage() {
                   >
                     ← Back to sign
                   </button>
-                  <h3>Broadcast</h3>
+                  <h3>{t("send.broadcast")}</h3>
                 </div>
                 <p className="muted">
                   Network:{" "}
@@ -931,12 +933,16 @@ export function SendPage() {
                   onClick={() => void onBroadcast()}
                 >
                   {busy && broadcastConfirm
-                    ? "Broadcasting…"
+                    ? t("send.broadcasting")
                     : broadcastConfirm
-                      ? `Confirm broadcast (${vault ? formatNetwork(vault.policy.network) : "network"})`
+                      ? t("send.confirmBroadcast", {
+                          network: vault
+                            ? formatNetwork(vault.policy.network)
+                            : "network",
+                        })
                       : is("broadcast")
-                        ? "Broadcast ✓"
-                        : "Broadcast"}
+                        ? `${t("send.broadcast")} ✓`
+                        : t("send.broadcast")}
                 </button>
               </div>
             )}
@@ -944,7 +950,7 @@ export function SendPage() {
 
           <div className="send-wizard-pane">
             <div className="panel send-success">
-              <p className="send-success-eyebrow">Sent</p>
+              <p className="send-success-eyebrow">{t("send.sent")}</p>
               <h3>Transaction broadcast</h3>
               <p className="muted">
                 Published on{" "}
@@ -976,14 +982,14 @@ export function SendPage() {
                   to="../transactions"
                   relative="path"
                 >
-                  View transactions
+                  {t("send.viewTx")}
                 </Link>
                 <button
                   type="button"
                   className="secondary"
                   onClick={startNewSend}
                 >
-                  Send another
+                  {t("send.another")}
                 </button>
               </div>
             </div>

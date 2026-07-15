@@ -1,23 +1,25 @@
 import { useCallback, useState } from "react";
+import { useT } from "../i18n/LocaleContext";
 import { formatSyncAge } from "../lib/formatSyncAge";
 import { formatSats } from "../lib/settings";
 import { useVault } from "../vault/VaultContext";
 
 export function VaultUtxosPage() {
+  const t = useT();
   const { sync, lastSyncedAt, busy, runSync } = useVault();
   const [syncTitle, setSyncTitle] = useState(() =>
-    formatSyncAge(lastSyncedAt),
+    formatSyncAge(lastSyncedAt, t),
   );
   const refreshSyncTitle = useCallback(() => {
-    setSyncTitle(formatSyncAge(lastSyncedAt));
-  }, [lastSyncedAt]);
+    setSyncTitle(formatSyncAge(lastSyncedAt, t));
+  }, [lastSyncedAt, t]);
 
   return (
     <section>
       <header className="page-header">
         <div>
-          <h2>UTXOs</h2>
-          <p>Spendable outputs — also used for coin control on Send.</p>
+          <h2>{t("utxos.title")}</h2>
+          <p>{t("utxos.subtitle")}</p>
         </div>
         <button
           type="button"
@@ -27,15 +29,15 @@ export function VaultUtxosPage() {
           onFocus={refreshSyncTitle}
           title={syncTitle}
         >
-          {busy ? "Syncing…" : "Sync chain"}
+          {busy ? t("common.syncing") : t("sync.syncChain")}
         </button>
       </header>
 
       <div className="panel">
         {!sync ? (
-          <p className="muted">Sync to load UTXOs.</p>
+          <p className="muted">{t("utxos.syncToLoad")}</p>
         ) : sync.utxos.length === 0 ? (
-          <p className="muted">No UTXOs.</p>
+          <p className="muted">{t("utxos.empty")}</p>
         ) : (
           <ul className="list">
             {sync.utxos.map((utxo) => (
@@ -47,8 +49,10 @@ export function VaultUtxosPage() {
                   </div>
                   <div className="muted">
                     idx {utxo.derivationIndex}
-                    {utxo.isChange ? " · change" : " · receive"}
-                    {utxo.confirmed ? "" : " · unconfirmed"}
+                    {utxo.isChange
+                      ? ` · ${t("utxos.change")}`
+                      : ` · ${t("utxos.receive")}`}
+                    {utxo.confirmed ? "" : ` · ${t("utxos.unconfirmed")}`}
                   </div>
                   <div className="mono wrap muted">{utxo.address}</div>
                 </div>

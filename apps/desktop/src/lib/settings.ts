@@ -5,6 +5,21 @@ const ESPLORA_URL_KEY = "minisatoshi.esploraUrl";
 const NETWORK_KEY = "minisatoshi.preferredNetwork";
 const HWI_PATH_KEY = "minisatoshi.hwiPath";
 const HW_FINGERPRINT_KEY = "minisatoshi.hwFingerprint";
+const LOCALE_KEY = "minisatoshi.locale";
+
+export type AppLocale = "en" | "vi";
+
+export function getLocale(): AppLocale {
+  const value = localStorage.getItem(LOCALE_KEY);
+  if (value === "vi" || value === "en") return value;
+  const nav =
+    typeof navigator !== "undefined" ? navigator.language.toLowerCase() : "";
+  return nav.startsWith("vi") ? "vi" : "en";
+}
+
+export function setLocale(locale: AppLocale) {
+  localStorage.setItem(LOCALE_KEY, locale);
+}
 
 export function getActiveWalletId(): string | null {
   return localStorage.getItem(ACTIVE_WALLET_KEY);

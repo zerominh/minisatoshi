@@ -1,20 +1,22 @@
 import { useCallback, useState } from "react";
 import { NavLink, Outlet, Link } from "react-router-dom";
+import { useT } from "../i18n/LocaleContext";
 import { formatSyncAge } from "../lib/formatSyncAge";
 import { formatNetwork, formatSats } from "../lib/settings";
 import { useVault } from "../vault/VaultContext";
 
 const tabs = [
-  { to: "transactions", label: "Transactions", end: true },
-  { to: "send", label: "Send" },
-  { to: "sign-psbt", label: "Import PSBT" },
-  { to: "receive", label: "Receive" },
-  { to: "addresses", label: "Addresses" },
-  { to: "utxos", label: "UTXOs" },
-  { to: "settings", label: "Settings" },
+  { to: "transactions", labelKey: "shell.tab.transactions" as const, end: true },
+  { to: "send", labelKey: "shell.tab.send" as const },
+  { to: "sign-psbt", labelKey: "shell.tab.signPsbt" as const },
+  { to: "receive", labelKey: "shell.tab.receive" as const },
+  { to: "addresses", labelKey: "shell.tab.addresses" as const },
+  { to: "utxos", labelKey: "shell.tab.utxos" as const },
+  { to: "settings", labelKey: "shell.tab.settings" as const },
 ] as const;
 
 export function WalletShell() {
+  const t = useT();
   const {
     vault,
     sync,
@@ -28,22 +30,23 @@ export function WalletShell() {
     hotWalletId,
   } = useVault();
   const [syncTitle, setSyncTitle] = useState(() =>
-    formatSyncAge(lastSyncedAt),
+    formatSyncAge(lastSyncedAt, t),
   );
 
   const refreshSyncTitle = useCallback(() => {
-    setSyncTitle(formatSyncAge(lastSyncedAt));
-  }, [lastSyncedAt]);
+    setSyncTitle(formatSyncAge(lastSyncedAt, t));
+  }, [lastSyncedAt, t]);
 
   if (!vault && !error) {
-    return <p className="muted">Loading…</p>;
+    return <p className="muted">{t("common.loading")}</p>;
   }
   if (!vault) {
     return null;
   }
 
-  const label = kind === "hot" ? "Hot wallet" : "Vault";
-  const listLabel = kind === "hot" ? "All hot wallets" : "All vaults";
+  const label = kind === "hot" ? t("shell.hotWallet") : t("shell.vault");
+  const listLabel =
+    kind === "hot" ? t("shell.allHotWallets") : t("shell.allVaults");
   const shareTo =
     kind === "hot" && hotWalletId
       ? `/hot-wallets/${hotWalletId}/share`
@@ -58,9 +61,9 @@ export function WalletShell() {
           <p className="muted">
             {vault.scriptType} · {formatNetwork(vault.policy.network)}
             {kind === "hot" ? (
-              <span className="badge">Hot</span>
+              <span className="badge">{t("shell.hotBadge")}</span>
             ) : vault.watchOnly ? (
-              <span className="badge watch-only">Watch-only</span>
+              <span className="badge watch-only">{t("shell.watchOnly")}</span>
             ) : null}
           </p>
           {sync ? (
@@ -68,7 +71,7 @@ export function WalletShell() {
               {formatSats(sync.balance.confirmedSats)}
             </p>
           ) : (
-            <p className="muted">Not synced</p>
+            <p className="muted">{t("shell.notSynced")}</p>
           )}
           <button
             type="button"
@@ -79,7 +82,13 @@ export function WalletShell() {
             onFocus={refreshSyncTitle}
             title={syncTitle}
           >
-            {busy ? "Syncing…" : syncing ? "Updating…" : sync ? "Synced" : "Sync"}
+            {busy
+              ? t("common.syncing")
+              : syncing
+                ? t("common.updating")
+                : sync
+                  ? t("common.synced")
+                  : t("common.sync")}
           </button>
         </div>
         <nav>
@@ -92,13 +101,13 @@ export function WalletShell() {
                 isActive ? "vault-nav-active" : undefined
               }
             >
-              {tab.label}
+              {t(tab.labelKey)}
             </NavLink>
           ))}
         </nav>
         <div className="vault-nav-foot">
           <Link className="button-link" to={shareTo}>
-            Share
+            {t("common.share")}
           </Link>
           <Link className="button-link" to={listPath}>
             {listLabel}

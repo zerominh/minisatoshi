@@ -1,15 +1,23 @@
+import type { MessageKey } from "../i18n/en";
+
+type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
 /** Human-readable age for “last synced” tooltips. */
-export function formatSyncAge(syncedAtMs: number | null | undefined, now = Date.now()): string {
+export function formatSyncAge(
+  syncedAtMs: number | null | undefined,
+  t: Translate,
+  now = Date.now(),
+): string {
   if (syncedAtMs == null || !Number.isFinite(syncedAtMs)) {
-    return "Not synced yet — click to sync";
+    return t("sync.notYet");
   }
   const sec = Math.max(0, Math.floor((now - syncedAtMs) / 1000));
-  if (sec < 5) return "Last sync: just now";
-  if (sec < 60) return `Last sync: ${sec}s ago`;
+  if (sec < 5) return t("sync.justNow");
+  if (sec < 60) return t("sync.secondsAgo", { n: sec });
   const min = Math.floor(sec / 60);
-  if (min < 60) return `Last sync: ${min}m ago`;
+  if (min < 60) return t("sync.minutesAgo", { n: min });
   const hr = Math.floor(min / 60);
-  if (hr < 48) return `Last sync: ${hr}h ago`;
+  if (hr < 48) return t("sync.hoursAgo", { n: hr });
   const days = Math.floor(hr / 24);
-  return `Last sync: ${days}d ago`;
+  return t("sync.daysAgo", { n: days });
 }
