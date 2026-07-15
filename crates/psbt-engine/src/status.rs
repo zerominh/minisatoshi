@@ -240,14 +240,14 @@ mod tests {
     use policy_engine::{
         KeyRole, NetworkName, PolicyExpression, ScriptTypeName, POLICY_SCHEMA_VERSION,
     };
-    use wallet_core::Vault;
+    use wallet_core::Wallet;
 
     use crate::create::create_psbt;
     use crate::sign::{sign_psbt, SoftwareSigner};
     use crate::test_keys::{key_config_from_tprv, TEST_TPRV_A, TEST_TPRV_B};
     use crate::types::{CreatePsbtOptions, FeeRate, PsbtRecipient, SpendingUtxo};
 
-    fn vault() -> Vault {
+    fn wallet() -> Wallet {
         let policy = policy_engine::PolicyConfig {
             version: POLICY_SCHEMA_VERSION,
             network: NetworkName::Regtest,
@@ -264,9 +264,9 @@ mod tests {
             },
         };
         let descriptor = descriptor_engine::compile_descriptor_from_config(&policy).unwrap();
-        Vault {
+        Wallet {
             id: "v1".into(),
-            wallet_id: "w1".into(),
+            workspace_id: "w1".into(),
             name: "2of2".into(),
             policy,
             descriptor,
@@ -277,13 +277,13 @@ mod tests {
 
     #[test]
     fn status_after_one_signature_reports_missing_cosigner() {
-        let vault = vault();
+        let wallet = wallet();
         let receive =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 0).unwrap();
         let recipient =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 1).unwrap();
         let mut psbt = create_psbt(
-            &vault,
+            &wallet,
             &[PsbtRecipient {
                 address: recipient.address,
                 amount_sats: 50_000,
@@ -314,7 +314,7 @@ mod tests {
         .unwrap();
 
         let status =
-            analyze_signing_status(&vault.policy, &psbt, Some("primary-0")).unwrap();
+            analyze_signing_status(&wallet.policy, &psbt, Some("primary-0")).unwrap();
         assert!(
             status.summary.contains("missing") || status.summary.contains("Need"),
             "{}",

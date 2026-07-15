@@ -1,12 +1,12 @@
-//! Vault orchestration for Minisatoshi.
+//! Wallet orchestration for Minisatoshi.
 
 mod error;
 mod service;
 mod types;
 
 pub use error::VaultError;
-pub use service::VaultService;
-pub use types::VaultWithAddress;
+pub use service::WalletService;
+pub use types::WalletWithAddress;
 
 pub use blockchain::{
     default_server_presets, export_watch_only_wallet, BackendKind, Balance, BlockchainBackend,
@@ -54,9 +54,11 @@ mod tests {
     fn policy_to_first_taproot_receive_address() {
         let dir = tempfile::tempdir().unwrap();
         let store = WalletStore::open(dir.path().join("wallet.db")).unwrap();
-        let service = VaultService::new(&store);
+        let service = WalletService::new(&store);
 
-        let wallet = store.create_wallet("Family", NetworkName::Testnet).unwrap();
+        let workspace = store
+            .create_workspace("Family", NetworkName::Testnet)
+            .unwrap();
         let keys = sample_keys();
         let policy = abc_preset(
             keys[0].clone(),
@@ -67,18 +69,18 @@ mod tests {
         );
 
         let result = service
-            .create_vault_with_receive_address(&wallet.id, "ABC", policy)
+            .create_wallet_with_receive_address(&workspace.id, "ABC", policy)
             .unwrap();
 
         assert!(result.receive_address.address.starts_with("tb1"));
         assert_eq!(result.receive_address.index, 0);
         assert!(!result.receive_address.is_change);
 
-        let listed = service.list_addresses(&result.vault.id).unwrap();
+        let listed = service.list_addresses(&result.wallet.id).unwrap();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].address, result.receive_address.address);
 
-        let export = export_watch_only_wallet(&result.vault).unwrap();
+        let export = export_watch_only_wallet(&result.wallet).unwrap();
         assert!(export.descriptor.contains('#'));
 
         let presets = default_server_presets(NetworkName::Testnet);
@@ -86,7 +88,7 @@ mod tests {
     }
 
     #[test]
-    fn vault_sync_via_esplora_mock() {
+    fn wallet_sync_via_esplora_mock() {
         use blockchain::EsploraBackend;
         use httpmock::prelude::*;
 
@@ -112,8 +114,10 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let store = WalletStore::open(dir.path().join("wallet.db")).unwrap();
-        let service = VaultService::new(&store);
-        let wallet = store.create_wallet("Sync", NetworkName::Testnet).unwrap();
+        let service = WalletService::new(&store);
+        let workspace = store
+            .create_workspace("Sync", NetworkName::Testnet)
+            .unwrap();
         let policy = abc_preset(
             sample_keys()[0].clone(),
             sample_keys()[1].clone(),
@@ -121,15 +125,15 @@ mod tests {
             4,
             NetworkName::Testnet,
         );
-        let vault = service.create_vault(&wallet.id, "ABC", policy).unwrap();
+        let wallet = service.create_wallet(&workspace.id, "ABC", policy).unwrap();
 
         let backend = EsploraBackend::new(server.base_url())
             .unwrap()
             .with_gap_limit(2);
-        let balance = service.vault_balance(&vault.id, &backend).unwrap();
+        let balance = service.wallet_balance(&wallet.id, &backend).unwrap();
         assert_eq!(balance.confirmed_sats, 0);
         assert!(service
-            .vault_history(&vault.id, &backend)
+            .wallet_history(&wallet.id, &backend)
             .unwrap()
             .is_empty());
     }

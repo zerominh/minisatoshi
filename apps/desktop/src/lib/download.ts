@@ -54,7 +54,7 @@ export async function openPsbtFileWithDialog(): Promise<OpenTextFileResult | nul
   return openTextFileWithDialog(PSBT_FILTER);
 }
 
-export function sanitizedFilename(name: string, fallback = "vault"): string {
+export function sanitizedFilename(name: string, fallback = "wallet"): string {
   const cleaned = name
     .trim()
     .replace(/[^\w\-]+/g, "-")

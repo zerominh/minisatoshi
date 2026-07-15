@@ -547,18 +547,18 @@ button.btn-ok.secondary {
   border-top: 1px solid #2a3142;
 }
 
-.content:has(.vault-shell) {
+.content:has(.wallet-shell) {
   max-width: none;
   padding: 0;
 }
 
-.vault-shell {
+.wallet-shell {
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);
   min-height: 100%;
 }
 
-.vault-nav {
+.wallet-nav {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -567,49 +567,49 @@ button.btn-ok.secondary {
   border-right: 1px solid #2a3142;
 }
 
-.vault-nav-head {
+.wallet-nav-head {
   display: grid;
   gap: 0.35rem;
 }
 
-.vault-nav-head strong {
+.wallet-nav-head strong {
   font-family: "IBM Plex Serif", Georgia, serif;
   font-size: 1.05rem;
 }
 
-.vault-balance {
+.wallet-balance {
   margin: 0.25rem 0;
   font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
   font-size: 1rem;
   color: #f7931a;
 }
 
-.vault-nav nav {
+.wallet-nav nav {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
 }
 
-.vault-nav nav a {
+.wallet-nav nav a {
   color: #a8b0c0;
   text-decoration: none;
   padding: 0.45rem 0.65rem;
   border-radius: 8px;
 }
 
-.vault-nav nav a:hover,
-.vault-nav nav a.vault-nav-active {
+.wallet-nav nav a:hover,
+.wallet-nav nav a.wallet-nav-active {
   background: #1f2636;
   color: #fff;
 }
 
-.vault-nav-foot {
+.wallet-nav-foot {
   margin-top: auto;
   display: grid;
   gap: 0.45rem;
 }
 
-.vault-main {
+.wallet-main {
   padding: 2rem;
   max-width: 980px;
 }
@@ -793,21 +793,21 @@ button.linkish:hover {
     flex-direction: column;
   }
 
-  .vault-shell {
+  .wallet-shell {
     grid-template-columns: 1fr;
   }
 
-  .vault-nav {
+  .wallet-nav {
     border-right: 0;
     border-bottom: 1px solid #2a3142;
   }
 
-  .vault-nav nav {
+  .wallet-nav nav {
     flex-direction: row;
     flex-wrap: wrap;
   }
 
-  .vault-nav-foot {
+  .wallet-nav-foot {
     grid-template-columns: 1fr 1fr;
   }
 }

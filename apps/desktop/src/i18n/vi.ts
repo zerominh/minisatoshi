@@ -2,12 +2,12 @@ import type { Messages } from "./en";
 
 /** Vietnamese UI strings — keys must match `en`. */
 export const vi = {
+  "nav.workspaces": "Không gian",
   "nav.wallets": "Ví",
-  "nav.vaults": "Két",
   "nav.hotWallets": "Ví nóng",
   "nav.transactions": "Giao dịch",
   "nav.settings": "Cài đặt",
-  "app.tagline": "Công cụ két Bitcoin",
+  "app.tagline": "Công cụ ví Bitcoin",
 
   "common.loading": "Đang tải…",
   "common.save": "Lưu",
@@ -31,9 +31,9 @@ export const vi = {
   "common.confirm": "Xác nhận",
   "common.busy": "Đang xử lý…",
 
-  "shell.vault": "Két",
+  "shell.wallet": "Ví",
   "shell.hotWallet": "Ví nóng",
-  "shell.allVaults": "Tất cả két",
+  "shell.allWallets": "Tất cả ví",
   "shell.allHotWallets": "Tất cả ví nóng",
   "shell.notSynced": "Chưa đồng bộ",
   "shell.watchOnly": "Chỉ theo dõi",
@@ -63,7 +63,7 @@ export const vi = {
   "settings.language": "Ngôn ngữ",
   "settings.languageHint": "Ngôn ngữ giao diện ứng dụng.",
   "settings.saved": "Đã lưu cài đặt trên máy này.",
-  "settings.preferredNetwork": "Mạng ưu tiên (ví mới)",
+  "settings.preferredNetwork": "Mạng ưu tiên (không gian mới)",
   "settings.esploraOverride": "URL Esplora tùy chỉnh (tùy chọn)",
   "settings.signingDevices": "Thiết bị ký (HWI)",
   "settings.hwiHint":
@@ -84,7 +84,7 @@ export const vi = {
   "settings.lastXpub": "xpub gần nhất",
   "settings.serverPresets": "Máy chủ có sẵn (Esplora / Electrum)",
   "settings.serverPresetsHint":
-    "Các endpoint công khai thường dùng để đồng bộ chuỗi. Preset không có nghĩa Sparrow nhập được két Miniscript — nạp theo địa chỉ; ký trong Minisatoshi / Core / Nunchuk.",
+    "Các endpoint công khai thường dùng để đồng bộ chuỗi. Preset không có nghĩa Sparrow nhập được ví Miniscript — nạp theo địa chỉ; ký trong Minisatoshi / Core / Nunchuk.",
   "settings.usingPreset": "Đang dùng {label}",
   "settings.deviceSettingsSaved": "Đã lưu đường dẫn HWI và fingerprint.",
   "settings.usingFingerprint": "Đang dùng fingerprint {fp}",
@@ -97,25 +97,25 @@ export const vi = {
   "lang.en": "English",
   "lang.vi": "Tiếng Việt",
 
+  "workspaces.title": "Không gian",
+  "workspaces.subtitle": "Nhóm chứa ví trên máy này.",
+  "workspaces.new": "Không gian mới",
+  "workspaces.empty": "Chưa có không gian nào.",
+  "workspaces.walletCount": "{n} ví",
+  "workspaces.renamePrompt": "Đổi tên không gian",
+  "workspaces.renamed": "Đã đổi tên thành “{name}”",
+  "workspaces.deleteConfirm": "Xóa không gian “{name}” và mọi ví bên trong?",
+  "workspaces.name": "Tên",
+  "workspaces.network": "Mạng",
+
   "wallets.title": "Ví",
-  "wallets.subtitle": "Nhóm chứa két trên máy này.",
-  "wallets.new": "Ví mới",
+  "wallets.create": "Tạo ví",
+  "wallets.import": "Nhập ví",
   "wallets.empty": "Chưa có ví nào.",
-  "wallets.vaultCount": "{n} két",
   "wallets.renamePrompt": "Đổi tên ví",
   "wallets.renamed": "Đã đổi tên thành “{name}”",
-  "wallets.deleteConfirm": "Xóa ví “{name}” và mọi két bên trong?",
-  "wallets.name": "Tên",
-  "wallets.network": "Mạng",
-
-  "vaults.title": "Két",
-  "vaults.create": "Tạo két",
-  "vaults.import": "Nhập két",
-  "vaults.empty": "Chưa có két nào.",
-  "vaults.renamePrompt": "Đổi tên két",
-  "vaults.renamed": "Đã đổi tên thành “{name}”",
-  "vaults.deleteConfirm": "Xóa két “{name}”?",
-  "vaults.walletFilter": "Ví",
+  "wallets.deleteConfirm": "Xóa ví “{name}”?",
+  "wallets.workspaceFilter": "Không gian",
 
   "hotWallets.title": "Ví nóng",
   "hotWallets.subtitle":
@@ -130,7 +130,7 @@ export const vi = {
   "tx.syncToLoad": "Đồng bộ để tải số dư.",
   "tx.empty": "Chưa có giao dịch.",
   "tx.globalTitle": "Giao dịch",
-  "tx.globalHint": "Chọn két hoặc ví nóng để xem lịch sử.",
+  "tx.globalHint": "Chọn ví hoặc ví nóng để xem lịch sử.",
 
   "utxos.title": "UTXO",
   "utxos.subtitle": "Đầu ra có thể chi — dùng cả cho coin control khi Gửi.",
@@ -165,10 +165,10 @@ export const vi = {
   "signPsbt.sendLink": "Gửi",
 
   "receive.title": "Nhận",
-  "receive.subtitle": "Địa chỉ mới cho két này.",
+  "receive.subtitle": "Địa chỉ mới cho ví này.",
 
-  "newVault.title": "Tạo két",
-  "newVault.subtitle":
+  "newWallet.title": "Tạo ví",
+  "newWallet.subtitle":
     "Giai đoạn 2 · mẫu, nhiều khoá, nhiều đường phục hồi · Taproot Miniscript.",
 
   "format.sats": "{n} sats",

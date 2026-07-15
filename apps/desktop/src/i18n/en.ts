@@ -7,12 +7,12 @@ export const LOCALES: { id: Locale; labelKey: MessageKey }[] = [
 
 /** English UI strings — source of truth for keys. */
 export const en = {
+  "nav.workspaces": "Workspaces",
   "nav.wallets": "Wallets",
-  "nav.vaults": "Vaults",
   "nav.hotWallets": "Hot wallets",
   "nav.transactions": "Transactions",
   "nav.settings": "Settings",
-  "app.tagline": "Bitcoin Vault Engine",
+  "app.tagline": "Bitcoin Wallet Engine",
 
   "common.loading": "Loading…",
   "common.save": "Save",
@@ -36,9 +36,9 @@ export const en = {
   "common.confirm": "Confirm",
   "common.busy": "Working…",
 
-  "shell.vault": "Vault",
+  "shell.wallet": "Wallet",
   "shell.hotWallet": "Hot wallet",
-  "shell.allVaults": "All vaults",
+  "shell.allWallets": "All wallets",
   "shell.allHotWallets": "All hot wallets",
   "shell.notSynced": "Not synced",
   "shell.watchOnly": "Watch-only",
@@ -68,7 +68,7 @@ export const en = {
   "settings.language": "Language",
   "settings.languageHint": "App interface language.",
   "settings.saved": "Settings saved locally.",
-  "settings.preferredNetwork": "Preferred network (new wallets)",
+  "settings.preferredNetwork": "Preferred network (new workspaces)",
   "settings.esploraOverride": "Esplora URL override (optional)",
   "settings.signingDevices": "Signing devices (HWI)",
   "settings.hwiHint":
@@ -88,7 +88,7 @@ export const en = {
   "settings.lastXpub": "Last xpub",
   "settings.serverPresets": "Server presets (Esplora / Electrum)",
   "settings.serverPresetsHint":
-    "Same public endpoints many Sparrow users pick for chain sync. Presets do not mean Sparrow can import Miniscript vaults — fund by address; sign in Minisatoshi / Core / Nunchuk.",
+    "Same public endpoints many Sparrow users pick for chain sync. Presets do not mean Sparrow can import Miniscript wallets — fund by address; sign in Minisatoshi / Core / Nunchuk.",
   "settings.usingPreset": "Using {label}",
   "settings.deviceSettingsSaved": "HWI path and fingerprint saved.",
   "settings.usingFingerprint": "Using fingerprint {fp}",
@@ -101,25 +101,25 @@ export const en = {
   "lang.en": "English",
   "lang.vi": "Tiếng Việt",
 
+  "workspaces.title": "Workspaces",
+  "workspaces.subtitle": "Containers for wallets on this machine.",
+  "workspaces.new": "New workspace",
+  "workspaces.empty": "No workspaces yet.",
+  "workspaces.walletCount": "{n} wallet(s)",
+  "workspaces.renamePrompt": "Rename workspace",
+  "workspaces.renamed": "Renamed to “{name}”",
+  "workspaces.deleteConfirm": "Delete workspace “{name}” and all its wallets?",
+  "workspaces.name": "Name",
+  "workspaces.network": "Network",
+
   "wallets.title": "Wallets",
-  "wallets.subtitle": "Containers for vaults on this machine.",
-  "wallets.new": "New wallet",
+  "wallets.create": "Create wallet",
+  "wallets.import": "Import wallet",
   "wallets.empty": "No wallets yet.",
-  "wallets.vaultCount": "{n} vault(s)",
   "wallets.renamePrompt": "Rename wallet",
   "wallets.renamed": "Renamed to “{name}”",
-  "wallets.deleteConfirm": "Delete wallet “{name}” and all its vaults?",
-  "wallets.name": "Name",
-  "wallets.network": "Network",
-
-  "vaults.title": "Vaults",
-  "vaults.create": "Create vault",
-  "vaults.import": "Import vault",
-  "vaults.empty": "No vaults yet.",
-  "vaults.renamePrompt": "Rename vault",
-  "vaults.renamed": "Renamed to “{name}”",
-  "vaults.deleteConfirm": "Delete vault “{name}”?",
-  "vaults.walletFilter": "Wallet",
+  "wallets.deleteConfirm": "Delete wallet “{name}”?",
+  "wallets.workspaceFilter": "Workspace",
 
   "hotWallets.title": "Hot wallets",
   "hotWallets.subtitle":
@@ -134,7 +134,7 @@ export const en = {
   "tx.syncToLoad": "Sync to load balance.",
   "tx.empty": "No transactions yet.",
   "tx.globalTitle": "Transactions",
-  "tx.globalHint": "Pick a vault or hot wallet to view history.",
+  "tx.globalHint": "Pick a wallet or hot wallet to view history.",
 
   "utxos.title": "UTXOs",
   "utxos.subtitle": "Spendable outputs — also used for coin control on Send.",
@@ -169,10 +169,10 @@ export const en = {
   "signPsbt.sendLink": "Send",
 
   "receive.title": "Receive",
-  "receive.subtitle": "New address for this vault.",
+  "receive.subtitle": "New address for this wallet.",
 
-  "newVault.title": "Create vault",
-  "newVault.subtitle":
+  "newWallet.title": "Create wallet",
+  "newWallet.subtitle":
     "Phase 2 · templates, multi-key, multi recovery · Taproot Miniscript.",
 
   "format.sats": "{n} sats",

@@ -26,7 +26,7 @@ pub use status::{
 };
 pub use types::{
     CreatePsbtOptions, ExportFormat, FeeRate, Psbt, PsbtRecipient, SignProgress, SpendingUtxo,
-    VaultPsbt,
+    WalletPsbt,
 };
 
 #[cfg(test)]
@@ -37,13 +37,13 @@ mod integration_tests {
     use policy_engine::{
         NetworkName, PolicyConfig, PolicyExpression, ScriptTypeName, POLICY_SCHEMA_VERSION,
     };
-    use wallet_core::Vault;
+    use wallet_core::Wallet;
 
     use crate::test_keys::{key_config_from_tprv, TEST_TPRV_A, TEST_TPRV_B};
 
     use super::*;
 
-    fn regtest_vault() -> Vault {
+    fn regtest_wallet() -> Wallet {
         let policy = PolicyConfig {
             version: POLICY_SCHEMA_VERSION,
             network: NetworkName::Regtest,
@@ -60,9 +60,9 @@ mod integration_tests {
             },
         };
         let descriptor = descriptor_engine::compile_descriptor_from_config(&policy).unwrap();
-        Vault {
+        Wallet {
             id: "v1".into(),
-            wallet_id: "w1".into(),
+            workspace_id: "w1".into(),
             name: "2of2".into(),
             policy,
             descriptor,
@@ -73,14 +73,14 @@ mod integration_tests {
 
     #[test]
     fn two_of_two_sign_combine_finalize() {
-        let vault = regtest_vault();
+        let wallet = regtest_wallet();
         let receive =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 0).unwrap();
         let recipient =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 1).unwrap();
 
         let mut psbt = create_psbt(
-            &vault,
+            &wallet,
             &[PsbtRecipient {
                 address: recipient.address,
                 amount_sats: 50_000,
@@ -209,9 +209,9 @@ mod integration_tests {
             },
         };
         let descriptor = descriptor_engine::compile_descriptor_from_config(&policy).unwrap();
-        let vault = Vault {
+        let wallet = Wallet {
             id: "v1".into(),
-            wallet_id: "w1".into(),
+            workspace_id: "w1".into(),
             name: "abc".into(),
             policy,
             descriptor,
@@ -219,11 +219,11 @@ mod integration_tests {
             created_at: 0,
         };
         let receive =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 2).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 2).unwrap();
         let recipient =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 1).unwrap();
         let mut psbt = create_psbt(
-            &vault,
+            &wallet,
             &[PsbtRecipient {
                 address: recipient.address,
                 amount_sats: 50_000,
@@ -310,9 +310,9 @@ mod integration_tests {
         );
         assert!(!descriptor.contains('{'), "no script tree for singlesig");
 
-        let vault = Vault {
+        let wallet = Wallet {
             id: "v-hot".into(),
-            wallet_id: "w1".into(),
+            workspace_id: "w1".into(),
             name: "bip86".into(),
             policy,
             descriptor,
@@ -321,21 +321,21 @@ mod integration_tests {
         };
 
         let receive0 =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 0).unwrap();
         assert_eq!(
             receive0.address,
             "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr",
             "BIP-86 receive m/86'/0'/0'/0/0"
         );
         let receive1 =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 1).unwrap();
         assert_eq!(
             receive1.address,
             "bc1p4qhjn9zdvkux4e44uhx8tc55attvtyu358kutcqkudyccelu0was9fqzwh",
             "BIP-86 receive m/86'/0'/0'/0/1"
         );
         let change0 =
-            address_engine::new_change_address(&vault.policy, &vault.descriptor, 0).unwrap();
+            address_engine::new_change_address(&wallet.policy, &wallet.descriptor, 0).unwrap();
         assert_eq!(
             change0.address,
             "bc1p3qkhfews2uk44qtvauqyr2ttdsw7svhkl9nkm9s9c3x4ax5h60wqwruhk7",
@@ -344,7 +344,7 @@ mod integration_tests {
 
         // Spend from receive0 → receive1 (simulates Send), sign with hot secret, finalize.
         let mut psbt = create_psbt(
-            &vault,
+            &wallet,
             &[PsbtRecipient {
                 address: receive1.address.clone(),
                 amount_sats: 50_000,

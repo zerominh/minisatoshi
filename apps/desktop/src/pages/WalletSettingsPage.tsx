@@ -1,13 +1,13 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  deleteVault,
-  exportVaultBackup,
+  deleteWallet,
+  exportWalletBackup,
   formatError,
-  hwRegisterVault,
+  hwRegisterWallet,
   prepareHwRegistration,
   renameHotWallet,
-  renameVault,
+  renameWallet,
 } from "../lib/api";
 import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
 import { formatTimelockLabel } from "../lib/duration";
@@ -17,20 +17,20 @@ import {
   setHwFingerprint,
 } from "../lib/settings";
 import type { RegistrationPackageDto } from "../lib/types";
-import { useVault } from "../vault/VaultContext";
+import { useWallet } from "../wallet/WalletContext";
 
-export function VaultSettingsPage() {
+export function WalletSettingsPage() {
   const navigate = useNavigate();
   const {
-    vaultId,
-    vault,
-    busy: vaultBusy,
+    walletId,
+    wallet,
+    busy: walletBusy,
     setError,
     setMessage,
     kind,
     hotWalletId,
-    refreshVault,
-  } = useVault();
+    refreshWallet,
+  } = useWallet();
   const [localBusy, setLocalBusy] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [registration, setRegistration] =
@@ -38,27 +38,27 @@ export function VaultSettingsPage() {
   const [regFingerprint, setRegFingerprint] = useState(getHwFingerprint());
   const [cosignerHints, setCosignerHints] = useState<string[]>([]);
 
-  const working = vaultBusy || localBusy;
+  const working = walletBusy || localBusy;
 
   useEffect(() => {
-    setDisplayName(vault?.name ?? "");
-  }, [vault?.name]);
+    setDisplayName(wallet?.name ?? "");
+  }, [wallet?.name]);
 
-  if (!vault) return null;
+  if (!wallet) return null;
 
   async function onRename(event: FormEvent) {
     event.preventDefault();
     const next = displayName.trim();
-    if (!next || next === vault!.name) return;
+    if (!next || next === wallet!.name) return;
     setLocalBusy(true);
     setError(null);
     try {
       if (kind === "hot" && hotWalletId) {
         await renameHotWallet(hotWalletId, next);
       } else {
-        await renameVault(vaultId, next);
+        await renameWallet(walletId, next);
       }
-      await refreshVault();
+      await refreshWallet();
       setMessage(`Renamed to “${next}”`);
     } catch (err) {
       setError(formatError(err));
@@ -70,10 +70,10 @@ export function VaultSettingsPage() {
   async function onSaveDescriptorFile() {
     setError(null);
     try {
-      const filename = `${sanitizedFilename(vault!.name)}-descriptor.txt`;
+      const filename = `${sanitizedFilename(wallet!.name)}-descriptor.txt`;
       const path = await saveTextFileWithDialog(
         filename,
-        `${vault!.descriptor}\n`,
+        `${wallet!.descriptor}\n`,
       );
       if (path) {
         setMessage(
@@ -89,12 +89,12 @@ export function VaultSettingsPage() {
     setLocalBusy(true);
     setError(null);
     try {
-      const backup = await exportVaultBackup(vaultId);
-      const filename = `${sanitizedFilename(backup.name)}-minisatoshi-vault-v1.json`;
+      const backup = await exportWalletBackup(walletId);
+      const filename = `${sanitizedFilename(backup.name)}-minisatoshi-wallet-v1.json`;
       const path = await saveTextFileWithDialog(filename, `${backup.json}\n`);
       if (path) {
         setMessage(
-          `Backup saved to ${path} — restore via Vaults → Import vault.`,
+          `Backup saved to ${path} — restore via Wallets → Import wallet.`,
         );
       }
     } catch (err) {
@@ -104,17 +104,17 @@ export function VaultSettingsPage() {
     }
   }
 
-  async function onDeleteVault() {
-    const name = vault!.name;
+  async function onDeleteWallet() {
+    const name = wallet!.name;
     const ok = window.confirm(
-      `Delete vault “${name}”? This removes local data only (not funds on-chain). Export a backup first if you need it.`,
+      `Delete wallet “${name}”? This removes local data only (not funds on-chain). Export a backup first if you need it.`,
     );
     if (!ok) return;
     setLocalBusy(true);
     setError(null);
     try {
-      await deleteVault(vaultId);
-      navigate("/vaults");
+      await deleteWallet(walletId);
+      navigate("/wallets");
     } catch (err) {
       setError(formatError(err));
       setLocalBusy(false);
@@ -125,7 +125,7 @@ export function VaultSettingsPage() {
     setLocalBusy(true);
     setError(null);
     try {
-      const pkg = await prepareHwRegistration(vaultId);
+      const pkg = await prepareHwRegistration(walletId);
       setRegistration(pkg);
       setMessage("Registration package ready.");
     } catch (err) {
@@ -144,8 +144,8 @@ export function VaultSettingsPage() {
     setError(null);
     try {
       setHwFingerprint(regFingerprint.trim());
-      const result = await hwRegisterVault({
-        vaultId,
+      const result = await hwRegisterWallet({
+        walletId,
         fingerprint: regFingerprint.trim(),
         hwiPath: getHwiPath() || null,
       });
@@ -210,7 +210,7 @@ export function VaultSettingsPage() {
         <button
           type="submit"
           disabled={
-            working || !displayName.trim() || displayName.trim() === vault.name
+            working || !displayName.trim() || displayName.trim() === wallet.name
           }
         >
           {working ? "…" : "Save name"}
@@ -219,14 +219,14 @@ export function VaultSettingsPage() {
 
       <div className="panel">
         <h3>Policy</h3>
-        <p className="mono">{vault.policy.policy.primary}</p>
-        {vault.policy.policy.fallback ? (
+        <p className="mono">{wallet.policy.policy.primary}</p>
+        {wallet.policy.policy.fallback ? (
           <p className="muted">
-            Fallback {vault.policy.policy.fallback.allow} after{" "}
-            {formatTimelockLabel(vault.policy.policy.fallback.after)}
+            Fallback {wallet.policy.policy.fallback.allow} after{" "}
+            {formatTimelockLabel(wallet.policy.policy.fallback.after)}
           </p>
         ) : null}
-        {(vault.policy.policy.fallbacks ?? []).map((fb) => (
+        {(wallet.policy.policy.fallbacks ?? []).map((fb) => (
           <p key={`${fb.allow}-${fb.after}`} className="muted">
             Fallback {fb.allow} after {formatTimelockLabel(fb.after)}
           </p>
@@ -235,7 +235,7 @@ export function VaultSettingsPage() {
 
       <div className="panel">
         <h3>Descriptor</h3>
-        <p className="mono wrap">{vault.descriptor}</p>
+        <p className="mono wrap">{wallet.descriptor}</p>
         <div className="row-actions">
           <button type="button" onClick={() => void onSaveDescriptorFile()}>
             Save descriptor file
@@ -246,14 +246,14 @@ export function VaultSettingsPage() {
             disabled={working}
             onClick={() => void onExportBackup()}
           >
-            Export vault backup
+            Export wallet backup
           </button>
           <Link
             className="button-link"
             to={
               kind === "hot" && hotWalletId
                 ? `/hot-wallets/${hotWalletId}/share`
-                : `/vaults/${vault.id}/share`
+                : `/wallets/${wallet.id}/share`
             }
           >
             Share (QR / BSMS)
@@ -352,9 +352,9 @@ export function VaultSettingsPage() {
           type="button"
           className="secondary"
           disabled={working}
-          onClick={() => void onDeleteVault()}
+          onClick={() => void onDeleteWallet()}
         >
-          Delete vault
+          Delete wallet
         </button>
       </div>
     </section>

@@ -2,7 +2,7 @@
 
 use policy_engine::{NetworkName, PolicyConfig, ScriptTypeName};
 use serde::{Deserialize, Serialize};
-use wallet_core::{Vault, VaultSummary, Wallet, WalletSummary};
+use wallet_core::{Wallet, WalletSummary, Workspace, WorkspaceSummary};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -11,9 +11,10 @@ pub struct OpenTextFileDto {
     pub contents: String,
 }
 
+/// Container + network (ex-`Wallet`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WalletDto {
+pub struct WorkspaceDto {
     pub id: String,
     pub name: String,
     pub network: NetworkName,
@@ -23,19 +24,20 @@ pub struct WalletDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WalletSummaryDto {
+pub struct WorkspaceSummaryDto {
     pub id: String,
     pub name: String,
     pub network: NetworkName,
-    pub vault_count: usize,
+    pub wallet_count: usize,
     pub created_at: i64,
 }
 
+/// Spendable descriptor / balance / send-receive unit (ex-`Vault`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VaultDto {
+pub struct WalletDto {
     pub id: String,
-    pub wallet_id: String,
+    pub workspace_id: String,
     pub name: String,
     pub policy: PolicyConfig,
     pub descriptor: String,
@@ -47,9 +49,9 @@ pub struct VaultDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VaultSummaryDto {
+pub struct WalletSummaryDto {
     pub id: String,
-    pub wallet_id: String,
+    pub workspace_id: String,
     pub name: String,
     pub script_type: ScriptTypeName,
     pub created_at: i64,
@@ -74,22 +76,24 @@ pub struct BalanceDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CompileVaultResponse {
+pub struct CompileWalletResponse {
     pub descriptor: String,
     pub policy_string: String,
 }
 
+/// Create a new container + network (ex-`Wallet`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateWalletRequest {
+pub struct CreateWorkspaceRequest {
     pub name: String,
     pub network: NetworkName,
 }
 
+/// Create a new spendable wallet (ex-`Vault`) inside a workspace.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateVaultRequest {
-    pub wallet_id: String,
+pub struct CreateWalletRequest {
+    pub workspace_id: String,
     pub name: String,
     pub policy: PolicyConfig,
 }
@@ -117,7 +121,7 @@ pub struct PsbtRecipientDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePsbtRequest {
-    pub vault_id: String,
+    pub wallet_id: String,
     pub recipients: Vec<PsbtRecipientDto>,
     pub fee_rate_sat_per_vb: u64,
     pub utxos: Vec<UtxoDto>,
@@ -196,7 +200,7 @@ pub struct HwStatusDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HwRegisterRequest {
-    pub vault_id: String,
+    pub wallet_id: String,
     pub fingerprint: String,
     #[serde(default)]
     pub hwi_path: Option<String>,
@@ -215,7 +219,7 @@ pub struct HwRegisterResultDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzePsbtRequest {
-    pub vault_id: String,
+    pub wallet_id: String,
     pub psbt_base64: String,
     #[serde(default)]
     pub active_path_id: Option<String>,
@@ -224,7 +228,7 @@ pub struct AnalyzePsbtRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportDescriptorRequest {
-    pub wallet_id: String,
+    pub workspace_id: String,
     pub name: String,
     pub descriptor: String,
     #[serde(default)]
@@ -233,8 +237,8 @@ pub struct ImportDescriptorRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ImportVaultBackupRequest {
-    pub wallet_id: String,
+pub struct ImportWalletBackupRequest {
+    pub workspace_id: String,
     /// Raw JSON / BSMS / bare descriptor (watch-only import).
     pub payload: String,
     #[serde(default)]
@@ -243,7 +247,7 @@ pub struct ImportVaultBackupRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VaultBackupDto {
+pub struct WalletBackupDto {
     pub format_version: String,
     pub name: String,
     pub network: NetworkName,
@@ -279,8 +283,8 @@ pub struct HotWalletSummaryDto {
     pub fingerprint: String,
     pub origin_path: String,
     pub xpub: String,
+    pub linked_workspace_id: Option<String>,
     pub linked_wallet_id: Option<String>,
-    pub linked_vault_id: Option<String>,
     pub created_at: i64,
 }
 
@@ -305,20 +309,20 @@ pub struct ImportHotWalletRequestDto {
     #[serde(default)]
     pub bip39_passphrase: String,
     pub network: NetworkName,
-    /// Optional storage parent; empty → auto-pick/create a wallet for this network.
+    /// Optional storage parent; empty → auto-pick/create a workspace for this network.
     #[serde(default)]
-    pub wallet_id: String,
+    pub workspace_id: String,
     #[serde(default)]
     pub account_path: Option<String>,
     #[serde(default)]
-    pub create_nested_vault: bool,
+    pub create_nested_wallet: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportHotWalletResultDto {
     pub hot_wallet: HotWalletSummaryDto,
-    pub vault: Option<VaultDto>,
+    pub wallet: Option<WalletDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -358,7 +362,7 @@ pub struct FinalizedTxDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BroadcastTxRequest {
-    pub vault_id: String,
+    pub wallet_id: String,
     pub psbt_base64: Option<String>,
     pub tx_hex: Option<String>,
     pub esplora_url: Option<String>,
@@ -382,8 +386,8 @@ pub struct ServerPresetDto {
     pub network: NetworkName,
 }
 
-impl From<Wallet> for WalletDto {
-    fn from(value: Wallet) -> Self {
+impl From<Workspace> for WorkspaceDto {
+    fn from(value: Workspace) -> Self {
         Self {
             id: value.id,
             name: value.name,
@@ -394,23 +398,23 @@ impl From<Wallet> for WalletDto {
     }
 }
 
-impl From<WalletSummary> for WalletSummaryDto {
-    fn from(value: WalletSummary) -> Self {
+impl From<WorkspaceSummary> for WorkspaceSummaryDto {
+    fn from(value: WorkspaceSummary) -> Self {
         Self {
             id: value.id,
             name: value.name,
             network: value.network,
-            vault_count: value.vault_count,
+            wallet_count: value.wallet_count,
             created_at: value.created_at,
         }
     }
 }
 
-impl From<Vault> for VaultDto {
-    fn from(value: Vault) -> Self {
+impl From<Wallet> for WalletDto {
+    fn from(value: Wallet) -> Self {
         Self {
             id: value.id,
-            wallet_id: value.wallet_id,
+            workspace_id: value.workspace_id,
             name: value.name,
             policy: value.policy,
             descriptor: value.descriptor,
@@ -421,11 +425,11 @@ impl From<Vault> for VaultDto {
     }
 }
 
-impl From<VaultSummary> for VaultSummaryDto {
-    fn from(value: VaultSummary) -> Self {
+impl From<WalletSummary> for WalletSummaryDto {
+    fn from(value: WalletSummary) -> Self {
         Self {
             id: value.id,
-            wallet_id: value.wallet_id,
+            workspace_id: value.workspace_id,
             name: value.name,
             script_type: value.script_type,
             created_at: value.created_at,

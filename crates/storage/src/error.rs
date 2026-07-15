@@ -8,11 +8,11 @@ pub enum StorageError {
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
+    #[error("workspace not found: {0}")]
+    WorkspaceNotFound(String),
+
     #[error("wallet not found: {0}")]
     WalletNotFound(String),
-
-    #[error("vault not found: {0}")]
-    VaultNotFound(String),
 
     #[error("address not found: {0}")]
     AddressNotFound(String),

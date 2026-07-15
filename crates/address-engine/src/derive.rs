@@ -186,10 +186,12 @@ mod tests {
     }
 
     #[test]
-    fn vault_policy_to_first_receive_address() {
+    fn wallet_policy_to_first_receive_address() {
         let dir = tempfile::tempdir().unwrap();
         let store = WalletStore::open(dir.path().join("wallet.db")).unwrap();
-        let wallet = store.create_wallet("Vault", NetworkName::Testnet).unwrap();
+        let workspace = store
+            .create_workspace("Wallet", NetworkName::Testnet)
+            .unwrap();
 
         let keys = sample_keys();
         let policy = abc_preset(
@@ -199,9 +201,11 @@ mod tests {
             4,
             NetworkName::Testnet,
         );
-        let vault = store.create_vault(&wallet.id, "ABC", policy).unwrap();
+        let wallet = store
+            .create_wallet(&workspace.id, "ABC", policy)
+            .unwrap();
 
-        let address = new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+        let address = new_receive_address(&wallet.policy, &wallet.descriptor, 0).unwrap();
         assert!(address.address.starts_with("tb1"));
     }
 

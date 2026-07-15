@@ -121,8 +121,8 @@ export function HotWalletsPage() {
         mnemonicOrJson,
         bip39Passphrase: passphrase || undefined,
         network,
-        walletId: "",
-        createNestedVault: true,
+        workspaceId: "",
+        createNestedWallet: true,
       });
       setWords(Array(wordCount).fill(""));
       setJsonPayload("");

@@ -95,8 +95,8 @@ pub fn derive_bip86_account(
         mnemonic: mnemonic.to_string(),
         bip39_passphrase: request.bip39_passphrase.clone(),
         descriptor_secret,
+        linked_workspace_id: None,
         linked_wallet_id: None,
-        linked_vault_id: None,
         created_at: now,
     };
 

@@ -2,10 +2,10 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AddressDto,
   BalanceDto,
-  CompileVaultResponse,
+  CompileWalletResponse,
   CreatePsbtRequest,
-  CreateVaultRequest,
   CreateWalletRequest,
+  CreateWorkspaceRequest,
   FinalizedTxDto,
   NetworkName,
   PolicyConfig,
@@ -15,10 +15,10 @@ import type {
   SignedPsbtDto,
   SparrowExportDto,
   SyncResultDto,
-  VaultDto,
-  VaultSummaryDto,
   WalletDto,
   WalletSummaryDto,
+  WorkspaceDto,
+  WorkspaceSummaryDto,
   BroadcastTxRequest,
   CombinePsbtRequest,
   HwDeviceDto,
@@ -33,8 +33,8 @@ import type {
   SigningStatusDto,
   SpendingPathDto,
   ImportDescriptorRequest,
-  ImportVaultBackupRequest,
-  VaultBackupDto,
+  ImportWalletBackupRequest,
+  WalletBackupDto,
   BsmsExportDto,
   SignPsbtHotRequest,
   HotKeystoreStatusDto,
@@ -45,20 +45,31 @@ import type {
   ImportHotWalletResultDto,
 } from "./types";
 
-export async function compileVaultDescriptor(
+export async function compileWalletDescriptor(
   config: PolicyConfig,
-): Promise<CompileVaultResponse> {
-  return invoke("compile_vault_descriptor", { config });
+): Promise<CompileWalletResponse> {
+  return invoke("compile_wallet_descriptor", { config });
 }
 
-export async function createWallet(
-  request: CreateWalletRequest,
-): Promise<WalletDto> {
-  return invoke("create_wallet", { request });
+export async function createWorkspace(
+  request: CreateWorkspaceRequest,
+): Promise<WorkspaceDto> {
+  return invoke("create_workspace", { request });
 }
 
-export async function listWallets(): Promise<WalletSummaryDto[]> {
-  return invoke("list_wallets");
+export async function listWorkspaces(): Promise<WorkspaceSummaryDto[]> {
+  return invoke("list_workspaces");
+}
+
+export async function deleteWorkspace(workspaceId: string): Promise<void> {
+  return invoke("delete_workspace", { workspaceId });
+}
+
+export async function renameWorkspace(
+  workspaceId: string,
+  name: string,
+): Promise<WorkspaceDto> {
+  return invoke("rename_workspace", { workspaceId, name });
 }
 
 export async function deleteWallet(walletId: string): Promise<void> {
@@ -72,79 +83,68 @@ export async function renameWallet(
   return invoke("rename_wallet", { walletId, name });
 }
 
-export async function deleteVault(vaultId: string): Promise<void> {
-  return invoke("delete_vault", { vaultId });
-}
-
-export async function renameVault(
-  vaultId: string,
-  name: string,
-): Promise<VaultDto> {
-  return invoke("rename_vault", { vaultId, name });
-}
-
-export async function createVault(
-  request: CreateVaultRequest,
-): Promise<VaultDto> {
-  return invoke("create_vault", { request });
+export async function createWallet(
+  request: CreateWalletRequest,
+): Promise<WalletDto> {
+  return invoke("create_wallet", { request });
 }
 
 export async function importDescriptor(
   request: ImportDescriptorRequest,
-): Promise<VaultDto> {
+): Promise<WalletDto> {
   return invoke("import_descriptor", { request });
 }
 
-export async function importVaultBackup(
-  request: ImportVaultBackupRequest,
-): Promise<VaultDto> {
-  return invoke("import_vault_backup", { request });
+export async function importWalletBackup(
+  request: ImportWalletBackupRequest,
+): Promise<WalletDto> {
+  return invoke("import_wallet_backup", { request });
 }
 
-export async function exportVaultBackup(
-  vaultId: string,
-): Promise<VaultBackupDto> {
-  return invoke("export_vault_backup", { vaultId });
-}
-
-export async function exportBsms(vaultId: string): Promise<BsmsExportDto> {
-  return invoke("export_bsms", { vaultId });
-}
-
-export async function listVaults(
+export async function exportWalletBackup(
   walletId: string,
-): Promise<VaultSummaryDto[]> {
-  return invoke("list_vaults", { walletId });
+): Promise<WalletBackupDto> {
+  return invoke("export_wallet_backup", { walletId });
 }
 
-export async function getVault(vaultId: string): Promise<VaultDto> {
-  return invoke("get_vault", { vaultId });
+export async function exportBsms(walletId: string): Promise<BsmsExportDto> {
+  return invoke("export_bsms", { walletId });
+}
+
+export async function listWallets(
+  workspaceId: string,
+): Promise<WalletSummaryDto[]> {
+  return invoke("list_wallets", { workspaceId });
+}
+
+export async function getWallet(walletId: string): Promise<WalletDto> {
+  return invoke("get_wallet", { walletId });
 }
 
 export async function newReceiveAddress(
-  vaultId: string,
+  walletId: string,
 ): Promise<AddressDto> {
-  return invoke("new_receive_address", { vaultId });
+  return invoke("new_receive_address", { walletId });
 }
 
 export async function listAddresses(
-  vaultId: string,
+  walletId: string,
 ): Promise<AddressDto[]> {
-  return invoke("list_addresses", { vaultId });
+  return invoke("list_addresses", { walletId });
 }
 
 export async function getBalance(
-  vaultId: string,
+  walletId: string,
   esploraUrl?: string,
 ): Promise<BalanceDto> {
-  return invoke("get_balance", { vaultId, esploraUrl: esploraUrl ?? null });
+  return invoke("get_balance", { walletId, esploraUrl: esploraUrl ?? null });
 }
 
-export async function syncVault(
-  vaultId: string,
+export async function syncWallet(
+  walletId: string,
   esploraUrl?: string,
 ): Promise<SyncResultDto> {
-  return invoke("sync_vault", { vaultId, esploraUrl: esploraUrl ?? null });
+  return invoke("sync_wallet", { walletId, esploraUrl: esploraUrl ?? null });
 }
 
 export async function createPsbt(
@@ -200,14 +200,14 @@ export async function importHotWallet(
   return invoke("import_hot_wallet", { request });
 }
 
-/** Resolve (or create) the nested vault for a hot wallet — opens Transactions/Send/Receive. */
+/** Resolve (or create) the nested wallet for a hot wallet — opens Transactions/Send/Receive. */
 export async function openHotWallet(
   hotWalletId: string,
-  walletId?: string | null,
-): Promise<VaultDto> {
+  workspaceId?: string | null,
+): Promise<WalletDto> {
   return invoke("open_hot_wallet", {
     hotWalletId,
-    walletId: walletId ?? null,
+    workspaceId: workspaceId ?? null,
   });
 }
 
@@ -253,21 +253,21 @@ export async function ensureHwiInstalled(
 }
 
 export async function prepareHwRegistration(
-  vaultId: string,
+  walletId: string,
 ): Promise<RegistrationPackageDto> {
-  return invoke("prepare_hw_registration", { vaultId });
+  return invoke("prepare_hw_registration", { walletId });
 }
 
-export async function hwRegisterVault(
+export async function hwRegisterWallet(
   request: HwRegisterRequest,
 ): Promise<HwRegisterResultDto> {
-  return invoke("hw_register_vault", { request });
+  return invoke("hw_register_wallet", { request });
 }
 
 export async function listSpendingPaths(
-  vaultId: string,
+  walletId: string,
 ): Promise<SpendingPathDto[]> {
-  return invoke("list_spending_paths", { vaultId });
+  return invoke("list_spending_paths", { walletId });
 }
 
 export async function analyzePsbtStatus(
@@ -295,9 +295,9 @@ export async function broadcastPsbt(
 }
 
 export async function exportSparrowWallet(
-  vaultId: string,
+  walletId: string,
 ): Promise<SparrowExportDto> {
-  return invoke("export_sparrow_wallet", { vaultId });
+  return invoke("export_sparrow_wallet", { walletId });
 }
 
 export async function listServerPresets(

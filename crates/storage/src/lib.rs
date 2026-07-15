@@ -8,6 +8,6 @@ mod schema;
 pub use db::Database;
 pub use error::StorageError;
 pub use models::{
-    AddressRecord, LabelRecord, NewAddress, NewLabel, NewTransaction, NewVault, NewWallet,
-    TransactionRecord, VaultRecord, WalletRecord,
+    AddressRecord, LabelRecord, NewAddress, NewLabel, NewTransaction, NewWallet, NewWorkspace,
+    TransactionRecord, WalletRecord, WorkspaceRecord,
 };

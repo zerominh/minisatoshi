@@ -1,5 +1,5 @@
 use policy_engine::NetworkName;
-use wallet_core::Vault;
+use wallet_core::Wallet;
 
 use crate::electrum::default_electrum_url;
 use crate::error::ChainError;
@@ -14,22 +14,22 @@ pub struct SparrowWalletExport {
     pub import_instructions: String,
 }
 
-/// Build a Sparrow-compatible watch-only export package from a vault.
-pub fn export_watch_only_wallet(vault: &Vault) -> Result<SparrowWalletExport, ChainError> {
-    if vault.descriptor.trim().is_empty() {
-        return Err(ChainError::Parse("vault descriptor is empty".into()));
+/// Build a Sparrow-compatible watch-only export package from a wallet.
+pub fn export_watch_only_wallet(wallet: &Wallet) -> Result<SparrowWalletExport, ChainError> {
+    if wallet.descriptor.trim().is_empty() {
+        return Err(ChainError::Parse("wallet descriptor is empty".into()));
     }
-    if !vault.descriptor.contains('#') {
+    if !wallet.descriptor.contains('#') {
         return Err(ChainError::Parse(
             "descriptor must include checksum for Sparrow import".into(),
         ));
     }
 
     Ok(SparrowWalletExport {
-        name: vault.name.clone(),
-        descriptor: vault.descriptor.clone(),
-        network: vault.policy.network,
-        import_instructions: sparrow_import_instructions(vault.policy.network),
+        name: wallet.name.clone(),
+        descriptor: wallet.descriptor.clone(),
+        network: wallet.policy.network,
+        import_instructions: sparrow_import_instructions(wallet.policy.network),
     })
 }
 
@@ -186,8 +186,8 @@ mod tests {
     fn export_watch_only_wallet_includes_checksum() {
         let dir = tempfile::tempdir().unwrap();
         let store = WalletStore::open(dir.path().join("wallet.db")).unwrap();
-        let wallet = store
-            .create_wallet("Sparrow", NetworkName::Testnet)
+        let workspace = store
+            .create_workspace("Sparrow", NetworkName::Testnet)
             .unwrap();
         let policy = abc_preset(
             sample_keys()[0].clone(),
@@ -196,9 +196,11 @@ mod tests {
             4,
             NetworkName::Testnet,
         );
-        let vault = store.create_vault(&wallet.id, "ABC", policy).unwrap();
+        let wallet = store
+            .create_wallet(&workspace.id, "ABC", policy)
+            .unwrap();
 
-        let exported = export_watch_only_wallet(&vault).unwrap();
+        let exported = export_watch_only_wallet(&wallet).unwrap();
         assert!(exported.descriptor.starts_with("tr("));
         assert!(exported.descriptor.contains('#'));
         assert_eq!(exported.network, NetworkName::Testnet);

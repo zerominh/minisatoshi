@@ -1,5 +1,5 @@
 use blockchain::Utxo;
-use wallet_core::Vault;
+use wallet_core::Wallet;
 
 /// UTXO selected for spending, with derivation metadata for descriptor lookup.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,12 +60,12 @@ pub enum ExportFormat {
 
 pub type Psbt = bitcoin::Psbt;
 
-pub struct VaultPsbt<'a> {
-    pub vault: &'a Vault,
+pub struct WalletPsbt<'a> {
+    pub wallet: &'a Wallet,
 }
 
-impl<'a> VaultPsbt<'a> {
-    pub fn new(vault: &'a Vault) -> Self {
-        Self { vault }
+impl<'a> WalletPsbt<'a> {
+    pub fn new(wallet: &'a Wallet) -> Self {
+        Self { wallet }
     }
 }

@@ -1,7 +1,7 @@
 use policy_engine::{NetworkName, PolicyConfig, ScriptTypeName};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Wallet {
+pub struct Workspace {
     pub id: String,
     pub name: String,
     pub network: NetworkName,
@@ -10,18 +10,18 @@ pub struct Wallet {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WalletSummary {
+pub struct WorkspaceSummary {
     pub id: String,
     pub name: String,
     pub network: NetworkName,
-    pub vault_count: usize,
+    pub wallet_count: usize,
     pub created_at: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Vault {
+pub struct Wallet {
     pub id: String,
-    pub wallet_id: String,
+    pub workspace_id: String,
     pub name: String,
     pub policy: PolicyConfig,
     pub descriptor: String,
@@ -30,9 +30,9 @@ pub struct Vault {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VaultSummary {
+pub struct WalletSummary {
     pub id: String,
-    pub wallet_id: String,
+    pub workspace_id: String,
     pub name: String,
     pub script_type: ScriptTypeName,
     pub created_at: i64,

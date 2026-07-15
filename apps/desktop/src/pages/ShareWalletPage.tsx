@@ -3,23 +3,23 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import {
   exportBsms,
-  exportVaultBackup,
+  exportWalletBackup,
   formatError,
-  getVault,
+  getWallet,
   openHotWallet,
 } from "../lib/api";
 import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
 import { splitDescriptorQrChunks } from "../lib/qrChunks";
 import { copyText, getHwFingerprint } from "../lib/settings";
-import type { VaultDto } from "../lib/types";
+import type { WalletDto } from "../lib/types";
 import { hasRememberedSigningDevice } from "../lib/watchOnly";
 
-export function ShareVaultPage() {
+export function ShareWalletPage() {
   const { id = "" } = useParams();
   const location = useLocation();
   const isHot = location.pathname.startsWith("/hot-wallets/");
-  const [vaultId, setVaultId] = useState("");
-  const [vault, setVault] = useState<VaultDto | null>(null);
+  const [walletId, setWalletId] = useState("");
+  const [wallet, setWallet] = useState<WalletDto | null>(null);
   const [chunks, setChunks] = useState<string[]>([]);
   const [chunkIndex, setChunkIndex] = useState(0);
   const [qr, setQr] = useState<string | null>(null);
@@ -29,17 +29,17 @@ export function ShareVaultPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setVault(null);
+    setWallet(null);
     setError(null);
     void (async () => {
       try {
         const resolved = isHot ? (await openHotWallet(id)).id : id;
         if (cancelled) return;
-        setVaultId(resolved);
-        const v = await getVault(resolved);
+        setWalletId(resolved);
+        const w = await getWallet(resolved);
         if (cancelled) return;
-        setVault(v);
-        setChunks(splitDescriptorQrChunks(v.descriptor));
+        setWallet(w);
+        setChunks(splitDescriptorQrChunks(w.descriptor));
         setChunkIndex(0);
       } catch (err) {
         if (!cancelled) setError(formatError(err));
@@ -66,18 +66,18 @@ export function ShareVaultPage() {
   }, [chunks, chunkIndex]);
 
   async function onCopyDescriptor() {
-    if (!vault) return;
-    await copyText(vault.descriptor);
+    if (!wallet) return;
+    await copyText(wallet.descriptor);
     setMessage("Copied descriptor");
   }
 
   async function onSaveDescriptor() {
-    if (!vault) return;
+    if (!wallet) return;
     setError(null);
     try {
       const path = await saveTextFileWithDialog(
-        `${sanitizedFilename(vault.name)}-descriptor.txt`,
-        `${vault.descriptor}\n`,
+        `${sanitizedFilename(wallet.name)}-descriptor.txt`,
+        `${wallet.descriptor}\n`,
       );
       if (path) setMessage(`Descriptor saved to ${path}`);
     } catch (err) {
@@ -86,13 +86,13 @@ export function ShareVaultPage() {
   }
 
   async function onSaveBackup() {
-    if (!vault || !vaultId) return;
+    if (!wallet || !walletId) return;
     setBusy(true);
     setError(null);
     try {
-      const backup = await exportVaultBackup(vaultId);
+      const backup = await exportWalletBackup(walletId);
       const path = await saveTextFileWithDialog(
-        `${sanitizedFilename(backup.name)}-minisatoshi-vault-v1.json`,
+        `${sanitizedFilename(backup.name)}-minisatoshi-wallet-v1.json`,
         `${backup.json}\n`,
       );
       if (path) setMessage(`Backup saved to ${path}`);
@@ -104,13 +104,13 @@ export function ShareVaultPage() {
   }
 
   async function onSaveBsms() {
-    if (!vaultId) return;
+    if (!walletId) return;
     setBusy(true);
     setError(null);
     try {
-      const bsms = await exportBsms(vaultId);
+      const bsms = await exportBsms(walletId);
       const path = await saveTextFileWithDialog(
-        `${sanitizedFilename(vault?.name ?? "wallet")}.bsms`,
+        `${sanitizedFilename(wallet?.name ?? "wallet")}.bsms`,
         bsms.text,
       );
       if (path) {
@@ -125,19 +125,19 @@ export function ShareVaultPage() {
     }
   }
 
-  if (!vault && !error) return <p className="muted">Loading…</p>;
-  if (!vault) return <pre className="error">{error}</pre>;
+  if (!wallet && !error) return <p className="muted">Loading…</p>;
+  if (!wallet) return <pre className="error">{error}</pre>;
 
-  const hwRemembered = hasRememberedSigningDevice(vault, getHwFingerprint());
+  const hwRemembered = hasRememberedSigningDevice(wallet, getHwFingerprint());
   const backTo = isHot
     ? `/hot-wallets/${id}/transactions`
-    : `/vaults/${vaultId}/transactions`;
+    : `/wallets/${walletId}/transactions`;
 
   return (
     <section>
       <header className="page-header">
         <div>
-          <h2>Share · {vault.name}</h2>
+          <h2>Share · {wallet.name}</h2>
           <p>
             Watch-only sharing — xpubs/descriptor only, never seed or xprv.
           </p>
@@ -191,7 +191,7 @@ export function ShareVaultPage() {
               </div>
             </>
           ) : (
-            <p className="muted">Single QR — paste or scan into Import vault.</p>
+            <p className="muted">Single QR — paste or scan into Import wallet.</p>
           )}
         </div>
 
@@ -200,8 +200,8 @@ export function ShareVaultPage() {
           <ol className="list compact">
             <li>Share the descriptor file, QR, or BSMS — not your seed.</li>
             <li>
-              Recipient: Vaults → Import vault → paste / load file (or reassemble
-              multi-QR paste).
+              Recipient: Wallets → Import wallet → paste / load file (or
+              reassemble multi-QR paste).
             </li>
             <li>
               They can sync balances and receive; signing still needs hardware,
@@ -209,10 +209,10 @@ export function ShareVaultPage() {
             </li>
             <li>
               Sparrow: fund a receive address only — not import/sign Miniscript
-              vaults (docs/interop.md).
+              wallets (docs/interop.md).
             </li>
           </ol>
-          <p className="mono wrap">{vault.descriptor}</p>
+          <p className="mono wrap">{wallet.descriptor}</p>
           <div className="row-actions">
             <button type="button" onClick={() => void onCopyDescriptor()}>
               Copy descriptor
@@ -230,7 +230,7 @@ export function ShareVaultPage() {
               disabled={busy}
               onClick={() => void onSaveBackup()}
             >
-              Save vault backup
+              Save wallet backup
             </button>
             <button
               type="button"

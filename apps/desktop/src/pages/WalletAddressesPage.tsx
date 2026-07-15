@@ -2,17 +2,17 @@ import { useEffect, useState } from "react";
 import { formatError, listAddresses } from "../lib/api";
 import { copyText } from "../lib/settings";
 import type { AddressDto } from "../lib/types";
-import { useVault } from "../vault/VaultContext";
+import { useWallet } from "../wallet/WalletContext";
 
-export function VaultAddressesPage() {
-  const { vaultId, busy: vaultBusy, setError, setMessage } = useVault();
+export function WalletAddressesPage() {
+  const { walletId, busy: walletBusy, setError, setMessage } = useWallet();
   const [addresses, setAddresses] = useState<AddressDto[]>([]);
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
     setBusy(true);
     try {
-      setAddresses(await listAddresses(vaultId));
+      setAddresses(await listAddresses(walletId));
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -22,7 +22,7 @@ export function VaultAddressesPage() {
 
   useEffect(() => {
     void refresh();
-  }, [vaultId]);
+  }, [walletId]);
 
   async function onCopy(address: string) {
     await copyText(address);
@@ -37,12 +37,12 @@ export function VaultAddressesPage() {
       <header className="page-header">
         <div>
           <h2>Addresses</h2>
-          <p>Derived receive &amp; change addresses stored for this vault.</p>
+          <p>Derived receive &amp; change addresses stored for this wallet.</p>
         </div>
         <button
           type="button"
           className="secondary"
-          disabled={busy || vaultBusy}
+          disabled={busy || walletBusy}
           onClick={() => void refresh()}
         >
           Refresh

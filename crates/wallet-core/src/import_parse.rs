@@ -4,7 +4,7 @@ use descriptor_engine::ensure_descriptor_checksum;
 use policy_engine::{NetworkName, PolicyConfig};
 use serde_json::Value;
 
-use crate::backup::{VaultBackup, VAULT_BACKUP_FORMAT};
+use crate::backup::WalletBackup;
 use crate::error::WalletError;
 use crate::types::network_from_str;
 
@@ -45,8 +45,8 @@ pub fn parse_watch_only_payload(raw: &str) -> Result<ParsedWatchOnlyImport, Wall
     }
 
     if trimmed.starts_with('{') {
-        if let Ok(backup) = VaultBackup::from_json(trimmed) {
-            if backup.format_version == VAULT_BACKUP_FORMAT {
+        if let Ok(backup) = WalletBackup::from_json(trimmed) {
+            if backup.is_supported_format() {
                 let descriptor = ensure_checksummed(&backup.descriptor)?;
                 return Ok(ParsedWatchOnlyImport {
                     name: Some(backup.name),

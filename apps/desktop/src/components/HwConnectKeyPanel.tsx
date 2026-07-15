@@ -28,7 +28,7 @@ type Props = {
 };
 
 /**
- * Enumerate HWI devices and pull account xpub into a Create-vault key row.
+ * Enumerate HWI devices and pull account xpub into a Create-wallet key row.
  */
 export function HwConnectKeyPanel({
   network,

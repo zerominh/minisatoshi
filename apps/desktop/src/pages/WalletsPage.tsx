@@ -1,72 +1,79 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useFlash } from "../flash/FlashContext";
 import { useT } from "../i18n/LocaleContext";
 import {
-  createWallet,
   deleteWallet,
   formatError,
+  hotKeystoreStatus,
+  listHotWallets,
   listWallets,
+  listWorkspaces,
   renameWallet,
 } from "../lib/api";
 import {
   formatNetwork,
-  getActiveWalletId,
-  getPreferredNetwork,
-  setActiveWalletId,
+  getActiveWorkspaceId,
+  setActiveWorkspaceId,
 } from "../lib/settings";
-import type { NetworkName, WalletSummaryDto } from "../lib/types";
+import type { WalletSummaryDto, WorkspaceSummaryDto } from "../lib/types";
 
 export function WalletsPage() {
   const t = useT();
   const { setError, setMessage } = useFlash();
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummaryDto[]>([]);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(
+    getActiveWorkspaceId(),
+  );
   const [wallets, setWallets] = useState<WalletSummaryDto[]>([]);
-  const [name, setName] = useState("");
-  const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
-  const [activeId, setActiveId] = useState<string | null>(getActiveWalletId());
   const [busy, setBusy] = useState(false);
 
-  async function refresh() {
-    const items = await listWallets();
-    setWallets(items);
-    const stillActive =
-      activeId && items.some((w) => w.id === activeId) ? activeId : null;
-    if (stillActive) {
-      setActiveId(stillActive);
-    } else if (items.length > 0) {
-      setActiveWalletId(items[0].id);
-      setActiveId(items[0].id);
-    } else {
-      setActiveWalletId(null);
-      setActiveId(null);
+  async function refreshWallets(id: string | null) {
+    if (!id) {
+      setWallets([]);
+      return;
     }
+    const all = await listWallets(id);
+    // Hot wallets own their UI under /hot-wallets — hide their storage rows here.
+    let hide = new Set<string>();
+    try {
+      const st = await hotKeystoreStatus();
+      if (st.unlocked) {
+        const hot = await listHotWallets();
+        hide = new Set(
+          hot
+            .map((h) => h.linkedWalletId)
+            .filter((wid): wid is string => Boolean(wid)),
+        );
+      }
+    } catch {
+      // keystore locked / unavailable — show full list
+    }
+    setWallets(all.filter((w) => !hide.has(w.id)));
   }
 
   useEffect(() => {
-    void refresh().catch((err) => setError(formatError(err)));
+    void (async () => {
+      try {
+        const items = await listWorkspaces();
+        setWorkspaces(items);
+        const selected =
+          workspaceId && items.some((w) => w.id === workspaceId)
+            ? workspaceId
+            : (items[0]?.id ?? null);
+        if (selected !== workspaceId) {
+          setWorkspaceId(selected);
+          if (selected) setActiveWorkspaceId(selected);
+        }
+      } catch (err) {
+        setError(formatError(err));
+      }
+    })();
   }, []);
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const wallet = await createWallet({ name, network });
-      setActiveWalletId(wallet.id);
-      setActiveId(wallet.id);
-      setName("");
-      await refresh();
-    } catch (err) {
-      setError(formatError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function selectWallet(id: string) {
-    setActiveWalletId(id);
-    setActiveId(id);
-  }
+  useEffect(() => {
+    void refreshWallets(workspaceId).catch((err) => setError(formatError(err)));
+  }, [workspaceId]);
 
   async function onRename(wallet: WalletSummaryDto) {
     const next = window.prompt(t("wallets.renamePrompt"), wallet.name)?.trim();
@@ -76,7 +83,7 @@ export function WalletsPage() {
     try {
       await renameWallet(wallet.id, next);
       setMessage(t("wallets.renamed", { name: next }));
-      await refresh();
+      await refreshWallets(workspaceId);
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -85,15 +92,13 @@ export function WalletsPage() {
   }
 
   async function onDelete(wallet: WalletSummaryDto) {
-    const ok = window.confirm(
-      t("wallets.deleteConfirm", { name: wallet.name }),
-    );
+    const ok = window.confirm(t("wallets.deleteConfirm", { name: wallet.name }));
     if (!ok) return;
     setBusy(true);
     setError(null);
     try {
       await deleteWallet(wallet.id);
-      await refresh();
+      await refreshWallets(workspaceId);
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -106,91 +111,110 @@ export function WalletsPage() {
       <header className="page-header">
         <div>
           <h2>{t("wallets.title")}</h2>
-          <p>{t("wallets.subtitle")}</p>
+          <p>{t("newWallet.subtitle")}</p>
+        </div>
+        <div className="row-actions">
+          <Link className="button-link" to="/wallets/import">
+            {t("wallets.import")}
+          </Link>
+          <Link className="button-link primary" to="/wallets/new">
+            {t("wallets.create")}
+          </Link>
         </div>
       </header>
 
-      <form className="panel form-grid" onSubmit={(e) => void onSubmit(e)}>
-        <h3>{t("wallets.new")}</h3>
-        <label>
-          {t("wallets.name")}
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Family fund"
-            required
-          />
-        </label>
-        <label>
-          {t("wallets.network")}
-          <select
-            value={network}
-            onChange={(e) => setNetwork(e.target.value as NetworkName)}
-          >
-            <option value="testnet">Testnet3</option>
-            <option value="testnet4">Testnet4</option>
-            <option value="signet">Signet</option>
-            <option value="regtest">Regtest</option>
-            <option value="mainnet">Mainnet</option>
-          </select>
-        </label>
-        <button type="submit" disabled={busy || !name.trim()}>
-          {busy ? t("common.busy") : t("wallets.new")}
-        </button>
-      </form>
+      {workspaces.length === 0 ? (
+        <div className="panel">
+          <p className="muted">{t("workspaces.empty")}</p>
+          <Link className="button-link" to="/workspaces">
+            {t("nav.workspaces")}
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div className="panel form-grid">
+            <label>
+              {t("wallets.workspaceFilter")}
+              <select
+                value={workspaceId ?? ""}
+                onChange={(e) => {
+                  setWorkspaceId(e.target.value);
+                  setActiveWorkspaceId(e.target.value);
+                }}
+              >
+                {workspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.name} ({formatNetwork(workspace.network)})
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
-      <div className="panel">
-        <h3>{t("wallets.title")}</h3>
-        {wallets.length === 0 ? (
-          <p className="muted">{t("wallets.empty")}</p>
-        ) : (
-          <ul className="list">
-            {wallets.map((wallet) => (
-              <li key={wallet.id} className="list-item">
-                <div>
-                  <strong>{wallet.name}</strong>
-                  <div className="muted">
-                    {formatNetwork(wallet.network)} ·{" "}
-                    {t("wallets.vaultCount", { n: wallet.vaultCount })}
-                  </div>
-                </div>
-                <div className="row-actions">
-                  {activeId === wallet.id ? (
-                    <span className="badge">{t("common.use")}</span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => selectWallet(wallet.id)}
-                    >
-                      {t("common.use")}
-                    </button>
-                  )}
-                  <Link className="button-link" to="/vaults">
-                    {t("nav.vaults")}
-                  </Link>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busy}
-                    onClick={() => void onRename(wallet)}
-                  >
-                    {t("common.rename")}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busy}
-                    onClick={() => void onDelete(wallet)}
-                  >
-                    {t("common.delete")}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+          <div className="panel">
+            {wallets.length === 0 ? (
+              <p className="muted">{t("wallets.empty")}</p>
+            ) : (
+              <ul className="list">
+                {wallets.map((wallet) => (
+                  <li key={wallet.id} className="list-item">
+                    <div>
+                      <strong>{wallet.name}</strong>
+                      <div className="muted">
+                        {wallet.scriptType}{" "}
+                        {wallet.watchOnly ? (
+                          <span className="badge watch-only">
+                            {t("shell.watchOnly")}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="row-actions">
+                      <Link className="button-link" to={`/wallets/${wallet.id}`}>
+                        {t("common.open")}
+                      </Link>
+                      <Link
+                        className="button-link"
+                        to={`/wallets/${wallet.id}/share`}
+                      >
+                        {t("common.share")}
+                      </Link>
+                      <Link
+                        className="button-link"
+                        to={`/wallets/${wallet.id}/receive`}
+                      >
+                        {t("shell.tab.receive")}
+                      </Link>
+                      <Link
+                        className="button-link"
+                        to={`/wallets/${wallet.id}/send`}
+                      >
+                        {t("shell.tab.send")}
+                      </Link>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => void onRename(wallet)}
+                      >
+                        {t("common.rename")}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => void onDelete(wallet)}
+                      >
+                        {t("common.delete")}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
     </section>
   );
 }

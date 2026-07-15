@@ -5,14 +5,14 @@ use bitcoin::{Address, Amount, OutPoint, Sequence, TxIn, TxOut, Txid};
 use miniscript::psbt::PsbtExt;
 use std::collections::BTreeMap;
 use std::str::FromStr;
-use wallet_core::Vault;
+use wallet_core::Wallet;
 
 use crate::descriptor::definite_descriptor_at;
 use crate::error::PsbtError;
 use crate::types::{CreatePsbtOptions, FeeRate, PsbtRecipient, SpendingUtxo};
 
 pub fn create_psbt(
-    vault: &Vault,
+    wallet: &Wallet,
     recipients: &[PsbtRecipient],
     fee_rate: FeeRate,
     utxos: &[SpendingUtxo],
@@ -25,7 +25,7 @@ pub fn create_psbt(
         return Err(PsbtError::NoOutputs);
     }
 
-    let network = vault.policy.network.to_bitcoin_network();
+    let network = wallet.policy.network.to_bitcoin_network();
     let input_total: u64 = utxos.iter().map(|entry| entry.utxo.value_sats).sum();
     let recipient_total: u64 = recipients.iter().map(|entry| entry.amount_sats).sum();
 
@@ -52,7 +52,7 @@ pub fn create_psbt(
 
     if change_amount > 546 {
         let change_address =
-            address_engine::new_change_address(&vault.policy, &vault.descriptor, change_index)?;
+            address_engine::new_change_address(&wallet.policy, &wallet.descriptor, change_index)?;
         let address = parse_address(&change_address.address, network)?;
         outputs.push(TxOut {
             value: Amount::from_sat(change_amount),
@@ -102,7 +102,7 @@ pub fn create_psbt(
 
     for (index, spending) in utxos.iter().enumerate() {
         let definite_descriptor =
-            definite_descriptor_at(&vault.policy, spending.derivation_index, spending.is_change)?;
+            definite_descriptor_at(&wallet.policy, spending.derivation_index, spending.is_change)?;
         let witness_utxo = TxOut {
             value: Amount::from_sat(spending.utxo.value_sats),
             script_pubkey: definite_descriptor.script_pubkey(),
@@ -134,12 +134,12 @@ mod tests {
         KeyRole, NetworkName, PolicyConfig, PolicyExpression, ScriptTypeName,
         POLICY_SCHEMA_VERSION,
     };
-    use wallet_core::Vault;
+    use wallet_core::Wallet;
 
     use super::*;
     use crate::types::SpendingUtxo;
 
-    fn two_of_two_vault() -> Vault {
+    fn two_of_two_wallet() -> Wallet {
         let policy = PolicyConfig {
             version: POLICY_SCHEMA_VERSION,
             network: NetworkName::Regtest,
@@ -168,9 +168,9 @@ mod tests {
             },
         };
         let descriptor = descriptor_engine::compile_descriptor_from_config(&policy).unwrap();
-        Vault {
+        Wallet {
             id: "v1".into(),
-            wallet_id: "w1".into(),
+            workspace_id: "w1".into(),
             name: "2of2".into(),
             policy,
             descriptor,
@@ -181,14 +181,14 @@ mod tests {
 
     #[test]
     fn creates_unsigned_psbt_with_change() {
-        let vault = two_of_two_vault();
+        let wallet = two_of_two_wallet();
         let receive =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 0).unwrap();
         let recipient =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 1).unwrap();
 
         let psbt = create_psbt(
-            &vault,
+            &wallet,
             &[PsbtRecipient {
                 address: recipient.address,
                 amount_sats: 40_000,
@@ -219,15 +219,15 @@ mod tests {
 
     #[test]
     fn timelock_sets_input_sequence() {
-        let vault = two_of_two_vault();
+        let wallet = two_of_two_wallet();
         let receive =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 0).unwrap();
         let recipient =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 1).unwrap();
         let sequence = 52560 * 4;
 
         let psbt = create_psbt(
-            &vault,
+            &wallet,
             &[PsbtRecipient {
                 address: recipient.address,
                 amount_sats: 40_000,
@@ -262,14 +262,14 @@ mod tests {
 
     #[test]
     fn rejects_insufficient_funds() {
-        let vault = two_of_two_vault();
+        let wallet = two_of_two_wallet();
         let receive =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 0).unwrap();
         let recipient =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 1).unwrap();
 
         let err = create_psbt(
-            &vault,
+            &wallet,
             &[PsbtRecipient {
                 address: recipient.address,
                 amount_sats: 90_000,
@@ -304,17 +304,17 @@ mod tests {
 
     #[test]
     fn rejects_dust_change_as_insufficient() {
-        let vault = two_of_two_vault();
+        let wallet = two_of_two_wallet();
         let receive =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 0).unwrap();
         let recipient =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 1).unwrap();
 
         // Craft fee so leftover change is between 1 and 546 sats.
         // estimate_vbytes(1 in, 2 out) = 10 + 58 + 86 = 154; fee_rate 324 → fee 49896
         // input 50000 - recipient 50 - fee 49896 = 54 (dust)
         let err = create_psbt(
-            &vault,
+            &wallet,
             &[PsbtRecipient {
                 address: recipient.address,
                 amount_sats: 50,

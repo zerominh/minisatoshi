@@ -31,9 +31,9 @@ mod tests {
         KeyRole, NetworkName, PolicyConfig, PolicyExpression, ScriptTypeName,
         POLICY_SCHEMA_VERSION,
     };
-    use wallet_core::Vault;
+    use wallet_core::Wallet;
 
-    fn sample_vault() -> Vault {
+    fn sample_wallet() -> Wallet {
         let policy = PolicyConfig {
             version: POLICY_SCHEMA_VERSION,
             network: NetworkName::Regtest,
@@ -62,9 +62,9 @@ mod tests {
             },
         };
         let descriptor = descriptor_engine::compile_descriptor_from_config(&policy).unwrap();
-        Vault {
+        Wallet {
             id: "v1".into(),
-            wallet_id: "w1".into(),
+            workspace_id: "w1".into(),
             name: "export".into(),
             policy,
             descriptor,
@@ -75,14 +75,14 @@ mod tests {
 
     #[test]
     fn base64_export_roundtrip() {
-        let vault = sample_vault();
+        let wallet = sample_wallet();
         let receive =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 0).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 0).unwrap();
         let recipient =
-            address_engine::new_receive_address(&vault.policy, &vault.descriptor, 1).unwrap();
+            address_engine::new_receive_address(&wallet.policy, &wallet.descriptor, 1).unwrap();
 
         let psbt = create_psbt(
-            &vault,
+            &wallet,
             &[PsbtRecipient {
                 address: recipient.address,
                 amount_sats: 20_000,

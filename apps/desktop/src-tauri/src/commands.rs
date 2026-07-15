@@ -15,18 +15,18 @@ use psbt_engine::{
     FeeRate, PsbtRecipient, SoftwareSigner, SpendingUtxo, SigningStatus,
 };
 use tauri::State;
-use vault::VaultService;
+use vault::WalletService;
 
 use crate::dto::{
     AddressDto, AnalyzePsbtRequest, BalanceDto, BroadcastTxRequest, BsmsExportDto,
-    CombinePsbtRequest, CompileVaultResponse, CreateHotKeystoreRequest, CreatePsbtRequest,
-    CreateVaultRequest, CreateWalletRequest, FinalizedTxDto, HotKeystoreStatusDto,
+    CombinePsbtRequest, CompileWalletResponse, CreateHotKeystoreRequest, CreatePsbtRequest,
+    CreateWalletRequest, CreateWorkspaceRequest, FinalizedTxDto, HotKeystoreStatusDto,
     HotWalletSummaryDto, HwDeviceDto, HwGetXpubRequest, HwRegisterRequest, HwRegisterResultDto,
     HwSignPsbtRequest, HwStatusDto, HwXpubDto, ImportDescriptorRequest, ImportHotWalletRequestDto,
-    ImportHotWalletResultDto, ImportVaultBackupRequest, OpenTextFileDto, PsbtDto, ServerPresetDto,
+    ImportHotWalletResultDto, ImportWalletBackupRequest, OpenTextFileDto, PsbtDto, ServerPresetDto,
     SignPsbtHotRequest, SignPsbtRequest, SignedPsbtDto, SparrowExportDto, SyncResultDto,
-    UnlockHotKeystoreRequest, VaultBackupDto, VaultDto, VaultSummaryDto, WalletDto,
-    WalletSummaryDto,
+    UnlockHotKeystoreRequest, WalletBackupDto, WalletDto, WalletSummaryDto, WorkspaceDto,
+    WorkspaceSummaryDto,
 };
 use crate::error::user_facing_error;
 use crate::state::AppState;
@@ -37,36 +37,45 @@ use signing_devices::{
 };
 
 #[tauri::command]
-pub fn compile_vault_descriptor(config: PolicyConfig) -> Result<CompileVaultResponse, String> {
+pub fn compile_wallet_descriptor(config: PolicyConfig) -> Result<CompileWalletResponse, String> {
     let policy_string =
         policy_engine::compile_abstract_policy_string(&config).map_err(user_facing_error)?;
     let descriptor = compile_descriptor_from_config(&config).map_err(user_facing_error)?;
 
-    Ok(CompileVaultResponse {
+    Ok(CompileWalletResponse {
         descriptor,
         policy_string,
     })
 }
 
 #[tauri::command]
-pub fn create_wallet(
+pub fn create_workspace(
     state: State<'_, AppState>,
-    request: CreateWalletRequest,
-) -> Result<WalletDto, String> {
+    request: CreateWorkspaceRequest,
+) -> Result<WorkspaceDto, String> {
     state.with_store(|store| {
         store
-            .create_wallet(&request.name, request.network)
-            .map(WalletDto::from)
+            .create_workspace(&request.name, request.network)
+            .map(WorkspaceDto::from)
             .map_err(user_facing_error)
     })
 }
 
 #[tauri::command]
-pub fn list_wallets(state: State<'_, AppState>) -> Result<Vec<WalletSummaryDto>, String> {
+pub fn list_workspaces(state: State<'_, AppState>) -> Result<Vec<WorkspaceSummaryDto>, String> {
     state.with_store(|store| {
         store
-            .list_wallets()
-            .map(|wallets| wallets.into_iter().map(WalletSummaryDto::from).collect())
+            .list_workspaces()
+            .map(|workspaces| workspaces.into_iter().map(WorkspaceSummaryDto::from).collect())
+            .map_err(user_facing_error)
+    })
+}
+
+#[tauri::command]
+pub fn delete_workspace(state: State<'_, AppState>, workspace_id: String) -> Result<(), String> {
+    state.with_store(|store| {
+        store
+            .delete_workspace(&workspace_id)
             .map_err(user_facing_error)
     })
 }
@@ -74,17 +83,22 @@ pub fn list_wallets(state: State<'_, AppState>) -> Result<Vec<WalletSummaryDto>,
 #[tauri::command]
 pub fn delete_wallet(state: State<'_, AppState>, wallet_id: String) -> Result<(), String> {
     state.with_store(|store| {
-        store
-            .delete_wallet(&wallet_id)
-            .map_err(user_facing_error)
+        let service = WalletService::new(store);
+        service.delete_wallet(&wallet_id).map_err(user_facing_error)
     })
 }
 
 #[tauri::command]
-pub fn delete_vault(state: State<'_, AppState>, vault_id: String) -> Result<(), String> {
+pub fn rename_workspace(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    name: String,
+) -> Result<WorkspaceDto, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
-        service.delete_vault(&vault_id).map_err(user_facing_error)
+        store
+            .rename_workspace(&workspace_id, &name)
+            .map(WorkspaceDto::from)
+            .map_err(user_facing_error)
     })
 }
 
@@ -95,7 +109,8 @@ pub fn rename_wallet(
     name: String,
 ) -> Result<WalletDto, String> {
     state.with_store(|store| {
-        store
+        let service = WalletService::new(store);
+        service
             .rename_wallet(&wallet_id, &name)
             .map(WalletDto::from)
             .map_err(user_facing_error)
@@ -103,87 +118,72 @@ pub fn rename_wallet(
 }
 
 #[tauri::command]
-pub fn rename_vault(
+pub fn create_wallet(
     state: State<'_, AppState>,
-    vault_id: String,
-    name: String,
-) -> Result<VaultDto, String> {
+    request: CreateWalletRequest,
+) -> Result<WalletDto, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
+        let service = WalletService::new(store);
         service
-            .rename_vault(&vault_id, &name)
-            .map(VaultDto::from)
+            .create_wallet_with_receive_address(&request.workspace_id, &request.name, request.policy)
+            .map(|result| WalletDto::from(result.wallet))
             .map_err(user_facing_error)
     })
 }
 
-#[tauri::command]
-pub fn create_vault(
-    state: State<'_, AppState>,
-    request: CreateVaultRequest,
-) -> Result<VaultDto, String> {
-    state.with_store(|store| {
-        let service = VaultService::new(store);
-        service
-            .create_vault_with_receive_address(&request.wallet_id, &request.name, request.policy)
-            .map(|result| VaultDto::from(result.vault))
-            .map_err(user_facing_error)
-    })
-}
-
-/// Import a checksummed descriptor (optional policy JSON) into a wallet.
+/// Import a checksummed descriptor (optional policy JSON) into a workspace.
 #[tauri::command]
 pub fn import_descriptor(
     state: State<'_, AppState>,
     request: ImportDescriptorRequest,
-) -> Result<VaultDto, String> {
+) -> Result<WalletDto, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
+        let service = WalletService::new(store);
         service
             .import_descriptor(
-                &request.wallet_id,
+                &request.workspace_id,
                 &request.name,
                 &request.descriptor,
                 request.policy,
             )
-            .map(VaultDto::from)
+            .map(WalletDto::from)
             .map_err(user_facing_error)
     })
 }
 
-/// Import watch-only: `minisatoshi-vault-v1.json`, bare descriptor, BSMS, or Liana-ish JSON.
+/// Import watch-only: `minisatoshi-wallet-v1.json`, bare descriptor, BSMS, or Liana-ish JSON.
 #[tauri::command]
-pub fn import_vault_backup(
+pub fn import_wallet_backup(
     state: State<'_, AppState>,
-    request: ImportVaultBackupRequest,
-) -> Result<VaultDto, String> {
+    request: ImportWalletBackupRequest,
+) -> Result<WalletDto, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
+        let service = WalletService::new(store);
         service
             .import_watch_only_payload(
-                &request.wallet_id,
+                &request.workspace_id,
                 &request.payload,
                 request.name.as_deref(),
             )
-            .map(VaultDto::from)
+            .map(WalletDto::from)
             .map_err(user_facing_error)
     })
 }
 
-/// Export portable vault backup (JSON + descriptor text).
+/// Export portable wallet backup (JSON + descriptor text).
 #[tauri::command]
-pub fn export_vault_backup(
+pub fn export_wallet_backup(
     state: State<'_, AppState>,
-    vault_id: String,
-) -> Result<VaultBackupDto, String> {
+    wallet_id: String,
+) -> Result<WalletBackupDto, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
+        let service = WalletService::new(store);
         let backup = service
-            .export_vault_backup(&vault_id)
+            .export_wallet_backup(&wallet_id)
             .map_err(user_facing_error)?;
         let json = backup.to_json_pretty().map_err(user_facing_error)?;
         let descriptor_txt = backup.descriptor_txt();
-        Ok(VaultBackupDto {
+        Ok(WalletBackupDto {
             format_version: backup.format_version,
             name: backup.name,
             network: backup.network,
@@ -201,11 +201,11 @@ pub fn export_vault_backup(
 #[tauri::command]
 pub fn export_bsms(
     state: State<'_, AppState>,
-    vault_id: String,
+    wallet_id: String,
 ) -> Result<BsmsExportDto, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
-        let text = service.export_bsms(&vault_id).map_err(user_facing_error)?;
+        let service = WalletService::new(store);
+        let text = service.export_bsms(&wallet_id).map_err(user_facing_error)?;
         let first_address = text
             .lines()
             .nth(3)
@@ -217,26 +217,26 @@ pub fn export_bsms(
 }
 
 #[tauri::command]
-pub fn list_vaults(
+pub fn list_wallets(
     state: State<'_, AppState>,
-    wallet_id: String,
-) -> Result<Vec<VaultSummaryDto>, String> {
+    workspace_id: String,
+) -> Result<Vec<WalletSummaryDto>, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
+        let service = WalletService::new(store);
         service
-            .list_vaults(&wallet_id)
-            .map(|vaults| vaults.into_iter().map(VaultSummaryDto::from).collect())
+            .list_wallets(&workspace_id)
+            .map(|wallets| wallets.into_iter().map(WalletSummaryDto::from).collect())
             .map_err(user_facing_error)
     })
 }
 
 #[tauri::command]
-pub fn get_vault(state: State<'_, AppState>, vault_id: String) -> Result<VaultDto, String> {
+pub fn get_wallet(state: State<'_, AppState>, wallet_id: String) -> Result<WalletDto, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
+        let service = WalletService::new(store);
         service
-            .get_vault(&vault_id)
-            .map(VaultDto::from)
+            .get_wallet(&wallet_id)
+            .map(WalletDto::from)
             .map_err(user_facing_error)
     })
 }
@@ -244,12 +244,12 @@ pub fn get_vault(state: State<'_, AppState>, vault_id: String) -> Result<VaultDt
 #[tauri::command]
 pub fn new_receive_address(
     state: State<'_, AppState>,
-    vault_id: String,
+    wallet_id: String,
 ) -> Result<AddressDto, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
+        let service = WalletService::new(store);
         service
-            .new_receive_address(&vault_id)
+            .new_receive_address(&wallet_id)
             .map(AddressDto::from)
             .map_err(user_facing_error)
     })
@@ -258,12 +258,12 @@ pub fn new_receive_address(
 #[tauri::command]
 pub fn list_addresses(
     state: State<'_, AppState>,
-    vault_id: String,
+    wallet_id: String,
 ) -> Result<Vec<AddressDto>, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
+        let service = WalletService::new(store);
         service
-            .list_addresses(&vault_id)
+            .list_addresses(&wallet_id)
             .map(|addrs| addrs.into_iter().map(AddressDto::from).collect())
             .map_err(user_facing_error)
     })
@@ -272,14 +272,14 @@ pub fn list_addresses(
 #[tauri::command]
 pub fn get_balance(
     state: State<'_, AppState>,
-    vault_id: String,
+    wallet_id: String,
     esplora_url: Option<String>,
 ) -> Result<BalanceDto, String> {
     // Do not hold the wallet-store mutex during Esplora HTTP (would freeze the UI).
     let query = state.with_store(|store| {
-        let service = VaultService::new(store);
+        let service = WalletService::new(store);
         service
-            .descriptor_query(&vault_id)
+            .descriptor_query(&wallet_id)
             .map_err(user_facing_error)
     })?;
     let backend = esplora_backend(esplora_url, query.network())?;
@@ -290,16 +290,16 @@ pub fn get_balance(
 }
 
 #[tauri::command]
-pub async fn sync_vault(
+pub async fn sync_wallet(
     state: State<'_, AppState>,
-    vault_id: String,
+    wallet_id: String,
     esplora_url: Option<String>,
 ) -> Result<SyncResultDto, String> {
     // Snapshot descriptor under a short lock, then sync on a worker thread.
     let query = state.with_store(|store| {
-        let service = VaultService::new(store);
+        let service = WalletService::new(store);
         service
-            .descriptor_query(&vault_id)
+            .descriptor_query(&wallet_id)
             .map_err(user_facing_error)
     })?;
     let network = query.network();
@@ -331,9 +331,9 @@ pub fn create_psbt(
     request: CreatePsbtRequest,
 ) -> Result<PsbtDto, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
-        let vault = service
-            .get_vault(&request.vault_id)
+        let service = WalletService::new(store);
+        let wallet = service
+            .get_wallet(&request.wallet_id)
             .map_err(user_facing_error)?;
 
         let recipients: Vec<PsbtRecipient> = request
@@ -367,7 +367,7 @@ pub fn create_psbt(
             .collect();
 
         let psbt = build_psbt(
-            &vault,
+            &wallet,
             &recipients,
             FeeRate::new(request.fee_rate_sat_per_vb),
             &utxos,
@@ -393,12 +393,12 @@ pub fn create_psbt(
 #[tauri::command]
 pub fn export_sparrow_wallet(
     state: State<'_, AppState>,
-    vault_id: String,
+    wallet_id: String,
 ) -> Result<SparrowExportDto, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
-        let vault = service.get_vault(&vault_id).map_err(user_facing_error)?;
-        let exported = export_watch_only_wallet(&vault).map_err(user_facing_error)?;
+        let service = WalletService::new(store);
+        let wallet = service.get_wallet(&wallet_id).map_err(user_facing_error)?;
+        let exported = export_watch_only_wallet(&wallet).map_err(user_facing_error)?;
         Ok(SparrowExportDto {
             name: exported.name,
             descriptor: exported.descriptor,
@@ -714,29 +714,29 @@ pub fn hw_sign_psbt(
 #[tauri::command]
 pub fn list_spending_paths(
     state: State<'_, AppState>,
-    vault_id: String,
+    wallet_id: String,
 ) -> Result<Vec<policy_engine::SpendingPath>, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
-        let vault = service.get_vault(&vault_id).map_err(user_facing_error)?;
-        policy_engine::spending_paths(&vault.policy).map_err(user_facing_error)
+        let service = WalletService::new(store);
+        let wallet = service.get_wallet(&wallet_id).map_err(user_facing_error)?;
+        policy_engine::spending_paths(&wallet.policy).map_err(user_facing_error)
     })
 }
 
-/// Analyze which vault keys have signed a PSBT and which paths are satisfied.
+/// Analyze which wallet keys have signed a PSBT and which paths are satisfied.
 #[tauri::command]
 pub fn analyze_psbt_status(
     state: State<'_, AppState>,
     request: AnalyzePsbtRequest,
 ) -> Result<SigningStatus, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
-        let vault = service
-            .get_vault(&request.vault_id)
+        let service = WalletService::new(store);
+        let wallet = service
+            .get_wallet(&request.wallet_id)
             .map_err(user_facing_error)?;
         let psbt = parse_psbt_b64(&request.psbt_base64)?;
         analyze_signing_status(
-            &vault.policy,
+            &wallet.policy,
             &psbt,
             request.active_path_id.as_deref(),
         )
@@ -744,38 +744,38 @@ pub fn analyze_psbt_status(
     })
 }
 
-/// Build BIP-388 / Coldcard / Ledger registration materials for a vault.
+/// Build BIP-388 / Coldcard / Ledger registration materials for a wallet.
 #[tauri::command]
 pub fn prepare_hw_registration(
     state: State<'_, AppState>,
-    vault_id: String,
+    wallet_id: String,
 ) -> Result<RegistrationPackage, String> {
     state.with_store(|store| {
-        let service = VaultService::new(store);
-        let vault = service.get_vault(&vault_id).map_err(user_facing_error)?;
-        build_registration_package(&vault.name, &vault.policy, &vault.descriptor)
+        let service = WalletService::new(store);
+        let wallet = service.get_wallet(&wallet_id).map_err(user_facing_error)?;
+        build_registration_package(&wallet.name, &wallet.policy, &wallet.descriptor)
             .map_err(user_facing_error)
     })
 }
 
 /// Attempt on-device registration (HWI `registerpolicy` when available).
 #[tauri::command]
-pub fn hw_register_vault(
+pub fn hw_register_wallet(
     state: State<'_, AppState>,
     request: HwRegisterRequest,
 ) -> Result<HwRegisterResultDto, String> {
     let (mut package, network, cosigner_hints) = state.with_store(|store| {
-        let service = VaultService::new(store);
-        let vault = service
-            .get_vault(&request.vault_id)
+        let service = WalletService::new(store);
+        let wallet = service
+            .get_wallet(&request.wallet_id)
             .map_err(user_facing_error)?;
         let package =
-            build_registration_package(&vault.name, &vault.policy, &vault.descriptor)
+            build_registration_package(&wallet.name, &wallet.policy, &wallet.descriptor)
                 .map_err(user_facing_error)?;
         Ok((
             package,
-            vault.policy.network,
-            primary_cosigner_hints(&vault.policy),
+            wallet.policy.network,
+            primary_cosigner_hints(&wallet.policy),
         ))
     })?;
 
@@ -867,17 +867,17 @@ pub fn finalize_psbt_cmd(psbt_base64: String) -> Result<FinalizedTxDto, String> 
     })
 }
 
-/// Finalize (if needed) and broadcast via Esplora for the vault's network.
+/// Finalize (if needed) and broadcast via Esplora for the wallet's network.
 #[tauri::command]
 pub fn broadcast_psbt_cmd(
     state: State<'_, AppState>,
     request: BroadcastTxRequest,
 ) -> Result<String, String> {
     let network = state.with_store(|store| {
-        let service = VaultService::new(store);
+        let service = WalletService::new(store);
         service
-            .get_vault(&request.vault_id)
-            .map(|v| v.policy.network)
+            .get_wallet(&request.wallet_id)
+            .map(|w| w.policy.network)
             .map_err(user_facing_error)
     })?;
     let backend = esplora_backend(request.esplora_url.clone(), network)?;
@@ -902,8 +902,8 @@ fn hot_summary_dto(s: hot_keystore::HotWalletSummary) -> HotWalletSummaryDto {
         fingerprint: s.fingerprint,
         origin_path: s.origin_path,
         xpub: s.xpub,
+        linked_workspace_id: s.linked_workspace_id,
         linked_wallet_id: s.linked_wallet_id,
-        linked_vault_id: s.linked_vault_id,
         created_at: s.created_at,
     }
 }
@@ -1020,27 +1020,27 @@ pub fn import_hot_wallet(
     let (mut record, key) =
         hot_keystore::derive_bip86_account(&import_req).map_err(user_facing_error)?;
 
-    let _ = request.create_nested_vault;
-    let wallet_id = if request.wallet_id.trim().is_empty() {
-        ensure_hot_parent_wallet(&state, request.network)?
+    let _ = request.create_nested_wallet;
+    let workspace_id = if request.workspace_id.trim().is_empty() {
+        ensure_hot_parent_workspace(&state, request.network)?
     } else {
         state.with_store(|store| {
-            let wallet = store
-                .open_wallet(&request.wallet_id)
+            let workspace = store
+                .open_workspace(&request.workspace_id)
                 .map_err(user_facing_error)?;
-            if wallet.network != request.network {
+            if workspace.network != request.network {
                 return Err(format!(
-                    "network mismatch: wallet is {:?}, hot import is {:?}",
-                    wallet.network, request.network
+                    "network mismatch: workspace is {:?}, hot import is {:?}",
+                    workspace.network, request.network
                 ));
             }
-            Ok(request.wallet_id.clone())
+            Ok(request.workspace_id.clone())
         })?
     };
-    let vault_name = request.name.trim().to_string();
+    let wallet_name = request.name.trim().to_string();
 
-    let vault = state.with_store(|store| {
-        let service = VaultService::new(store);
+    let wallet = state.with_store(|store| {
+        let service = WalletService::new(store);
         let policy = PolicyConfig {
             version: policy_engine::POLICY_SCHEMA_VERSION,
             network: request.network,
@@ -1053,13 +1053,13 @@ pub fn import_hot_wallet(
             },
         };
         service
-            .create_vault_with_receive_address(&wallet_id, &vault_name, policy)
-            .map(|result| VaultDto::from(result.vault))
+            .create_wallet_with_receive_address(&workspace_id, &wallet_name, policy)
+            .map(|result| WalletDto::from(result.wallet))
             .map_err(user_facing_error)
     })?;
 
-    record.linked_wallet_id = Some(wallet_id);
-    record.linked_vault_id = Some(vault.id.clone());
+    record.linked_workspace_id = Some(workspace_id);
+    record.linked_wallet_id = Some(wallet.id.clone());
 
     let summary = state.with_hot_unlocked_mut(|ks| {
         ks.insert(record)
@@ -1069,35 +1069,35 @@ pub fn import_hot_wallet(
 
     Ok(ImportHotWalletResultDto {
         hot_wallet: summary,
-        vault: Some(vault),
+        wallet: Some(wallet),
     })
 }
 
-fn ensure_hot_parent_wallet(
+fn ensure_hot_parent_workspace(
     state: &State<'_, AppState>,
     network: NetworkName,
 ) -> Result<String, String> {
     state.with_store(|store| {
-        let wallets = store.list_wallets().map_err(user_facing_error)?;
-        if let Some(existing) = wallets.into_iter().find(|w| w.network == network) {
+        let workspaces = store.list_workspaces().map_err(user_facing_error)?;
+        if let Some(existing) = workspaces.into_iter().find(|w| w.network == network) {
             return Ok(existing.id);
         }
         store
-            .create_wallet("Hot wallets", network)
+            .create_workspace("Hot wallets", network)
             .map(|w| w.id)
             .map_err(user_facing_error)
     })
 }
 
-/// Prefer an existing linked / requested parent; if that SQLite wallet was deleted, recreate.
-fn resolve_hot_parent_wallet(
+/// Prefer an existing linked / requested parent; if that SQLite workspace was deleted, recreate.
+fn resolve_hot_parent_workspace(
     state: &State<'_, AppState>,
     network: NetworkName,
     preferred: Option<String>,
 ) -> Result<String, String> {
     if let Some(id) = preferred.filter(|s| !s.trim().is_empty()) {
-        let alive = state.with_store(|store| match store.open_wallet(&id) {
-            Ok(wallet) if wallet.network == network => Ok(true),
+        let alive = state.with_store(|store| match store.open_workspace(&id) {
+            Ok(workspace) if workspace.network == network => Ok(true),
             Ok(_) => Ok(false),
             Err(_) => Ok(false),
         })?;
@@ -1105,7 +1105,7 @@ fn resolve_hot_parent_wallet(
             return Ok(id);
         }
     }
-    ensure_hot_parent_wallet(state, network)
+    ensure_hot_parent_workspace(state, network)
 }
 
 /// Open a hot wallet’s detail: reuse linked chain row, or create storage if missing.
@@ -1113,37 +1113,37 @@ fn resolve_hot_parent_wallet(
 pub fn open_hot_wallet(
     state: State<'_, AppState>,
     hot_wallet_id: String,
-    wallet_id: Option<String>,
-) -> Result<VaultDto, String> {
+    workspace_id: Option<String>,
+) -> Result<WalletDto, String> {
     let rec = state.with_hot_unlocked(|ks| {
         ks.get(&hot_wallet_id)
             .map(|r| r.clone())
             .map_err(user_facing_error)
     })?;
 
-    if let Some(ref vault_id) = rec.linked_vault_id {
+    if let Some(ref wallet_id) = rec.linked_wallet_id {
         match state.with_store(|store| {
-            let service = VaultService::new(store);
+            let service = WalletService::new(store);
             service
-                .get_vault(vault_id)
-                .map(VaultDto::from)
+                .get_wallet(wallet_id)
+                .map(WalletDto::from)
                 .map_err(user_facing_error)
         }) {
-            Ok(vault) => {
+            Ok(wallet) => {
                 // Hot singlesig used to compile as tr(NUMS,{pk(A)}) — wrong addresses vs Sparrow BIP-86.
-                if vault.policy.keys.len() == 1
-                    && vault.policy.policy.primary.trim() == "A"
-                    && vault.policy.policy.all_fallbacks().is_empty()
-                    && vault
+                if wallet.policy.keys.len() == 1
+                    && wallet.policy.policy.primary.trim() == "A"
+                    && wallet.policy.policy.all_fallbacks().is_empty()
+                    && wallet
                         .descriptor
                         .contains(descriptor_engine::NUMS_UNSPENDABLE_KEY)
                 {
                     let _ = state.with_store(|store| {
-                        let service = VaultService::new(store);
-                        service.delete_vault(vault_id).map_err(user_facing_error)
+                        let service = WalletService::new(store);
+                        service.delete_wallet(wallet_id).map_err(user_facing_error)
                     });
                 } else {
-                    return Ok(vault);
+                    return Ok(wallet);
                 }
             }
             Err(_) => {
@@ -1152,14 +1152,14 @@ pub fn open_hot_wallet(
         }
     }
 
-    let preferred = wallet_id
+    let preferred = workspace_id
         .filter(|s| !s.trim().is_empty())
-        .or(rec.linked_wallet_id.clone());
-    let parent_id = resolve_hot_parent_wallet(&state, rec.network, preferred)?;
+        .or(rec.linked_workspace_id.clone());
+    let parent_id = resolve_hot_parent_workspace(&state, rec.network, preferred)?;
 
     let key = hot_keystore::account_policy_key(&rec);
-    let vault = state.with_store(|store| {
-        let service = VaultService::new(store);
+    let wallet = state.with_store(|store| {
+        let service = WalletService::new(store);
         let policy = PolicyConfig {
             version: policy_engine::POLICY_SCHEMA_VERSION,
             network: rec.network,
@@ -1172,8 +1172,8 @@ pub fn open_hot_wallet(
             },
         };
         service
-            .create_vault_with_receive_address(&parent_id, &rec.name, policy)
-            .map(|result| VaultDto::from(result.vault))
+            .create_wallet_with_receive_address(&parent_id, &rec.name, policy)
+            .map(|result| WalletDto::from(result.wallet))
             .map_err(user_facing_error)
     })?;
 
@@ -1181,13 +1181,13 @@ pub fn open_hot_wallet(
         ks.set_links(
             &hot_wallet_id,
             Some(parent_id),
-            Some(vault.id.clone()),
+            Some(wallet.id.clone()),
         )
         .map_err(user_facing_error)?;
         Ok(())
     })?;
 
-    Ok(vault)
+    Ok(wallet)
 }
 
 #[tauri::command]
@@ -1201,17 +1201,17 @@ pub fn rename_hot_wallet(
         return Err("name required".into());
     }
 
-    let linked_vault_id = state.with_hot_unlocked(|ks| {
+    let linked_wallet_id = state.with_hot_unlocked(|ks| {
         ks.get(&hot_wallet_id)
-            .map(|r| r.linked_vault_id.clone())
+            .map(|r| r.linked_wallet_id.clone())
             .map_err(user_facing_error)
     })?;
 
-    // Linked vault may be gone (parent wallet deleted) — still rename the hot record.
-    if let Some(vault_id) = linked_vault_id.as_ref() {
+    // Linked wallet may be gone (parent workspace deleted) — still rename the hot record.
+    if let Some(wallet_id) = linked_wallet_id.as_ref() {
         let _ = state.with_store(|store| {
-            let service = VaultService::new(store);
-            service.rename_vault(vault_id, &name).map_err(user_facing_error)
+            let service = WalletService::new(store);
+            service.rename_wallet(wallet_id, &name).map_err(user_facing_error)
         });
     }
 

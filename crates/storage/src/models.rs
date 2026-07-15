@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WalletRecord {
+pub struct WorkspaceRecord {
     pub id: String,
     pub name: String,
     pub network: String,
@@ -10,7 +10,7 @@ pub struct WalletRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NewWallet {
+pub struct NewWorkspace {
     pub id: String,
     pub name: String,
     pub network: String,
@@ -18,9 +18,9 @@ pub struct NewWallet {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VaultRecord {
+pub struct WalletRecord {
     pub id: String,
-    pub wallet_id: String,
+    pub workspace_id: String,
     pub name: String,
     pub policy_json: String,
     pub descriptor: String,
@@ -29,9 +29,9 @@ pub struct VaultRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NewVault {
+pub struct NewWallet {
     pub id: String,
-    pub wallet_id: String,
+    pub workspace_id: String,
     pub name: String,
     pub policy_json: String,
     pub descriptor: String,
@@ -42,7 +42,7 @@ pub struct NewVault {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddressRecord {
     pub id: String,
-    pub vault_id: String,
+    pub wallet_id: String,
     pub address: String,
     pub index: u32,
     pub is_change: bool,
@@ -53,7 +53,7 @@ pub struct AddressRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewAddress {
     pub id: String,
-    pub vault_id: String,
+    pub wallet_id: String,
     pub address: String,
     pub index: u32,
     pub is_change: bool,
@@ -63,7 +63,7 @@ pub struct NewAddress {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransactionRecord {
     pub txid: String,
-    pub vault_id: String,
+    pub wallet_id: String,
     pub block_height: Option<i64>,
     pub amount: Option<i64>,
     pub fee: Option<i64>,
@@ -74,7 +74,7 @@ pub struct TransactionRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewTransaction {
     pub txid: String,
-    pub vault_id: String,
+    pub wallet_id: String,
     pub block_height: Option<i64>,
     pub amount: Option<i64>,
     pub fee: Option<i64>,

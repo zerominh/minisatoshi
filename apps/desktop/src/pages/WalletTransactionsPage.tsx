@@ -2,11 +2,11 @@ import { useCallback, useState } from "react";
 import { useT } from "../i18n/LocaleContext";
 import { formatSyncAge } from "../lib/formatSyncAge";
 import { formatSats } from "../lib/settings";
-import { useVault } from "../vault/VaultContext";
+import { useWallet } from "../wallet/WalletContext";
 
-export function VaultTransactionsPage() {
+export function WalletTransactionsPage() {
   const t = useT();
-  const { sync, lastSyncedAt, busy, runSync } = useVault();
+  const { sync, lastSyncedAt, busy, runSync } = useWallet();
   const [syncTitle, setSyncTitle] = useState(() =>
     formatSyncAge(lastSyncedAt, t),
   );

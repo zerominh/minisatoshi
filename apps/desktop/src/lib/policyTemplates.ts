@@ -23,7 +23,7 @@ export interface PolicyTemplate {
 export const POLICY_TEMPLATES: PolicyTemplate[] = [
   {
     id: "abc",
-    label: "ABC vault",
+    label: "ABC wallet",
     description: "(A∧B)∨(A∧C) now; after delay, investor A alone.",
     defaultKeys: [
       { id: "A", role: "investor", label: "Investor" },

@@ -13,8 +13,8 @@ export function TransactionsPage() {
       </header>
       <div className="panel">
         <p className="muted">{t("tx.globalHint")}</p>
-        <Link className="button-link" to="/vaults">
-          {t("nav.vaults")}
+        <Link className="button-link" to="/wallets">
+          {t("nav.wallets")}
         </Link>
       </div>
     </section>

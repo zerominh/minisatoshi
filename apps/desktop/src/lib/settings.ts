@@ -1,6 +1,8 @@
 import type { NetworkName } from "./types";
 
-const ACTIVE_WALLET_KEY = "minisatoshi.activeWalletId";
+const ACTIVE_WORKSPACE_KEY = "minisatoshi.activeWorkspaceId";
+/** @deprecated pre-rename key (container was called "wallet") — read as fallback only. */
+const LEGACY_ACTIVE_WALLET_KEY = "minisatoshi.activeWalletId";
 const ESPLORA_URL_KEY = "minisatoshi.esploraUrl";
 const NETWORK_KEY = "minisatoshi.preferredNetwork";
 const HWI_PATH_KEY = "minisatoshi.hwiPath";
@@ -21,13 +23,16 @@ export function setLocale(locale: AppLocale) {
   localStorage.setItem(LOCALE_KEY, locale);
 }
 
-export function getActiveWalletId(): string | null {
-  return localStorage.getItem(ACTIVE_WALLET_KEY);
+export function getActiveWorkspaceId(): string | null {
+  return (
+    localStorage.getItem(ACTIVE_WORKSPACE_KEY) ??
+    localStorage.getItem(LEGACY_ACTIVE_WALLET_KEY)
+  );
 }
 
-export function setActiveWalletId(id: string | null) {
-  if (id) localStorage.setItem(ACTIVE_WALLET_KEY, id);
-  else localStorage.removeItem(ACTIVE_WALLET_KEY);
+export function setActiveWorkspaceId(id: string | null) {
+  if (id) localStorage.setItem(ACTIVE_WORKSPACE_KEY, id);
+  else localStorage.removeItem(ACTIVE_WORKSPACE_KEY);
 }
 
 export function getEsploraUrl(): string {

@@ -33,7 +33,8 @@ export interface PolicyConfig {
   policy: PolicyExpression;
 }
 
-export interface WalletDto {
+/** Container + network (ex-`Wallet`). */
+export interface WorkspaceDto {
   id: string;
   name: string;
   network: NetworkName;
@@ -41,17 +42,18 @@ export interface WalletDto {
   updatedAt: number;
 }
 
-export interface WalletSummaryDto {
+export interface WorkspaceSummaryDto {
   id: string;
   name: string;
   network: NetworkName;
-  vaultCount: number;
+  walletCount: number;
   createdAt: number;
 }
 
-export interface VaultDto {
+/** Spendable descriptor / balance / send-receive unit (ex-`Vault`). */
+export interface WalletDto {
   id: string;
-  walletId: string;
+  workspaceId: string;
   name: string;
   policy: PolicyConfig;
   descriptor: string;
@@ -61,9 +63,9 @@ export interface VaultDto {
   watchOnly: boolean;
 }
 
-export interface VaultSummaryDto {
+export interface WalletSummaryDto {
   id: string;
-  walletId: string;
+  workspaceId: string;
   name: string;
   scriptType: ScriptTypeName;
   createdAt: number;
@@ -82,18 +84,20 @@ export interface BalanceDto {
   unconfirmedSats: number;
 }
 
-export interface CompileVaultResponse {
+export interface CompileWalletResponse {
   descriptor: string;
   policyString: string;
 }
 
-export interface CreateWalletRequest {
+/** Create a new container + network (ex-`Wallet`). */
+export interface CreateWorkspaceRequest {
   name: string;
   network: NetworkName;
 }
 
-export interface CreateVaultRequest {
-  walletId: string;
+/** Create a new spendable wallet (ex-`Vault`) inside a workspace. */
+export interface CreateWalletRequest {
+  workspaceId: string;
   name: string;
   policy: PolicyConfig;
 }
@@ -128,7 +132,7 @@ export interface PsbtRecipientDto {
 }
 
 export interface CreatePsbtRequest {
-  vaultId: string;
+  walletId: string;
   recipients: PsbtRecipientDto[];
   feeRateSatPerVb: number;
   utxos: UtxoDto[];
@@ -212,7 +216,7 @@ export interface RegistrationPackageDto {
 }
 
 export interface HwRegisterRequest {
-  vaultId: string;
+  walletId: string;
   fingerprint: string;
   hwiPath?: string | null;
 }
@@ -261,25 +265,25 @@ export interface SigningStatusDto {
 }
 
 export interface AnalyzePsbtRequest {
-  vaultId: string;
+  walletId: string;
   psbtBase64: string;
   activePathId?: string | null;
 }
 
 export interface ImportDescriptorRequest {
-  walletId: string;
+  workspaceId: string;
   name: string;
   descriptor: string;
   policy?: PolicyConfig | null;
 }
 
-export interface ImportVaultBackupRequest {
-  walletId: string;
+export interface ImportWalletBackupRequest {
+  workspaceId: string;
   payload: string;
   name?: string | null;
 }
 
-export interface VaultBackupDto {
+export interface WalletBackupDto {
   formatVersion: string;
   name: string;
   network: NetworkName;
@@ -309,8 +313,8 @@ export interface HotWalletSummaryDto {
   fingerprint: string;
   originPath: string;
   xpub: string;
+  linkedWorkspaceId?: string | null;
   linkedWalletId?: string | null;
-  linkedVaultId?: string | null;
   createdAt: number;
 }
 
@@ -328,14 +332,14 @@ export interface ImportHotWalletRequest {
   bip39Passphrase?: string;
   network: NetworkName;
   /** Optional; empty → auto storage parent for the network. */
-  walletId?: string;
+  workspaceId?: string;
   accountPath?: string | null;
-  createNestedVault?: boolean;
+  createNestedWallet?: boolean;
 }
 
 export interface ImportHotWalletResultDto {
   hotWallet: HotWalletSummaryDto;
-  vault?: VaultDto | null;
+  wallet?: WalletDto | null;
 }
 
 export interface SignPsbtHotRequest {
@@ -364,7 +368,7 @@ export interface FinalizedTxDto {
 }
 
 export interface BroadcastTxRequest {
-  vaultId: string;
+  walletId: string;
   psbtBase64?: string | null;
   txHex?: string | null;
   esploraUrl?: string | null;

@@ -11,7 +11,7 @@ import {
   combinePsbts,
   finalizePsbt,
   formatError,
-  getVault,
+  getWallet,
   hotKeystoreStatus,
   hwSignPsbt,
   importPsbt,
@@ -39,9 +39,9 @@ import type {
   PsbtDto,
   SigningStatusDto,
   SpendingPathDto,
-  VaultDto,
+  WalletDto,
 } from "../lib/types";
-import { useVault, useVaultIdFromRouteOrContext } from "../vault/VaultContext";
+import { useWallet, useWalletIdFromRouteOrContext } from "../wallet/WalletContext";
 
 type Step = "import" | "sign" | "broadcast" | "done";
 
@@ -66,19 +66,19 @@ function pathSatisfied(
 
 /**
  * Cosigner / air-gap: import a PSBT created elsewhere, sign locally, copy back.
- * Sparrow often cannot sign Miniscript Taproot vaults — use this instead.
+ * Sparrow often cannot sign Miniscript Taproot wallets — use this instead.
  * When enough signatures are present, Finalize → Broadcast → Sent (same as Send).
  */
 export function SignPsbtPage() {
   const t = useT();
-  const id = useVaultIdFromRouteOrContext();
+  const id = useWalletIdFromRouteOrContext();
   const {
-    vault: shellVault,
+    wallet: shellWallet,
     setError,
     setMessage,
     runSync,
-  } = useVault();
-  const [vault, setVault] = useState<VaultDto | null>(shellVault);
+  } = useWallet();
+  const [wallet, setWallet] = useState<WalletDto | null>(shellWallet);
   const [step, setStep] = useState<Step>("import");
   const [importBase64, setImportBase64] = useState("");
   const [paths, setPaths] = useState<SpendingPathDto[]>([]);
@@ -108,13 +108,13 @@ export function SignPsbtPage() {
       : null;
 
   useEffect(() => {
-    if (shellVault) setVault(shellVault);
-  }, [shellVault]);
+    if (shellWallet) setWallet(shellWallet);
+  }, [shellWallet]);
 
   useEffect(() => {
-    void getVault(id)
-      .then((v) => {
-        setVault(v);
+    void getWallet(id)
+      .then((w) => {
+        setWallet(w);
         return listSpendingPaths(id);
       })
       .then((list) => {
@@ -134,7 +134,7 @@ export function SignPsbtPage() {
         }
         const list = await listHotWallets();
         setHotWallets(list);
-        const linked = list.find((h) => h.linkedVaultId === id);
+        const linked = list.find((h) => h.linkedWalletId === id);
         if (linked) {
           setHotWalletId(linked.id);
           setSignMethod("hot");
@@ -149,7 +149,7 @@ export function SignPsbtPage() {
     async (base64: string, pathId: string) => {
       try {
         const status = await analyzePsbtStatus({
-          vaultId: id,
+          walletId: id,
           psbtBase64: base64,
           activePathId: pathId || null,
         });
@@ -231,7 +231,7 @@ export function SignPsbtPage() {
       setFinalized(null);
       setBroadcastTxid(null);
       const status = await analyzePsbtStatus({
-        vaultId: id,
+        walletId: id,
         psbtBase64: result.base64,
         activePathId: activePathId || null,
       }).catch(() => null);
@@ -252,10 +252,10 @@ export function SignPsbtPage() {
   }
 
   async function onExportPsbt() {
-    if (!psbt || !vault) return;
+    if (!psbt || !wallet) return;
     setError(null);
     try {
-      const filename = `${sanitizedFilename(vault.name)}-partial.psbt`;
+      const filename = `${sanitizedFilename(wallet.name)}-partial.psbt`;
       const path = await savePsbtFileWithDialog(filename, psbt.base64);
       if (path) setMessage(`PSBT saved to ${path}`);
     } catch (err) {
@@ -264,8 +264,8 @@ export function SignPsbtPage() {
   }
 
   async function onSignSoftware() {
-    if (!psbt || !vault) return;
-    if (vault.policy.network === "mainnet") {
+    if (!psbt || !wallet) return;
+    if (wallet.policy.network === "mainnet") {
       if (!allowMainnetHotKeys || !confirmMainnetHot) {
         setError("Mainnet hot-key signing requires both confirmation checkboxes.");
         return;
@@ -277,7 +277,7 @@ export function SignPsbtPage() {
       const signed = await signPsbtSoftware({
         psbtBase64: psbt.base64,
         secretKey: secretKey.trim(),
-        network: vault.policy.network,
+        network: wallet.policy.network,
         allowMainnetHotKeys,
       });
       const next = {
@@ -300,8 +300,8 @@ export function SignPsbtPage() {
   }
 
   async function onSignHot() {
-    if (!psbt || !vault || !hotWalletId) return;
-    if (vault.policy.network === "mainnet") {
+    if (!psbt || !wallet || !hotWalletId) return;
+    if (wallet.policy.network === "mainnet") {
       if (!allowMainnetHotKeys || !confirmMainnetHot) {
         setError("Mainnet hot-key signing requires both confirmation checkboxes.");
         return;
@@ -313,7 +313,7 @@ export function SignPsbtPage() {
       const signed = await signPsbtHot({
         psbtBase64: psbt.base64,
         hotWalletId,
-        network: vault.policy.network,
+        network: wallet.policy.network,
         allowMainnetHotKeys,
       });
       const next = {
@@ -406,7 +406,7 @@ export function SignPsbtPage() {
     if (!broadcastConfirm) {
       setBroadcastConfirm(true);
       setMessage(
-        `Confirm broadcast on ${vault ? formatNetwork(vault.policy.network) : "network"} — click Broadcast again.`,
+        `Confirm broadcast on ${wallet ? formatNetwork(wallet.policy.network) : "network"} — click Broadcast again.`,
       );
       return;
     }
@@ -414,7 +414,7 @@ export function SignPsbtPage() {
     setError(null);
     try {
       const txid = await broadcastPsbt({
-        vaultId: id,
+        walletId: id,
         psbtBase64: finalized ? null : (psbt?.base64 ?? null),
         txHex: finalized?.hex ?? null,
         esploraUrl: getEsploraUrl() || null,
@@ -439,8 +439,8 @@ export function SignPsbtPage() {
         <div>
           <h2>{t("signPsbt.title")}</h2>
           <p>
-            {vault?.name ?? t("shell.vault")}
-            {vault ? ` · ${formatNetwork(vault.policy.network)}` : ""} ·{" "}
+            {wallet?.name ?? t("shell.wallet")}
+            {wallet ? ` · ${formatNetwork(wallet.policy.network)}` : ""} ·{" "}
             {t("signPsbt.subtitle")}
           </p>
         </div>
@@ -498,7 +498,7 @@ export function SignPsbtPage() {
             >
               <h3>Paste PSBT</h3>
               <p className="muted">
-                1) Import this vault on this machine (backup / descriptor). 2)
+                1) Import this wallet on this machine (backup / descriptor). 2)
                 Paste the base64 PSBT from the creator. 3) Sign and{" "}
                 <strong>Copy PSBT</strong> back for Combine / Broadcast.
               </p>
@@ -641,7 +641,7 @@ export function SignPsbtPage() {
                 <PsbtSignMethodPanel
                   method={signMethod}
                   onMethodChange={setSignMethod}
-                  vault={vault}
+                  wallet={wallet}
                   busy={busy}
                   successMethod={successMethod}
                   hotWallets={hotWallets}
@@ -716,7 +716,7 @@ export function SignPsbtPage() {
                 <p className="muted">
                   Network:{" "}
                   <strong>
-                    {vault ? formatNetwork(vault.policy.network) : "unknown"}
+                    {wallet ? formatNetwork(wallet.policy.network) : "unknown"}
                   </strong>
                   {getEsploraUrl()
                     ? ` · ${getEsploraUrl()}`
@@ -770,8 +770,8 @@ export function SignPsbtPage() {
                   <p className="muted">
                     Confirm sending to{" "}
                     <strong>
-                      {vault
-                        ? formatNetwork(vault.policy.network)
+                      {wallet
+                        ? formatNetwork(wallet.policy.network)
                         : "unknown"}
                     </strong>
                     . Click Broadcast again to publish.
@@ -786,7 +786,7 @@ export function SignPsbtPage() {
                   {busy && broadcastConfirm
                     ? "Broadcasting…"
                     : broadcastConfirm
-                      ? `Confirm broadcast (${vault ? formatNetwork(vault.policy.network) : "network"})`
+                      ? `Confirm broadcast (${wallet ? formatNetwork(wallet.policy.network) : "network"})`
                       : is("broadcast")
                         ? "Broadcast ✓"
                         : "Broadcast"}
@@ -802,7 +802,7 @@ export function SignPsbtPage() {
               <p className="muted">
                 Published on{" "}
                 <strong>
-                  {vault ? formatNetwork(vault.policy.network) : "network"}
+                  {wallet ? formatNetwork(wallet.policy.network) : "network"}
                 </strong>
                 . It may take a moment to appear in history after sync.
               </p>

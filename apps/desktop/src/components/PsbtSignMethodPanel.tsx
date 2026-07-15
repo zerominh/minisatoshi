@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import type { HotWalletSummaryDto, VaultDto } from "../lib/types";
+import type { HotWalletSummaryDto, WalletDto } from "../lib/types";
 
 export type SignMethod = "hot" | "software" | "hardware" | "combine";
 
@@ -29,7 +29,7 @@ const METHODS: { id: SignMethod; label: string; hint: string }[] = [
 type Props = {
   method: SignMethod;
   onMethodChange: (method: SignMethod) => void;
-  vault: VaultDto | null;
+  wallet: WalletDto | null;
   busy: boolean;
   /** Which action just succeeded — drives green pulse on that button. */
   successMethod?: SignMethod | null;
@@ -59,7 +59,7 @@ function actionLabel(ok: boolean, idle: string, done: string): string {
 export function PsbtSignMethodPanel({
   method,
   onMethodChange,
-  vault,
+  wallet,
   busy,
   successMethod = null,
   hotWallets,
@@ -80,7 +80,7 @@ export function PsbtSignMethodPanel({
   onSignHardware,
   onCombine,
 }: Props) {
-  const mainnet = vault?.policy.network === "mainnet";
+  const mainnet = wallet?.policy.network === "mainnet";
   const ok = (m: SignMethod) => successMethod === m;
 
   return (

@@ -4,28 +4,28 @@ import { Link } from "react-router-dom";
 import {
   exportSparrowWallet,
   formatError,
-  getVault,
+  getWallet,
   newReceiveAddress,
 } from "../lib/api";
 import { copyText } from "../lib/settings";
 import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
-import type { AddressDto, SparrowExportDto, VaultDto } from "../lib/types";
-import { useVault, useVaultIdFromRouteOrContext } from "../vault/VaultContext";
+import type { AddressDto, SparrowExportDto, WalletDto } from "../lib/types";
+import { useWallet, useWalletIdFromRouteOrContext } from "../wallet/WalletContext";
 import { useT } from "../i18n/LocaleContext";
 
 export function ReceivePage() {
   const t = useT();
-  const id = useVaultIdFromRouteOrContext();
-  const { setError, setMessage } = useVault();
-  const [vault, setVault] = useState<VaultDto | null>(null);
+  const id = useWalletIdFromRouteOrContext();
+  const { setError, setMessage } = useWallet();
+  const [wallet, setWallet] = useState<WalletDto | null>(null);
   const [address, setAddress] = useState<AddressDto | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [sparrow, setSparrow] = useState<SparrowExportDto | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    void getVault(id)
-      .then(setVault)
+    void getWallet(id)
+      .then(setWallet)
       .catch((err) => setError(formatError(err)));
   }, [id]);
 
@@ -63,13 +63,13 @@ export function ReceivePage() {
   }
 
   async function onSaveDescriptorFile() {
-    if (!vault) return;
+    if (!wallet) return;
     setError(null);
     try {
-      const filename = `${sanitizedFilename(vault.name)}-descriptor.txt`;
+      const filename = `${sanitizedFilename(wallet.name)}-descriptor.txt`;
       const path = await saveTextFileWithDialog(
         filename,
-        `${vault.descriptor}\n`,
+        `${wallet.descriptor}\n`,
       );
       if (path) {
         setMessage(
@@ -87,7 +87,7 @@ export function ReceivePage() {
         <div>
           <h2>{t("receive.title")}</h2>
           <p>{t("receive.subtitle")}</p>
-          <p>{vault?.name ?? "Vault"} · Taproot address</p>
+          <p>{wallet?.name ?? "Wallet"} · Taproot address</p>
         </div>
         <Link className="button-link" to="../transactions" relative="path">
           {t("send.transactionsLink")}
@@ -125,17 +125,17 @@ export function ReceivePage() {
           <h3>Descriptor backup</h3>
           <p className="muted">
             Fund by sending to the address on the left. For watch-only share use
-            Vault → Share. Sign in Minisatoshi (HW/software), Bitcoin Core, or
+            Wallet → Share. Sign in Minisatoshi (HW/software), Bitcoin Core, or
             Nunchuk — Sparrow funds addresses only (see docs/interop.md).
           </p>
-          {vault ? (
+          {wallet ? (
             <>
-              <p className="mono wrap">{vault.descriptor}</p>
+              <p className="mono wrap">{wallet.descriptor}</p>
               <div className="row-actions">
                 <button
                   type="button"
                   className="secondary"
-                  onClick={() => void onCopy(vault.descriptor, "descriptor")}
+                  onClick={() => void onCopy(wallet.descriptor, "descriptor")}
                 >
                   Copy descriptor
                 </button>

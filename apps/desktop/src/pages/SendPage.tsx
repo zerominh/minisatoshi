@@ -11,7 +11,7 @@ import {
   createPsbt,
   finalizePsbt,
   formatError,
-  getVault,
+  getWallet,
   hotKeystoreStatus,
   hwSignPsbt,
   listHotWallets,
@@ -38,10 +38,10 @@ import type {
   SigningStatusDto,
   SpendingPathDto,
   UtxoDto,
-  VaultDto,
+  WalletDto,
 } from "../lib/types";
 import { useT } from "../i18n/LocaleContext";
-import { useVault, useVaultIdFromRouteOrContext } from "../vault/VaultContext";
+import { useWallet, useWalletIdFromRouteOrContext } from "../wallet/WalletContext";
 
 type SendStep = "compose" | "sign" | "broadcast" | "done";
 
@@ -54,17 +54,17 @@ const SEND_STEP_OFFSET: Record<SendStep, string> = {
 
 export function SendPage() {
   const t = useT();
-  const id = useVaultIdFromRouteOrContext();
+  const id = useWalletIdFromRouteOrContext();
   const {
     sync,
     lastSyncedAt,
     runSync,
-    vault: shellVault,
+    wallet: shellWallet,
     busy: shellBusy,
     setError,
     setMessage,
-  } = useVault();
-  const [vault, setVault] = useState<VaultDto | null>(shellVault);
+  } = useWallet();
+  const [wallet, setWallet] = useState<WalletDto | null>(shellWallet);
   const [step, setStep] = useState<SendStep>("compose");
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [address, setAddress] = useState("");
@@ -103,13 +103,13 @@ export function SendPage() {
   }, [lastSyncedAt, t]);
 
   useEffect(() => {
-    if (shellVault) setVault(shellVault);
-  }, [shellVault]);
+    if (shellWallet) setWallet(shellWallet);
+  }, [shellWallet]);
 
   useEffect(() => {
-    void getVault(id)
-      .then((v) => {
-        setVault(v);
+    void getWallet(id)
+      .then((w) => {
+        setWallet(w);
         return listSpendingPaths(id);
       })
       .then((list) => {
@@ -134,7 +134,7 @@ export function SendPage() {
         }
         const list = await listHotWallets();
         setHotWallets(list);
-        const linked = list.find((h) => h.linkedVaultId === id);
+        const linked = list.find((h) => h.linkedWalletId === id);
         if (linked) {
           setHotWalletId(linked.id);
           setSignMethod("hot");
@@ -149,7 +149,7 @@ export function SendPage() {
     async (base64: string, pathId: string) => {
       try {
         const status = await analyzePsbtStatus({
-          vaultId: id,
+          walletId: id,
           psbtBase64: base64,
           activePathId: pathId || null,
         });
@@ -242,7 +242,7 @@ export function SendPage() {
         throw new Error("Invalid input sequence");
       }
       const result = await createPsbt({
-        vaultId: id,
+        walletId: id,
         recipients: [{ address: address.trim(), amountSats }],
         feeRateSatPerVb: Number(feeRate) || 2,
         utxos,
@@ -293,10 +293,10 @@ export function SendPage() {
   }
 
   async function onExportPsbt() {
-    if (!psbt || !vault) return;
+    if (!psbt || !wallet) return;
     setError(null);
     try {
-      const filename = `${sanitizedFilename(vault.name)}-draft.psbt`;
+      const filename = `${sanitizedFilename(wallet.name)}-draft.psbt`;
       const path = await savePsbtFileWithDialog(filename, psbt.base64);
       if (path) setMessage(`PSBT saved to ${path}`);
     } catch (err) {
@@ -321,8 +321,8 @@ export function SendPage() {
   }
 
   async function onSign() {
-    if (!psbt || !vault) return;
-    if (vault.policy.network === "mainnet") {
+    if (!psbt || !wallet) return;
+    if (wallet.policy.network === "mainnet") {
       if (!allowMainnetHotKeys || !confirmMainnetHot) {
         setError(
           "Mainnet hot-key signing requires both confirmation checkboxes.",
@@ -336,7 +336,7 @@ export function SendPage() {
       const signed = await signPsbtSoftware({
         psbtBase64: psbt.base64,
         secretKey: secretKey.trim(),
-        network: vault.policy.network,
+        network: wallet.policy.network,
         allowMainnetHotKeys,
       });
       const next = {
@@ -359,8 +359,8 @@ export function SendPage() {
   }
 
   async function onSignHot() {
-    if (!psbt || !vault || !hotWalletId) return;
-    if (vault.policy.network === "mainnet") {
+    if (!psbt || !wallet || !hotWalletId) return;
+    if (wallet.policy.network === "mainnet") {
       if (!allowMainnetHotKeys || !confirmMainnetHot) {
         setError(
           "Mainnet hot-key signing requires both confirmation checkboxes.",
@@ -374,7 +374,7 @@ export function SendPage() {
       const signed = await signPsbtHot({
         psbtBase64: psbt.base64,
         hotWalletId,
-        network: vault.policy.network,
+        network: wallet.policy.network,
         allowMainnetHotKeys,
       });
       const next = {
@@ -467,7 +467,7 @@ export function SendPage() {
     if (!broadcastConfirm) {
       setBroadcastConfirm(true);
       setMessage(
-        `Confirm broadcast on ${vault ? formatNetwork(vault.policy.network) : "selected network"} — click Broadcast again.`,
+        `Confirm broadcast on ${wallet ? formatNetwork(wallet.policy.network) : "selected network"} — click Broadcast again.`,
       );
       return;
     }
@@ -475,7 +475,7 @@ export function SendPage() {
     setError(null);
     try {
       const txid = await broadcastPsbt({
-        vaultId: id,
+        walletId: id,
         psbtBase64: finalized ? null : (psbt?.base64 ?? null),
         txHex: finalized?.hex ?? null,
         esploraUrl: getEsploraUrl() || null,
@@ -502,8 +502,8 @@ export function SendPage() {
         <div>
           <h2>{t("send.title")}</h2>
           <p>
-            {vault?.name ?? t("shell.vault")}
-            {vault ? ` · ${formatNetwork(vault.policy.network)}` : ""} ·{" "}
+            {wallet?.name ?? t("shell.wallet")}
+            {wallet ? ` · ${formatNetwork(wallet.policy.network)}` : ""} ·{" "}
             {t("send.subtitle")}
           </p>
         </div>
@@ -792,7 +792,7 @@ export function SendPage() {
                 <PsbtSignMethodPanel
                   method={signMethod}
                   onMethodChange={setSignMethod}
-                  vault={vault}
+                  wallet={wallet}
                   busy={busy}
                   successMethod={successMethod}
                   hotWallets={hotWallets}
@@ -866,7 +866,7 @@ export function SendPage() {
                 <p className="muted">
                   Network:{" "}
                   <strong>
-                    {vault ? formatNetwork(vault.policy.network) : "unknown"}
+                    {wallet ? formatNetwork(wallet.policy.network) : "unknown"}
                   </strong>
                   {getEsploraUrl()
                     ? ` · ${getEsploraUrl()}`
@@ -919,8 +919,8 @@ export function SendPage() {
                   <p className="muted">
                     Confirm sending to{" "}
                     <strong>
-                      {vault
-                        ? formatNetwork(vault.policy.network)
+                      {wallet
+                        ? formatNetwork(wallet.policy.network)
                         : "unknown"}
                     </strong>
                     . Click Broadcast again to publish.
@@ -936,8 +936,8 @@ export function SendPage() {
                     ? t("send.broadcasting")
                     : broadcastConfirm
                       ? t("send.confirmBroadcast", {
-                          network: vault
-                            ? formatNetwork(vault.policy.network)
+                          network: wallet
+                            ? formatNetwork(wallet.policy.network)
                             : "network",
                         })
                       : is("broadcast")
@@ -955,7 +955,7 @@ export function SendPage() {
               <p className="muted">
                 Published on{" "}
                 <strong>
-                  {vault ? formatNetwork(vault.policy.network) : "network"}
+                  {wallet ? formatNetwork(wallet.policy.network) : "network"}
                 </strong>
                 . It may take a moment to appear in history after sync.
               </p>

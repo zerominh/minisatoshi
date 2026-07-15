@@ -31,8 +31,10 @@ pub struct HotWalletRecord {
     pub bip39_passphrase: String,
     /// Miniscript descriptor secret string for `sign_psbt_software`.
     pub descriptor_secret: String,
+    /// Parent container (ex-`Wallet`, now `Workspace`).
+    pub linked_workspace_id: Option<String>,
+    /// Spendable wallet (ex-`Vault`, now `Wallet`).
     pub linked_wallet_id: Option<String>,
-    pub linked_vault_id: Option<String>,
     pub created_at: i64,
 }
 
@@ -45,8 +47,8 @@ pub struct HotWalletSummary {
     pub fingerprint: String,
     pub origin_path: String,
     pub xpub: String,
+    pub linked_workspace_id: Option<String>,
     pub linked_wallet_id: Option<String>,
-    pub linked_vault_id: Option<String>,
     pub created_at: i64,
 }
 
@@ -59,8 +61,8 @@ impl From<&HotWalletRecord> for HotWalletSummary {
             fingerprint: value.fingerprint.clone(),
             origin_path: value.origin_path.clone(),
             xpub: value.xpub.clone(),
+            linked_workspace_id: value.linked_workspace_id.clone(),
             linked_wallet_id: value.linked_wallet_id.clone(),
-            linked_vault_id: value.linked_vault_id.clone(),
             created_at: value.created_at,
         }
     }
@@ -121,12 +123,19 @@ impl HotKeystore {
             ));
         }
         let bytes = fs::read(&path)?;
-        let payload = decrypt_file(&bytes, password)?;
-        Ok(Self {
+        let (payload, migrated) = decrypt_file(&bytes, password)?;
+        let store = Self {
             path,
             password: password.to_string(),
             payload,
-        })
+        };
+        if migrated {
+            // Old on-disk records used `linkedWalletId` for the parent container and
+            // `linkedVaultId` for the spendable wallet; persist the migrated field names
+            // immediately so we don't re-migrate (and risk a mismatch) on every unlock.
+            store.persist()?;
+        }
+        Ok(store)
     }
 
     pub fn list(&self) -> Vec<HotWalletSummary> {
@@ -154,8 +163,8 @@ impl HotKeystore {
     pub fn set_links(
         &mut self,
         id: &str,
+        workspace_id: Option<String>,
         wallet_id: Option<String>,
-        vault_id: Option<String>,
     ) -> Result<HotWalletSummary, HotKeystoreError> {
         let rec = self
             .payload
@@ -163,8 +172,8 @@ impl HotKeystore {
             .iter_mut()
             .find(|w| w.id == id)
             .ok_or_else(|| HotKeystoreError::NotFound(id.into()))?;
+        rec.linked_workspace_id = workspace_id;
         rec.linked_wallet_id = wallet_id;
-        rec.linked_vault_id = vault_id;
         let summary = HotWalletSummary::from(&*rec);
         self.persist()?;
         Ok(summary)
@@ -255,7 +264,7 @@ fn encrypt_file(plaintext: &[u8], password: &str) -> Result<Vec<u8>, HotKeystore
     Ok(out)
 }
 
-fn decrypt_file(bytes: &[u8], password: &str) -> Result<KeystorePayload, HotKeystoreError> {
+fn decrypt_file(bytes: &[u8], password: &str) -> Result<(KeystorePayload, bool), HotKeystoreError> {
     if bytes.len() < MAGIC.len() + SALT_LEN + NONCE_LEN + 16 {
         return Err(HotKeystoreError::Corrupt("file too short".into()));
     }
@@ -269,7 +278,40 @@ fn decrypt_file(bytes: &[u8], password: &str) -> Result<KeystorePayload, HotKeys
     let cipher = XChaCha20Poly1305::new(Key::from_slice(&key_bytes));
     let nonce = XNonce::from_slice(nonce_bytes);
     let plain = cipher.decrypt(nonce, ciphertext).map_err(|_| HotKeystoreError::WrongPassword)?;
-    Ok(serde_json::from_slice(&plain)?)
+    let mut value: serde_json::Value = serde_json::from_slice(&plain)?;
+    let migrated = migrate_legacy_links(&mut value);
+    Ok((serde_json::from_value(value)?, migrated))
+}
+
+/// Migrate pre-rename records in place: old `linkedWalletId` meant the parent
+/// container (now `linkedWorkspaceId`), old `linkedVaultId` meant the spendable
+/// wallet (now `linkedWalletId`). The literal JSON key `linkedWalletId` is reused
+/// with a different meaning after the rename, so detection must key off the
+/// presence of the old-only field `linkedVaultId` (never written post-migration),
+/// not off `linkedWalletId` alone — otherwise the two ids would be swapped.
+fn migrate_legacy_links(value: &mut serde_json::Value) -> bool {
+    let Some(wallets) = value.get_mut("wallets").and_then(|w| w.as_array_mut()) else {
+        return false;
+    };
+    let mut migrated = false;
+    for wallet in wallets.iter_mut() {
+        let Some(obj) = wallet.as_object_mut() else {
+            continue;
+        };
+        if !obj.contains_key("linkedVaultId") {
+            continue;
+        }
+        let old_parent = obj
+            .remove("linkedWalletId")
+            .unwrap_or(serde_json::Value::Null);
+        let old_spendable = obj
+            .remove("linkedVaultId")
+            .unwrap_or(serde_json::Value::Null);
+        obj.insert("linkedWorkspaceId".to_string(), old_parent);
+        obj.insert("linkedWalletId".to_string(), old_spendable);
+        migrated = true;
+    }
+    migrated
 }
 
 #[cfg(test)]
@@ -301,5 +343,56 @@ mod tests {
             HotKeystore::unlock(dir.path(), "wrong"),
             Err(HotKeystoreError::WrongPassword)
         ));
+    }
+
+    /// Golden test: pre-rename records used `linkedWalletId` for the parent
+    /// container and `linkedVaultId` for the spendable wallet. Unlocking must
+    /// migrate them to `linkedWorkspaceId` / `linkedWalletId` respectively
+    /// (NOT swapped) and persist the fixed shape so it doesn't need migrating
+    /// again.
+    #[test]
+    fn migrates_legacy_linked_ids_on_unlock_without_swapping() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = HotKeystore::path_in(dir.path());
+
+        let legacy_parent_id = "legacy-parent-wallet-id";
+        let legacy_spendable_id = "legacy-spendable-vault-id";
+        let legacy_json = serde_json::json!({
+            "version": 1,
+            "wallets": [{
+                "id": "hot-1",
+                "name": "Legacy hot",
+                "network": "testnet",
+                "fingerprint": "deadbeef",
+                "originPath": "86'/1'/0'",
+                "xpub": "tpub-fake",
+                "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+                "bip39Passphrase": "",
+                "descriptorSecret": "tprv-fake",
+                "linkedWalletId": legacy_parent_id,
+                "linkedVaultId": legacy_spendable_id,
+                "createdAt": 0,
+            }]
+        });
+        let plain = serde_json::to_vec(&legacy_json).unwrap();
+        let sealed = encrypt_file(&plain, "test-pass").unwrap();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, sealed).unwrap();
+
+        let store = HotKeystore::unlock(dir.path(), "test-pass").unwrap();
+        let rec = store.get("hot-1").unwrap();
+        assert_eq!(rec.linked_workspace_id.as_deref(), Some(legacy_parent_id));
+        assert_eq!(rec.linked_wallet_id.as_deref(), Some(legacy_spendable_id));
+        drop(store);
+
+        // Re-unlocking (reading the now-persisted, migrated file) must be stable.
+        let store = HotKeystore::unlock(dir.path(), "test-pass").unwrap();
+        let rec = store.get("hot-1").unwrap();
+        assert_eq!(rec.linked_workspace_id.as_deref(), Some(legacy_parent_id));
+        assert_eq!(rec.linked_wallet_id.as_deref(), Some(legacy_spendable_id));
+
+        let bytes = std::fs::read(&path).unwrap();
+        let (_, migrated_again) = decrypt_file(&bytes, "test-pass").unwrap();
+        assert!(!migrated_again, "persisted file must already be in new shape");
     }
 }

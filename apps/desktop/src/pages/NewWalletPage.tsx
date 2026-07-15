@@ -3,16 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { HwConnectKeyPanel } from "../components/HwConnectKeyPanel";
 import { useT } from "../i18n/LocaleContext";
 import {
-  compileVaultDescriptor,
-  createVault,
+  compileWalletDescriptor,
+  createWallet,
   formatError,
-  listWallets,
+  listWorkspaces,
 } from "../lib/api";
 import {
   formatNetwork,
-  getActiveWalletId,
+  getActiveWorkspaceId,
   getPreferredNetwork,
-  setActiveWalletId,
+  setActiveWorkspaceId,
 } from "../lib/settings";
 import { durationToBlocks, type TimelockUnit } from "../lib/duration";
 import type { KeyConfig, KeyRole, NetworkName } from "../lib/types";
@@ -38,16 +38,16 @@ const ROLE_OPTIONS: KeyRole[] = [
   "other",
 ];
 
-export function NewVaultPage() {
+export function NewWalletPage() {
   const t = useT();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>(1);
-  const [walletId, setWalletId] = useState(getActiveWalletId() ?? "");
-  const [wallets, setWallets] = useState<
+  const [workspaceId, setWorkspaceId] = useState(getActiveWorkspaceId() ?? "");
+  const [workspaces, setWorkspaces] = useState<
     { id: string; name: string; network: NetworkName }[]
   >([]);
   const [templateId, setTemplateId] = useState<TemplateId>("abc");
-  const [name, setName] = useState("ABC Vault");
+  const [name, setName] = useState("ABC Wallet");
   const [keys, setKeys] = useState<KeyConfig[]>(() =>
     keysFromTemplate(POLICY_TEMPLATES[0]),
   );
@@ -64,19 +64,20 @@ export function NewVaultPage() {
     POLICY_TEMPLATES.find((t) => t.id === templateId) ?? POLICY_TEMPLATES[0];
 
   useEffect(() => {
-    void listWallets()
+    void listWorkspaces()
       .then((items) => {
-        setWallets(items);
-        if (!walletId && items[0]) {
-          setWalletId(items[0].id);
-          setActiveWalletId(items[0].id);
+        setWorkspaces(items);
+        if (!workspaceId && items[0]) {
+          setWorkspaceId(items[0].id);
+          setActiveWorkspaceId(items[0].id);
         }
       })
       .catch((err) => setError(formatError(err)));
   }, []);
 
   const network =
-    wallets.find((w) => w.id === walletId)?.network ?? getPreferredNetwork();
+    workspaces.find((w) => w.id === workspaceId)?.network ??
+    getPreferredNetwork();
 
   const policy = useMemo(
     () =>
@@ -148,7 +149,7 @@ export function NewVaultPage() {
   }
 
   function canAdvance(): string | null {
-    if (!walletId) return "Select a wallet";
+    if (!workspaceId) return "Select a workspace";
     if (step === 2) {
       const ids = new Set<string>();
       for (const key of keys) {
@@ -176,14 +177,14 @@ export function NewVaultPage() {
         }
       }
     }
-    if (step === 5 && !name.trim()) return "Vault name is required";
+    if (step === 5 && !name.trim()) return "Wallet name is required";
     return null;
   }
 
   async function onPreview() {
     setError(null);
     try {
-      const result = await compileVaultDescriptor(policy);
+      const result = await compileWalletDescriptor(policy);
       setPreview(result.descriptor);
     } catch (err) {
       setError(formatError(err));
@@ -200,12 +201,12 @@ export function NewVaultPage() {
     setBusy(true);
     setError(null);
     try {
-      const vault = await createVault({
-        walletId,
+      const wallet = await createWallet({
+        workspaceId,
         name,
         policy,
       });
-      navigate(`/vaults/${vault.id}`);
+      navigate(`/wallets/${wallet.id}`);
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -217,8 +218,8 @@ export function NewVaultPage() {
     <section>
       <header className="page-header">
         <div>
-          <h2>{t("newVault.title")}</h2>
-          <p>{t("newVault.subtitle")}</p>
+          <h2>{t("newWallet.title")}</h2>
+          <p>{t("newWallet.subtitle")}</p>
         </div>
       </header>
 
@@ -236,23 +237,23 @@ export function NewVaultPage() {
       <form className="panel" onSubmit={(e) => void onSubmit(e)}>
         {step === 1 && (
           <div className="form-grid">
-            <h3>Step 1 · Template & wallet</h3>
+            <h3>Step 1 · Template & workspace</h3>
             <label>
-              Wallet
+              Workspace
               <select
-                value={walletId}
+                value={workspaceId}
                 onChange={(e) => {
-                  setWalletId(e.target.value);
-                  setActiveWalletId(e.target.value);
+                  setWorkspaceId(e.target.value);
+                  setActiveWorkspaceId(e.target.value);
                 }}
                 required
               >
                 <option value="" disabled>
-                  Select wallet
+                  Select workspace
                 </option>
-                {wallets.map((wallet) => (
-                  <option key={wallet.id} value={wallet.id}>
-                    {wallet.name} ({formatNetwork(wallet.network)})
+                {workspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.name} ({formatNetwork(workspace.network)})
                   </option>
                 ))}
               </select>
@@ -601,7 +602,7 @@ export function NewVaultPage() {
           <div className="form-grid">
             <h3>Step 5 · Review & generate</h3>
             <label>
-              Vault name
+              Wallet name
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -621,7 +622,7 @@ export function NewVaultPage() {
                 Preview descriptor
               </button>
               <button type="submit" disabled={busy}>
-                {busy ? "Creating…" : "Generate vault"}
+                {busy ? "Creating…" : "Generate wallet"}
               </button>
             </div>
             {preview ? (

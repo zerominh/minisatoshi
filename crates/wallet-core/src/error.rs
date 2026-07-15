@@ -22,18 +22,18 @@ pub enum WalletError {
     #[error("invalid network: {0}")]
     InvalidNetwork(String),
 
+    #[error("workspace name must not be empty")]
+    EmptyWorkspaceName,
+
     #[error("wallet name must not be empty")]
     EmptyWalletName,
-
-    #[error("vault name must not be empty")]
-    EmptyVaultName,
 
     #[error("descriptor import is invalid: {0}")]
     InvalidDescriptor(String),
 
-    #[error("network mismatch: wallet is {wallet}, backup/policy is {provided}")]
+    #[error("network mismatch: workspace is {workspace}, backup/policy is {provided}")]
     NetworkMismatch {
-        wallet: String,
+        workspace: String,
         provided: String,
     },
 

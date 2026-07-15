@@ -1,7 +1,17 @@
 # Rename: Wallet → Workspace, Vault → Wallet (phương án A)
 
-> Trạng thái: **đã chốt hướng**, chưa implement.  
+> Trạng thái: **đã implement** (schema v2 + IPC + UI).  
 > Mục tiêu: khớp ngôn ngữ thị trường Bitcoin — cái cầm tiền gọi là **Wallet / Ví**; container theo network gọi là **Workspace / Không gian**.
+
+**Đã xong trên cây code:**
+- SQLite `SCHEMA_VERSION = 2` (`workspaces` + `wallets`), migrate từ v1
+- Domain Rust (`storage`, `wallet-core`, `vault` → `WalletService`, …)
+- Tauri IPC rename (xem bảng Phase 3)
+- Hot keystore `linked_workspace_id` / `linked_wallet_id` + migrate-on-read
+- Frontend routes `/workspaces`, `/wallets`, redirect `/vaults/*`
+- Backup export `minisatoshi-wallet-v1`; import vẫn đọc `minisatoshi-vault-v1`
+
+Còn tùy chọn sau: rename folder crates (`wallet-core` / `vault`); scrub hoàn toàn chữ “vault” trong docs cũ.
 
 ---
 
@@ -192,11 +202,11 @@ Thêm redirect từ path cũ → mới (bookmark / deep link).
 
 ## 9. Tiêu chí hoàn thành
 
-- [ ] DB v2: bảng `workspaces` + `wallets` (spendable); không còn bảng `vaults`.
-- [ ] UI: Không gian / Ví / Ví nóng đúng nghĩa thị trường.
-- [ ] IPC: không còn command `*_vault*` (trừ alias deprecate tạm nếu cần).
-- [ ] Mở DB app cũ được; backup `minisatoshi-vault-v1` vẫn import.
-- [ ] Tests xanh + smoke đường chính.
+- [x] DB v2: bảng `workspaces` + `wallets` (spendable); không còn bảng `vaults`.
+- [x] UI: Không gian / Ví / Ví nóng đúng nghĩa thị trường.
+- [x] IPC: không còn command `*_vault*` (trừ alias deprecate tạm nếu cần).
+- [x] Mở DB app cũ được; backup `minisatoshi-vault-v1` vẫn import.
+- [x] Tests xanh + smoke đường chính (`cargo check` desktop, `tsc`, crate tests).
 
 ---
 

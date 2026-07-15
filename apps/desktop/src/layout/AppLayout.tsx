@@ -5,8 +5,8 @@ import type { Locale } from "../i18n/en";
 import { LOCALES } from "../i18n/en";
 
 const links = [
+  { to: "/workspaces", labelKey: "nav.workspaces" as const },
   { to: "/wallets", labelKey: "nav.wallets" as const },
-  { to: "/vaults", labelKey: "nav.vaults" as const },
   { to: "/hot-wallets", labelKey: "nav.hotWallets" as const },
   { to: "/transactions", labelKey: "nav.transactions" as const },
   { to: "/settings", labelKey: "nav.settings" as const },

@@ -1,4 +1,4 @@
-//! Full vault lifecycle: wallet → vault → address → PSBT → Sparrow export.
+//! Full wallet lifecycle: workspace → wallet → address → PSBT → Sparrow export.
 
 use blockchain::Utxo;
 use policy_engine::{
@@ -8,7 +8,7 @@ use policy_engine::{
 use psbt_engine::{
     create_psbt, export_psbt, CreatePsbtOptions, ExportFormat, FeeRate, PsbtRecipient, SpendingUtxo,
 };
-use vault::{export_watch_only_wallet, VaultService};
+use vault::{export_watch_only_wallet, WalletService};
 use wallet_core::WalletStore;
 
 fn sample_keys() -> [KeyConfig; 3] {
@@ -38,13 +38,13 @@ fn sample_keys() -> [KeyConfig; 3] {
 }
 
 #[test]
-fn vault_lifecycle_create_address_psbt_export() {
+fn wallet_lifecycle_create_address_psbt_export() {
     let dir = tempfile::tempdir().unwrap();
     let store = WalletStore::open(dir.path().join("wallet.db")).unwrap();
-    let service = VaultService::new(&store);
+    let service = WalletService::new(&store);
 
-    let wallet = store
-        .create_wallet("Lifecycle", NetworkName::Testnet)
+    let workspace = store
+        .create_workspace("Lifecycle", NetworkName::Testnet)
         .unwrap();
     let keys = sample_keys();
     let policy = abc_preset(
@@ -56,22 +56,22 @@ fn vault_lifecycle_create_address_psbt_export() {
     );
 
     let created = service
-        .create_vault_with_receive_address(&wallet.id, "ABC", policy)
+        .create_wallet_with_receive_address(&workspace.id, "ABC", policy)
         .unwrap();
     assert!(created.receive_address.address.starts_with("tb1"));
-    assert!(created.vault.descriptor.starts_with("tr("));
-    assert!(created.vault.descriptor.contains('#'));
+    assert!(created.wallet.descriptor.starts_with("tr("));
+    assert!(created.wallet.descriptor.contains('#'));
 
     let receive = created.receive_address.clone();
-    let change = service.new_change_address_at(&created.vault.id, 0).unwrap();
+    let change = service.new_change_address_at(&created.wallet.id, 0).unwrap();
     assert!(change.is_change);
 
     let payment = service
-        .new_receive_address_at(&created.vault.id, 1)
+        .new_receive_address_at(&created.wallet.id, 1)
         .unwrap();
 
     let psbt = create_psbt(
-        &created.vault,
+        &created.wallet,
         &[PsbtRecipient {
             address: payment.address.clone(),
             amount_sats: 50_000,
@@ -108,7 +108,7 @@ fn vault_lifecycle_create_address_psbt_export() {
     assert!(!file_bytes.is_empty());
     std::fs::write(dir.path().join("unsigned.psbt"), &file_bytes).unwrap();
 
-    let sparrow = export_watch_only_wallet(&created.vault).unwrap();
+    let sparrow = export_watch_only_wallet(&created.wallet).unwrap();
     assert_eq!(sparrow.network, NetworkName::Testnet);
     assert!(sparrow.descriptor.contains('#'));
 }
