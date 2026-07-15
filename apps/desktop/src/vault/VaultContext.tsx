@@ -16,9 +16,7 @@ import type { SyncResultDto, VaultDto } from "../lib/types";
 
 export type WalletShellKind = "vault" | "hot";
 
-/** Background refresh while the wallet shell is open (does not lock the UI). */
-export const AUTO_SYNC_INTERVAL_MS = 120_000;
-/** Skip open-sync if cache is newer than this. */
+/** Skip open-sync if cache is newer than this (no periodic polling). */
 const FRESH_SYNC_MS = 30_000;
 
 type SyncOptions = {
@@ -153,29 +151,14 @@ export function VaultProvider({
       const age = cached ? Date.now() - cached.at : Number.POSITIVE_INFINITY;
       if (age < FRESH_SYNC_MS) return;
 
-      // Let the shell paint first — Esplora scan is slow.
+      // One sync on open only — no interval / tab-focus polling (Esplora rate limits).
       await new Promise((r) => window.setTimeout(r, 400));
       if (cancelled) return;
       await runSync({ quiet: true });
     })();
 
-    const timer = window.setInterval(() => {
-      if (cancelled || document.hidden) return;
-      void runSync({ quiet: true });
-    }, AUTO_SYNC_INTERVAL_MS);
-
-    const onVisible = () => {
-      if (document.hidden || cancelled) return;
-      const entry = syncCache.get(idRef.current);
-      const age = entry ? Date.now() - entry.at : Number.POSITIVE_INFINITY;
-      if (age >= FRESH_SYNC_MS) void runSync({ quiet: true });
-    };
-    document.addEventListener("visibilitychange", onVisible);
-
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [id, refreshVault, runSync, clearFlash, setError]);
 
