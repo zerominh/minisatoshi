@@ -406,6 +406,16 @@ button.btn-ok.secondary {
   background: #151c2a;
 }
 
+.hw-connect-key {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.hw-connect-key-body {
+  padding: 0.65rem 0 0.15rem;
+  border-top: 1px solid #2a3142;
+}
+
 .builder-chips {
   display: flex;
   flex-wrap: wrap;

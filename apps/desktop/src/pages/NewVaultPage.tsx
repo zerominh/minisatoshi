@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { HwConnectKeyPanel } from "../components/HwConnectKeyPanel";
 import {
   compileVaultDescriptor,
   createVault,
@@ -54,6 +55,7 @@ export function NewVaultPage() {
   ]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hwHint, setHwHint] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
 
   const template =
@@ -280,8 +282,10 @@ export function NewVaultPage() {
             <h3>Step 2 · Keys</h3>
             <p className="muted">
               Add investors, managers, or recovery keys. Id must match the
-              primary / recovery expressions (A, B, C…).
+              primary / recovery expressions (A, B, C…). Connect a hardware
+              wallet per key, or paste xpub + fingerprint manually.
             </p>
+            {hwHint ? <p className="status">{hwHint}</p> : null}
             {keys.map((key, index) => (
               <div key={`${key.id}-${index}`} className="key-block">
                 <div className="row-actions">
@@ -325,6 +329,18 @@ export function NewVaultPage() {
                     ))}
                   </select>
                 </label>
+                <HwConnectKeyPanel
+                  network={network}
+                  onError={setError}
+                  onHint={setHwHint}
+                  onApplied={(fields) =>
+                    updateKey(index, {
+                      xpub: fields.xpub,
+                      fingerprint: fields.fingerprint,
+                      origin_path: fields.origin_path,
+                    })
+                  }
+                />
                 <label>
                   XPUB
                   <textarea
