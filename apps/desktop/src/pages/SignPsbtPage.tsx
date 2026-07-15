@@ -781,11 +781,13 @@ export function SignPsbtPage() {
                   disabled={busy || (!psbt && !finalized)}
                   onClick={() => void onBroadcast()}
                 >
-                  {broadcastConfirm
-                    ? `Confirm broadcast (${vault ? formatNetwork(vault.policy.network) : "network"})`
-                    : is("broadcast")
-                      ? "Broadcast ✓"
-                      : "Broadcast"}
+                  {busy && broadcastConfirm
+                    ? "Broadcasting…"
+                    : broadcastConfirm
+                      ? `Confirm broadcast (${vault ? formatNetwork(vault.policy.network) : "network"})`
+                      : is("broadcast")
+                        ? "Broadcast ✓"
+                        : "Broadcast"}
                 </button>
               </div>
             )}
