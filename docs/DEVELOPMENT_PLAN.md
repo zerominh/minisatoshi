@@ -868,6 +868,7 @@ flowchart LR
 | Hardware signing?     | HWI subprocess + device register (Ledger wallet policies / Coldcard); software sign cho testnet trước |
 | Sparrow integration?  | **Interop fund/address only** — không kỳ vọng import/ký Miniscript vault; Core/Nunchuk/in-app sign |
 | Fund management?      | Giai đoạn 5 tách server; **never** custody keys; desktop OSS vẫn offline-first |
+| Terminology Wallet/Vault? | **Phương án A (đã chốt, chưa code):** container = **Workspace / Không gian**; spendable = **Wallet / Ví**; rename API/DB. Chi tiết: [`docs/workspace-wallet-rename.md`](./workspace-wallet-rename.md) |
 
 
 ---
