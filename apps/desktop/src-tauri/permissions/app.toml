@@ -21,6 +21,7 @@ commands.allow = [
   "get_balance",
   "sync_vault",
   "create_psbt",
+  "import_psbt",
   "sign_psbt_software",
   "sign_psbt_hot",
   "create_hot_keystore",
@@ -47,5 +48,6 @@ commands.allow = [
   "export_sparrow_wallet",
   "list_server_presets",
   "app_version",
-  "save_text_file"
+  "save_text_file",
+  "open_text_file"
 ]

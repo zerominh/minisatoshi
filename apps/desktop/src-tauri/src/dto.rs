@@ -6,6 +6,13 @@ use wallet_core::{Vault, VaultSummary, Wallet, WalletSummary};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OpenTextFileDto {
+    pub path: String,
+    pub contents: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WalletDto {
     pub id: String,
     pub name: String,

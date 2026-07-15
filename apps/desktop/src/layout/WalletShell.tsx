@@ -5,6 +5,7 @@ import { useVault } from "../vault/VaultContext";
 const tabs = [
   { to: "transactions", label: "Transactions", end: true },
   { to: "send", label: "Send" },
+  { to: "sign-psbt", label: "Import PSBT" },
   { to: "receive", label: "Receive" },
   { to: "addresses", label: "Addresses" },
   { to: "utxos", label: "UTXOs" },

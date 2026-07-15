@@ -153,6 +153,11 @@ export async function createPsbt(
   return invoke("create_psbt", { request });
 }
 
+/** Parse / normalize a base64 PSBT for the Sign step (cosigner / air-gap). */
+export async function importPsbt(psbtBase64: string): Promise<PsbtDto> {
+  return invoke("import_psbt", { psbtBase64 });
+}
+
 export async function signPsbtSoftware(
   request: SignPsbtRequest,
 ): Promise<SignedPsbtDto> {

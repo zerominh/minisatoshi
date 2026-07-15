@@ -23,7 +23,7 @@ use crate::dto::{
     CreateVaultRequest, CreateWalletRequest, FinalizedTxDto, HotKeystoreStatusDto,
     HotWalletSummaryDto, HwDeviceDto, HwGetXpubRequest, HwRegisterRequest, HwRegisterResultDto,
     HwSignPsbtRequest, HwStatusDto, HwXpubDto, ImportDescriptorRequest, ImportHotWalletRequestDto,
-    ImportHotWalletResultDto, ImportVaultBackupRequest, PsbtDto, ServerPresetDto,
+    ImportHotWalletResultDto, ImportVaultBackupRequest, OpenTextFileDto, PsbtDto, ServerPresetDto,
     SignPsbtHotRequest, SignPsbtRequest, SignedPsbtDto, SparrowExportDto, SyncResultDto,
     UnlockHotKeystoreRequest, VaultBackupDto, VaultDto, VaultSummaryDto, WalletDto,
     WalletSummaryDto,
@@ -437,15 +437,20 @@ pub fn save_text_file(
     app: tauri::AppHandle,
     default_filename: String,
     contents: String,
+    filter_name: Option<String>,
+    filter_extensions: Option<Vec<String>>,
 ) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
 
-    let chosen = app
-        .dialog()
-        .file()
-        .set_file_name(&default_filename)
-        .add_filter("Descriptor / Text", &["txt"])
-        .blocking_save_file();
+    let mut builder = app.dialog().file().set_file_name(&default_filename);
+    let name = filter_name.as_deref().unwrap_or("Text");
+    let exts: Vec<&str> = filter_extensions
+        .as_ref()
+        .map(|v| v.iter().map(String::as_str).collect())
+        .unwrap_or_else(|| vec!["txt"]);
+    builder = builder.add_filter(name, &exts);
+
+    let chosen = builder.blocking_save_file();
 
     let Some(file_path) = chosen else {
         return Ok(None);
@@ -456,6 +461,40 @@ pub fn save_text_file(
         .map_err(|e| format!("invalid save path: {e}"))?;
     std::fs::write(&path, contents).map_err(|e| format!("failed to write file: {e}"))?;
     Ok(Some(path.display().to_string()))
+}
+
+/// Native Open dialog, then read UTF-8 text from the chosen path.
+/// Returns `None` if the user cancelled.
+#[tauri::command]
+pub fn open_text_file(
+    app: tauri::AppHandle,
+    filter_name: Option<String>,
+    filter_extensions: Option<Vec<String>>,
+) -> Result<Option<OpenTextFileDto>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let mut builder = app.dialog().file();
+    let name = filter_name.as_deref().unwrap_or("Text");
+    let exts: Vec<&str> = filter_extensions
+        .as_ref()
+        .map(|v| v.iter().map(String::as_str).collect())
+        .unwrap_or_else(|| vec!["txt"]);
+    builder = builder.add_filter(name, &exts);
+
+    let chosen = builder.blocking_pick_file();
+    let Some(file_path) = chosen else {
+        return Ok(None);
+    };
+
+    let path = file_path
+        .into_path()
+        .map_err(|e| format!("invalid open path: {e}"))?;
+    let contents =
+        std::fs::read_to_string(&path).map_err(|e| format!("failed to read file: {e}"))?;
+    Ok(Some(OpenTextFileDto {
+        path: path.display().to_string(),
+        contents,
+    }))
 }
 
 fn parse_psbt_b64(base64: &str) -> Result<psbt_engine::Psbt, String> {
@@ -784,6 +823,17 @@ pub fn hw_register_vault(
             }
         }
     }
+}
+
+#[tauri::command]
+pub fn import_psbt(psbt_base64: String) -> Result<PsbtDto, String> {
+    let psbt = parse_psbt_b64(&psbt_base64)?;
+    let base64 = encode_psbt(&psbt)?;
+    Ok(PsbtDto {
+        base64,
+        input_count: psbt.inputs.len(),
+        output_count: psbt.outputs.len(),
+    })
 }
 
 #[tauri::command]

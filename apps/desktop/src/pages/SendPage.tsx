@@ -24,6 +24,7 @@ import {
   getHwFingerprint,
   getHwiPath,
 } from "../lib/settings";
+import { savePsbtFileWithDialog, sanitizedFilename } from "../lib/download";
 import type {
   FinalizedTxDto,
   HotWalletSummaryDto,
@@ -262,6 +263,18 @@ export function SendPage() {
     setBroadcastConfirm(false);
     setError(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function onExportPsbt() {
+    if (!psbt || !vault) return;
+    setError(null);
+    try {
+      const filename = `${sanitizedFilename(vault.name)}-draft.psbt`;
+      const path = await savePsbtFileWithDialog(filename, psbt.base64);
+      if (path) setMessage(`PSBT saved to ${path}`);
+    } catch (err) {
+      setError(formatError(err));
+    }
   }
 
   function startNewSend() {
@@ -638,6 +651,13 @@ export function SendPage() {
                 {busy ? "Creating…" : "Create PSBT →"}
               </button>
             </form>
+            <p className="muted">
+              Cosigner on another machine? Use{" "}
+              <Link to="../sign-psbt" relative="path">
+                Import PSBT
+              </Link>
+              .
+            </p>
           </div>
 
           <div className="send-wizard-pane">
@@ -713,6 +733,14 @@ export function SendPage() {
                     }
                   >
                     Copy PSBT
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => void onExportPsbt()}
+                  >
+                    Export .psbt file…
                   </button>
                   <button
                     type="button"

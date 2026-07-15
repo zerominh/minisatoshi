@@ -9,11 +9,11 @@ use commands::{
     delete_vault, delete_wallet, ensure_hwi_installed, export_bsms, export_sparrow_wallet,
     export_vault_backup, finalize_psbt_cmd, get_balance, get_hwi_status, get_vault,
     hot_keystore_status, hw_get_xpub, hw_register_vault, hw_sign_psbt, import_descriptor,
-    import_hot_wallet, import_vault_backup, list_hot_wallets, list_hw_devices, list_server_presets,
-    list_spending_paths, list_vaults, list_wallets, list_addresses, lock_hot_keystore,
-    new_receive_address, open_hot_wallet, prepare_hw_registration, rename_hot_wallet,
-    rename_vault, rename_wallet, save_text_file, sign_psbt_hot, sign_psbt_software, sync_vault,
-    unlock_hot_keystore,
+    import_hot_wallet, import_psbt, import_vault_backup, list_hot_wallets, list_hw_devices,
+    list_server_presets, list_spending_paths, list_vaults, list_wallets, list_addresses,
+    lock_hot_keystore, new_receive_address, open_hot_wallet, prepare_hw_registration,
+    rename_hot_wallet, rename_vault, rename_wallet, save_text_file, open_text_file, sign_psbt_hot,
+    sign_psbt_software, sync_vault, unlock_hot_keystore,
 };
 use state::AppState;
 use tauri::Manager;
@@ -55,6 +55,7 @@ pub fn run() {
             get_balance,
             sync_vault,
             create_psbt,
+            import_psbt,
             sign_psbt_software,
             sign_psbt_hot,
             create_hot_keystore,
@@ -82,6 +83,7 @@ pub fn run() {
             list_server_presets,
             app_version,
             save_text_file,
+            open_text_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

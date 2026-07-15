@@ -9,6 +9,7 @@ import { ReceivePage } from "./pages/ReceivePage";
 import { SendPage } from "./pages/SendPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ShareVaultPage } from "./pages/ShareVaultPage";
+import { SignPsbtPage } from "./pages/SignPsbtPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
 import { VaultAddressesPage } from "./pages/VaultAddressesPage";
 import { VaultSettingsPage } from "./pages/VaultSettingsPage";
@@ -30,6 +31,7 @@ function App() {
           <Route index element={<Navigate to="transactions" replace />} />
           <Route path="transactions" element={<VaultTransactionsPage />} />
           <Route path="send" element={<SendPage />} />
+          <Route path="sign-psbt" element={<SignPsbtPage />} />
           <Route path="receive" element={<ReceivePage />} />
           <Route path="addresses" element={<VaultAddressesPage />} />
           <Route path="utxos" element={<VaultUtxosPage />} />
@@ -41,6 +43,7 @@ function App() {
           <Route index element={<Navigate to="transactions" replace />} />
           <Route path="transactions" element={<VaultTransactionsPage />} />
           <Route path="send" element={<SendPage />} />
+          <Route path="sign-psbt" element={<SignPsbtPage />} />
           <Route path="receive" element={<ReceivePage />} />
           <Route path="addresses" element={<VaultAddressesPage />} />
           <Route path="utxos" element={<VaultUtxosPage />} />

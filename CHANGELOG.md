@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Import PSBT: open `.psbt` / `.txt` file; Export / Save PSBT file on Sign (Send + Import PSBT tabs)
+- Send: dedicated **Import PSBT** tab (under Send) for cosigner / air-gap signing when Sparrow cannot sign
 - Sticky flash banner (errors / success) fixed at the top of main content app-wide
 - Auto chain sync when opening a vault / hot wallet (deferred, cache-aware), then every 2 min in background without locking UI
 - Vault shell UI (Sparrow-style per-vault tabs): Transactions · Send · Receive · Addresses · UTXOs · Settings
