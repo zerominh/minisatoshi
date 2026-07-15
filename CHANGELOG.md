@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Sign: choose **Signed with** first (Hot / Software / Hardware / Combine), then only that form is shown
 - Import PSBT: open `.psbt` / `.txt` file; Export / Save PSBT file on Sign (Send + Import PSBT tabs)
 - Send: dedicated **Import PSBT** tab (under Send) for cosigner / air-gap signing when Sparrow cannot sign
 - Sticky flash banner (errors / success) fixed at the top of main content app-wide

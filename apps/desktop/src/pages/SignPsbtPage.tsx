@@ -1,6 +1,10 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  PsbtSignMethodPanel,
+  type SignMethod,
+} from "../components/PsbtSignMethodPanel";
+import {
   analyzePsbtStatus,
   broadcastPsbt,
   combinePsbts,
@@ -61,6 +65,7 @@ export function SignPsbtPage() {
   const [secretKey, setSecretKey] = useState("");
   const [hotWallets, setHotWallets] = useState<HotWalletSummaryDto[]>([]);
   const [hotWalletId, setHotWalletId] = useState("");
+  const [signMethod, setSignMethod] = useState<SignMethod>("hardware");
   const [hwFingerprint, setHwFingerprint] = useState(getHwFingerprint());
   const [allowMainnetHotKeys, setAllowMainnetHotKeys] = useState(false);
   const [confirmMainnetHot, setConfirmMainnetHot] = useState(false);
@@ -97,7 +102,10 @@ export function SignPsbtPage() {
         const list = await listHotWallets();
         setHotWallets(list);
         const linked = list.find((h) => h.linkedVaultId === id);
-        if (linked) setHotWalletId(linked.id);
+        if (linked) {
+          setHotWalletId(linked.id);
+          setSignMethod("hot");
+        }
       } catch {
         setHotWallets([]);
       }
@@ -537,115 +545,29 @@ export function SignPsbtPage() {
                   </button>
                 </div>
 
-                <label>
-                  Hot wallet
-                  <select
-                    value={hotWalletId}
-                    onChange={(e) => setHotWalletId(e.target.value)}
-                  >
-                    <option value="">— select —</option>
-                    {hotWallets.map((hw) => (
-                      <option key={hw.id} value={hw.id}>
-                        {hw.name} · {hw.fingerprint}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {hotWallets.length === 0 ? (
-                  <p className="muted">
-                    Unlock under <Link to="/hot-wallets">Hot wallets</Link> if
-                    needed.
-                  </p>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={busy || !hotWalletId}
-                  onClick={() => void onSignHot()}
-                >
-                  Sign with hot wallet
-                </button>
-
-                <label>
-                  Descriptor secret (tprv/xprv… with path)
-                  <textarea
-                    rows={2}
-                    className="mono"
-                    value={secretKey}
-                    onChange={(e) => setSecretKey(e.target.value)}
-                    placeholder="tprv…/86'/1'/0'/0/*"
-                    autoComplete="off"
-                  />
-                </label>
-                {vault?.policy.network === "mainnet" ? (
-                  <>
-                    <label className="check-row">
-                      <input
-                        type="checkbox"
-                        checked={allowMainnetHotKeys}
-                        onChange={(e) =>
-                          setAllowMainnetHotKeys(e.target.checked)
-                        }
-                      />
-                      <span>Allow mainnet hot-key signing (dangerous)</span>
-                    </label>
-                    <label className="check-row">
-                      <input
-                        type="checkbox"
-                        checked={confirmMainnetHot}
-                        onChange={(e) =>
-                          setConfirmMainnetHot(e.target.checked)
-                        }
-                      />
-                      <span>
-                        I understand this exposes private key material on this
-                        machine
-                      </span>
-                    </label>
-                  </>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={busy || !secretKey.trim()}
-                  onClick={() => void onSignSoftware()}
-                >
-                  Sign with software key
-                </button>
-
-                <label>
-                  Hardware fingerprint (HWI)
-                  <input
-                    className="mono"
-                    value={hwFingerprint}
-                    onChange={(e) => setHwFingerprint(e.target.value)}
-                    placeholder="Settings → Signing devices"
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy || !hwFingerprint.trim()}
-                  onClick={() => void onHwSign()}
-                >
-                  Sign with hardware
-                </button>
-
-                <label>
-                  Combine another partial PSBT (optional)
-                  <textarea
-                    rows={3}
-                    className="mono"
-                    value={cosignerPsbt}
-                    onChange={(e) => setCosignerPsbt(e.target.value)}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy || !cosignerPsbt.trim()}
-                  onClick={() => void onCombine()}
-                >
-                  Combine
-                </button>
+                <PsbtSignMethodPanel
+                  method={signMethod}
+                  onMethodChange={setSignMethod}
+                  vault={vault}
+                  busy={busy}
+                  hotWallets={hotWallets}
+                  hotWalletId={hotWalletId}
+                  onHotWalletIdChange={setHotWalletId}
+                  secretKey={secretKey}
+                  onSecretKeyChange={setSecretKey}
+                  hwFingerprint={hwFingerprint}
+                  onHwFingerprintChange={setHwFingerprint}
+                  cosignerPsbt={cosignerPsbt}
+                  onCosignerPsbtChange={setCosignerPsbt}
+                  allowMainnetHotKeys={allowMainnetHotKeys}
+                  onAllowMainnetHotKeysChange={setAllowMainnetHotKeys}
+                  confirmMainnetHot={confirmMainnetHot}
+                  onConfirmMainnetHotChange={setConfirmMainnetHot}
+                  onSignHot={() => void onSignHot()}
+                  onSignSoftware={() => void onSignSoftware()}
+                  onSignHardware={() => void onHwSign()}
+                  onCombine={() => void onCombine()}
+                />
 
                 <div className="row-actions">
                   <button
