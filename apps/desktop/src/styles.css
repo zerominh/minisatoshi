@@ -16,23 +16,34 @@ body {
   margin: 0;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 a {
   color: inherit;
 }
 
 .app {
   display: flex;
+  height: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
 }
 
 .sidebar {
   width: 220px;
+  flex-shrink: 0;
   padding: 1.5rem;
   background: rgba(22, 27, 38, 0.92);
   border-right: 1px solid #2a3142;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
 }
 
 .sidebar h1 {
@@ -85,6 +96,8 @@ a {
   padding: 2rem;
   max-width: 980px;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .flash-banner {
@@ -550,12 +563,18 @@ button.btn-ok.secondary {
 .content:has(.wallet-shell) {
   max-width: none;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .wallet-shell {
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);
-  min-height: 100%;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .wallet-nav {
@@ -565,6 +584,9 @@ button.btn-ok.secondary {
   padding: 1.25rem 1rem;
   background: rgba(16, 20, 30, 0.95);
   border-right: 1px solid #2a3142;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
 }
 
 .wallet-nav-head {
@@ -612,6 +634,9 @@ button.btn-ok.secondary {
 .wallet-main {
   padding: 2rem;
   max-width: 980px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 button.linkish {
@@ -768,17 +793,28 @@ button.linkish:hover {
 @media (max-width: 860px) {
   .app {
     flex-direction: column;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
   }
 
   .sidebar {
     width: auto;
+    height: auto;
     border-right: 0;
     border-bottom: 1px solid #2a3142;
+    position: sticky;
+    top: 0;
+    z-index: 30;
   }
 
   .sidebar nav {
     flex-direction: row;
     flex-wrap: wrap;
+  }
+
+  .content {
+    overflow: visible;
   }
 
   .grid-2 {
@@ -795,16 +831,30 @@ button.linkish:hover {
 
   .wallet-shell {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+
+  .content:has(.wallet-shell) {
+    overflow: visible;
   }
 
   .wallet-nav {
+    height: auto;
     border-right: 0;
     border-bottom: 1px solid #2a3142;
+    position: sticky;
+    top: 0;
+    z-index: 25;
   }
 
   .wallet-nav nav {
     flex-direction: row;
     flex-wrap: wrap;
+  }
+
+  .wallet-main {
+    overflow: visible;
   }
 
   .wallet-nav-foot {
