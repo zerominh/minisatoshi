@@ -201,6 +201,33 @@ button:disabled {
   cursor: wait;
 }
 
+@keyframes btn-ok-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
+  }
+  35% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 8px rgba(52, 211, 153, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+  }
+}
+
+button.btn-ok,
+.button-link.btn-ok {
+  background: #1f6b45;
+  color: #ecfdf5;
+  animation: btn-ok-pulse 0.75s ease-out;
+}
+
+button.btn-ok.secondary {
+  background: #1f6b45;
+  color: #ecfdf5;
+}
+
 .row-actions {
   display: flex;
   flex-wrap: wrap;

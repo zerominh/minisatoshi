@@ -31,6 +31,8 @@ type Props = {
   onMethodChange: (method: SignMethod) => void;
   vault: VaultDto | null;
   busy: boolean;
+  /** Which action just succeeded — drives green pulse on that button. */
+  successMethod?: SignMethod | null;
   hotWallets: HotWalletSummaryDto[];
   hotWalletId: string;
   onHotWalletIdChange: (id: string) => void;
@@ -50,11 +52,16 @@ type Props = {
   onCombine: () => void;
 };
 
+function actionLabel(ok: boolean, idle: string, done: string): string {
+  return ok ? done : idle;
+}
+
 export function PsbtSignMethodPanel({
   method,
   onMethodChange,
   vault,
   busy,
+  successMethod = null,
   hotWallets,
   hotWalletId,
   onHotWalletIdChange,
@@ -74,6 +81,7 @@ export function PsbtSignMethodPanel({
   onCombine,
 }: Props) {
   const mainnet = vault?.policy.network === "mainnet";
+  const ok = (m: SignMethod) => successMethod === m;
 
   return (
     <div className="form-grid">
@@ -123,10 +131,11 @@ export function PsbtSignMethodPanel({
           ) : null}
           <button
             type="button"
+            className={ok("hot") ? "btn-ok" : undefined}
             disabled={busy || !hotWalletId}
             onClick={onSignHot}
           >
-            Sign with hot wallet
+            {actionLabel(ok("hot"), "Sign with hot wallet", "Signed ✓")}
           </button>
         </>
       ) : null}
@@ -154,10 +163,11 @@ export function PsbtSignMethodPanel({
           ) : null}
           <button
             type="button"
+            className={ok("software") ? "btn-ok" : undefined}
             disabled={busy || !secretKey.trim()}
             onClick={onSignSoftware}
           >
-            Sign with software key
+            {actionLabel(ok("software"), "Sign with software key", "Signed ✓")}
           </button>
         </>
       ) : null}
@@ -175,10 +185,11 @@ export function PsbtSignMethodPanel({
           </label>
           <button
             type="button"
+            className={ok("hardware") ? "btn-ok" : undefined}
             disabled={busy || !hwFingerprint.trim()}
             onClick={onSignHardware}
           >
-            Sign with hardware
+            {actionLabel(ok("hardware"), "Sign with hardware", "Signed ✓")}
           </button>
         </>
       ) : null}
@@ -197,10 +208,15 @@ export function PsbtSignMethodPanel({
           </label>
           <button
             type="button"
+            className={ok("combine") ? "btn-ok" : undefined}
             disabled={busy || !cosignerPsbt.trim()}
             onClick={onCombine}
           >
-            Combine with cosigner PSBT
+            {actionLabel(
+              ok("combine"),
+              "Combine with cosigner PSBT",
+              "Combined ✓",
+            )}
           </button>
         </>
       ) : null}

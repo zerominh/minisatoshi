@@ -29,6 +29,7 @@ import {
   getHwiPath,
 } from "../lib/settings";
 import { savePsbtFileWithDialog, sanitizedFilename } from "../lib/download";
+import { useSuccessPulse } from "../lib/useSuccessPulse";
 import type {
   FinalizedTxDto,
   HotWalletSummaryDto,
@@ -82,6 +83,14 @@ export function SendPage() {
   const [broadcastConfirm, setBroadcastConfirm] = useState(false);
   const [broadcastTxid, setBroadcastTxid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { pulse, flash, is } = useSuccessPulse();
+  const successMethod: SignMethod | null =
+    pulse === "hot" ||
+    pulse === "software" ||
+    pulse === "hardware" ||
+    pulse === "combine"
+      ? pulse
+      : null;
 
   useEffect(() => {
     if (shellVault) setVault(shellVault);
@@ -328,6 +337,7 @@ export function SendPage() {
       setPsbt(next);
       setSecretKey("");
       await refreshStatus(next.base64, activePathId);
+      flash("software");
       setMessage(
         `Software signed ${signed.signedInputs}/${signed.totalInputs} input(s).`,
       );
@@ -364,6 +374,7 @@ export function SendPage() {
       };
       setPsbt(next);
       await refreshStatus(next.base64, activePathId);
+      flash("hot");
       setMessage(
         `Hot wallet signed ${signed.signedInputs}/${signed.totalInputs} input(s).`,
       );
@@ -391,6 +402,7 @@ export function SendPage() {
       };
       setPsbt(next);
       await refreshStatus(next.base64, activePathId);
+      flash("hardware");
       setMessage(
         `Hardware signed ${signed.signedInputs}/${signed.totalInputs} input(s).`,
       );
@@ -412,6 +424,7 @@ export function SendPage() {
       setPsbt(combined);
       setCosignerPsbt("");
       await refreshStatus(combined.base64, activePathId);
+      flash("combine");
       setMessage("PSBTs combined.");
     } catch (err) {
       setError(formatError(err));
@@ -427,9 +440,12 @@ export function SendPage() {
     try {
       const tx = await finalizePsbt(psbt.base64);
       setFinalized(tx);
-      setStep("broadcast");
+      flash("finalize");
       setMessage(`Finalized ${tx.txid} — review and broadcast`);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.setTimeout(() => {
+        setStep("broadcast");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }, 480);
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -456,6 +472,7 @@ export function SendPage() {
       });
       setBroadcastConfirm(false);
       setBroadcastTxid(txid);
+      flash("broadcast");
       setMessage(null);
       setStep("done");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -764,6 +781,7 @@ export function SendPage() {
                   onMethodChange={setSignMethod}
                   vault={vault}
                   busy={busy}
+                  successMethod={successMethod}
                   hotWallets={hotWallets}
                   hotWalletId={hotWalletId}
                   onHotWalletIdChange={setHotWalletId}
@@ -785,10 +803,15 @@ export function SendPage() {
                 <div className="row-actions">
                   <button
                     type="button"
+                    className={is("finalize") ? "btn-ok" : undefined}
                     disabled={busy}
                     onClick={() => void onFinalize()}
                   >
-                    {busy ? "Finalizing…" : "Finalize →"}
+                    {busy
+                      ? "Finalizing…"
+                      : is("finalize")
+                        ? "Finalized ✓"
+                        : "Finalize →"}
                   </button>
                   <button
                     type="button"
@@ -871,11 +894,11 @@ export function SendPage() {
                     />
                     <button
                       type="button"
-                      className="secondary"
+                      className={is("finalize") ? "btn-ok secondary" : "secondary"}
                       disabled={busy}
                       onClick={() => void onFinalize()}
                     >
-                      Finalize first
+                      {is("finalize") ? "Finalized ✓" : "Finalize first"}
                     </button>
                   </>
                 )}
@@ -892,12 +915,15 @@ export function SendPage() {
                 ) : null}
                 <button
                   type="button"
+                  className={is("broadcast") ? "btn-ok" : undefined}
                   disabled={busy || (!psbt && !finalized)}
                   onClick={() => void onBroadcast()}
                 >
                   {broadcastConfirm
                     ? `Confirm broadcast (${vault ? formatNetwork(vault.policy.network) : "network"})`
-                    : "Broadcast"}
+                    : is("broadcast")
+                      ? "Broadcast ✓"
+                      : "Broadcast"}
                 </button>
               </div>
             )}

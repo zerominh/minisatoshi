@@ -31,6 +31,7 @@ import {
   savePsbtFileWithDialog,
   sanitizedFilename,
 } from "../lib/download";
+import { useSuccessPulse } from "../lib/useSuccessPulse";
 import type {
   FinalizedTxDto,
   HotWalletSummaryDto,
@@ -41,11 +42,31 @@ import type {
 } from "../lib/types";
 import { useVault, useVaultIdFromRouteOrContext } from "../vault/VaultContext";
 
-type Step = "import" | "sign";
+type Step = "import" | "sign" | "broadcast" | "done";
+
+const STEP_OFFSET: Record<Step, string> = {
+  import: "translateX(0)",
+  sign: "translateX(-100%)",
+  broadcast: "translateX(-200%)",
+  done: "translateX(-300%)",
+};
+
+function pathSatisfied(
+  status: SigningStatusDto | null,
+  pathId: string,
+): boolean {
+  if (!status?.paths.length) return false;
+  const focus =
+    status.paths.find((p) => p.path.id === pathId) ??
+    status.paths.find((p) => p.satisfied) ??
+    null;
+  return focus?.satisfied ?? false;
+}
 
 /**
  * Cosigner / air-gap: import a PSBT created elsewhere, sign locally, copy back.
  * Sparrow often cannot sign Miniscript Taproot vaults — use this instead.
+ * When enough signatures are present, Finalize → Broadcast → Sent (same as Send).
  */
 export function SignPsbtPage() {
   const id = useVaultIdFromRouteOrContext();
@@ -72,7 +93,17 @@ export function SignPsbtPage() {
   const [cosignerPsbt, setCosignerPsbt] = useState("");
   const [finalized, setFinalized] = useState<FinalizedTxDto | null>(null);
   const [broadcastConfirm, setBroadcastConfirm] = useState(false);
+  const [broadcastTxid, setBroadcastTxid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const readyToFinalize = pathSatisfied(signStatus, activePathId);
+  const { pulse, flash, is } = useSuccessPulse();
+  const successMethod: SignMethod | null =
+    pulse === "hot" ||
+    pulse === "software" ||
+    pulse === "hardware" ||
+    pulse === "combine"
+      ? pulse
+      : null;
 
   useEffect(() => {
     if (shellVault) setVault(shellVault);
@@ -139,10 +170,28 @@ export function SignPsbtPage() {
     setSignStatus(null);
     setFinalized(null);
     setBroadcastConfirm(false);
+    setBroadcastTxid(null);
     setSecretKey("");
     setCosignerPsbt("");
     setError(null);
     setMessage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function goToSign() {
+    if (!psbt || step === "done") return;
+    setStep("sign");
+    setBroadcastConfirm(false);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function goToBroadcast() {
+    if (!psbt || step === "done") return;
+    setStep("broadcast");
+    setBroadcastConfirm(false);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function onImport(event: FormEvent) {
@@ -156,14 +205,13 @@ export function SignPsbtPage() {
       const file = await openPsbtFileWithDialog();
       if (!file) return;
       setImportBase64(file.contents.trim());
-      await loadImportedPsbt(file.contents);
-      setMessage(`Loaded ${file.path}`);
+      await loadImportedPsbt(file.contents, file.path);
     } catch (err) {
       setError(formatError(err));
     }
   }
 
-  async function loadImportedPsbt(rawInput: string) {
+  async function loadImportedPsbt(rawInput: string, fromPath?: string) {
     const raw = rawInput.trim();
     if (!raw) {
       setError("Paste a base64 PSBT or open a .psbt file");
@@ -178,10 +226,21 @@ export function SignPsbtPage() {
       const result = await importPsbt(raw);
       setPsbt(result);
       setImportBase64("");
-      await refreshStatus(result.base64, activePathId);
+      setFinalized(null);
+      setBroadcastTxid(null);
+      const status = await analyzePsbtStatus({
+        vaultId: id,
+        psbtBase64: result.base64,
+        activePathId: activePathId || null,
+      }).catch(() => null);
+      setSignStatus(status);
       setStep("sign");
+      const enough = pathSatisfied(status, activePathId);
+      const prefix = fromPath ? `Loaded ${fromPath} · ` : "";
       setMessage(
-        `Imported (${result.inputCount} in / ${result.outputCount} out) — sign, then Copy or Export PSBT back to the creator.`,
+        enough
+          ? `${prefix}Imported (${result.inputCount} in / ${result.outputCount} out) — enough signatures; Finalize or Broadcast.`
+          : `${prefix}Imported (${result.inputCount} in / ${result.outputCount} out) — sign, then Copy/Export or Finalize when ready.`,
       );
     } catch (err) {
       setError(formatError(err));
@@ -227,6 +286,7 @@ export function SignPsbtPage() {
       setPsbt(next);
       setSecretKey("");
       await refreshStatus(next.base64, activePathId);
+      flash("software");
       setMessage(
         `Software signed ${signed.signedInputs}/${signed.totalInputs} input(s).`,
       );
@@ -261,6 +321,7 @@ export function SignPsbtPage() {
       };
       setPsbt(next);
       await refreshStatus(next.base64, activePathId);
+      flash("hot");
       setMessage(
         `Hot wallet signed ${signed.signedInputs}/${signed.totalInputs} input(s).`,
       );
@@ -288,6 +349,7 @@ export function SignPsbtPage() {
       };
       setPsbt(next);
       await refreshStatus(next.base64, activePathId);
+      flash("hardware");
       setMessage(
         `Hardware signed ${signed.signedInputs}/${signed.totalInputs} input(s).`,
       );
@@ -309,6 +371,7 @@ export function SignPsbtPage() {
       setPsbt(combined);
       setCosignerPsbt("");
       await refreshStatus(combined.base64, activePathId);
+      flash("combine");
       setMessage("PSBTs combined.");
     } catch (err) {
       setError(formatError(err));
@@ -324,7 +387,12 @@ export function SignPsbtPage() {
     try {
       const tx = await finalizePsbt(psbt.base64);
       setFinalized(tx);
-      setMessage(`Finalized ${tx.txid}`);
+      flash("finalize");
+      setMessage(`Finalized ${tx.txid} — review and broadcast`);
+      window.setTimeout(() => {
+        setStep("broadcast");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }, 480);
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -350,7 +418,11 @@ export function SignPsbtPage() {
         esploraUrl: getEsploraUrl() || null,
       });
       setBroadcastConfirm(false);
-      setMessage(`Broadcast ok · ${formatNetwork(vault?.policy.network ?? "testnet")} · ${txid}`);
+      setBroadcastTxid(txid);
+      flash("broadcast");
+      setMessage(null);
+      setStep("done");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       await runSync({ quiet: true });
     } catch (err) {
       setError(formatError(err));
@@ -380,6 +452,7 @@ export function SignPsbtPage() {
           type="button"
           className={step === "import" ? "send-step active" : "send-step"}
           onClick={resetImport}
+          disabled={step === "done"}
         >
           <span className="send-step-num">1</span>
           Import
@@ -388,21 +461,33 @@ export function SignPsbtPage() {
         <button
           type="button"
           className={step === "sign" ? "send-step active" : "send-step"}
-          disabled={!psbt}
-          onClick={() => psbt && setStep("sign")}
+          disabled={!psbt || step === "done"}
+          onClick={goToSign}
         >
           <span className="send-step-num">2</span>
-          Sign & return
+          Sign
+        </button>
+        <span className="send-steps-divider" aria-hidden />
+        <button
+          type="button"
+          className={
+            step === "broadcast" || step === "done"
+              ? "send-step active"
+              : "send-step"
+          }
+          disabled={!psbt || step === "done"}
+          onClick={goToBroadcast}
+        >
+          <span className="send-step-num">{step === "done" ? "✓" : "3"}</span>
+          {step === "done" ? "Sent" : "Broadcast"}
         </button>
       </nav>
 
       <div className="send-wizard">
         <div
           className="send-wizard-track"
-          style={{
-            transform:
-              step === "sign" ? "translateX(-100%)" : "translateX(0)",
-          }}
+          data-step={step}
+          style={{ transform: STEP_OFFSET[step] }}
         >
           <div className="send-wizard-pane">
             <form
@@ -479,8 +564,14 @@ export function SignPsbtPage() {
                   >
                     ← Import another
                   </button>
-                  <h3>Sign</h3>
+                  <h3>{readyToFinalize ? "Sign · ready" : "Sign"}</h3>
                 </div>
+                {readyToFinalize ? (
+                  <p className="muted">
+                    Enough signatures for this path — Finalize and Broadcast
+                    here, or Copy/Export PSBT back to the creator.
+                  </p>
+                ) : null}
                 {signStatus ? (
                   <div className="send-sign-status">
                     <p>
@@ -550,6 +641,7 @@ export function SignPsbtPage() {
                   onMethodChange={setSignMethod}
                   vault={vault}
                   busy={busy}
+                  successMethod={successMethod}
                   hotWallets={hotWallets}
                   hotWalletId={hotWalletId}
                   onHotWalletIdChange={setHotWalletId}
@@ -572,26 +664,178 @@ export function SignPsbtPage() {
                 <div className="row-actions">
                   <button
                     type="button"
-                    className="secondary"
+                    className={is("finalize") ? "btn-ok" : undefined}
                     disabled={busy}
                     onClick={() => void onFinalize()}
                   >
-                    Finalize
+                    {busy
+                      ? "Finalizing…"
+                      : is("finalize")
+                        ? "Finalized ✓"
+                        : "Finalize →"}
                   </button>
                   <button
                     type="button"
                     className="secondary"
-                    disabled={busy || (!psbt && !finalized)}
-                    onClick={() => void onBroadcast()}
+                    disabled={!psbt}
+                    onClick={goToBroadcast}
                   >
-                    {broadcastConfirm ? "Confirm broadcast" : "Broadcast"}
+                    Broadcast →
                   </button>
                 </div>
-                {finalized ? (
-                  <p className="mono wrap muted">txid {finalized.txid}</p>
-                ) : null}
               </div>
             )}
+          </div>
+
+          <div className="send-wizard-pane">
+            {!psbt ? (
+              <div className="panel">
+                <p className="muted">Sign a PSBT first, then broadcast.</p>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={resetImport}
+                >
+                  ← Back to import
+                </button>
+              </div>
+            ) : (
+              <div className="panel form-grid">
+                <div className="row-actions send-pane-header">
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={goToSign}
+                  >
+                    ← Back to sign
+                  </button>
+                  <h3>Broadcast</h3>
+                </div>
+                <p className="muted">
+                  Network:{" "}
+                  <strong>
+                    {vault ? formatNetwork(vault.policy.network) : "unknown"}
+                  </strong>
+                  {getEsploraUrl()
+                    ? ` · ${getEsploraUrl()}`
+                    : " · default Esplora"}
+                </p>
+                {finalized ? (
+                  <>
+                    <p className="mono wrap">txid {finalized.txid}</p>
+                    <textarea
+                      className="mono"
+                      rows={4}
+                      readOnly
+                      value={finalized.hex}
+                    />
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() =>
+                        void copyText(finalized.hex).then(() =>
+                          setMessage("Copied tx hex"),
+                        )
+                      }
+                    >
+                      Copy hex
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="muted">
+                      {readyToFinalize
+                        ? "Signatures look complete — Finalize first, or broadcast will try to finalize from the PSBT."
+                        : "Not finalized yet — broadcast will try to finalize from the PSBT, or go back and Finalize when signatures are enough."}
+                    </p>
+                    <textarea
+                      className="mono"
+                      rows={3}
+                      readOnly
+                      value={psbt.base64}
+                    />
+                    <button
+                      type="button"
+                      className={is("finalize") ? "btn-ok secondary" : "secondary"}
+                      disabled={busy}
+                      onClick={() => void onFinalize()}
+                    >
+                      {is("finalize") ? "Finalized ✓" : "Finalize first"}
+                    </button>
+                  </>
+                )}
+                {broadcastConfirm ? (
+                  <p className="muted">
+                    Confirm sending to{" "}
+                    <strong>
+                      {vault
+                        ? formatNetwork(vault.policy.network)
+                        : "unknown"}
+                    </strong>
+                    . Click Broadcast again to publish.
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  className={is("broadcast") ? "btn-ok" : undefined}
+                  disabled={busy || (!psbt && !finalized)}
+                  onClick={() => void onBroadcast()}
+                >
+                  {broadcastConfirm
+                    ? `Confirm broadcast (${vault ? formatNetwork(vault.policy.network) : "network"})`
+                    : is("broadcast")
+                      ? "Broadcast ✓"
+                      : "Broadcast"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="send-wizard-pane">
+            <div className="panel send-success">
+              <p className="send-success-eyebrow">Sent</p>
+              <h3>Transaction broadcast</h3>
+              <p className="muted">
+                Published on{" "}
+                <strong>
+                  {vault ? formatNetwork(vault.policy.network) : "network"}
+                </strong>
+                . It may take a moment to appear in history after sync.
+              </p>
+              {broadcastTxid ? (
+                <div className="send-success-txid">
+                  <span className="muted">txid</span>
+                  <p className="mono wrap">{broadcastTxid}</p>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() =>
+                      void copyText(broadcastTxid).then(() =>
+                        setMessage("Copied txid"),
+                      )
+                    }
+                  >
+                    Copy txid
+                  </button>
+                </div>
+              ) : null}
+              <div className="row-actions send-success-actions">
+                <Link
+                  className="button-link primary"
+                  to="../transactions"
+                  relative="path"
+                >
+                  View transactions
+                </Link>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={resetImport}
+                >
+                  Import another
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
