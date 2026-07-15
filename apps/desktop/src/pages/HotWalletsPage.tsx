@@ -49,6 +49,8 @@ export function HotWalletsPage() {
   const [passphrase, setPassphrase] = useState("");
   const [network, setNetwork] = useState<NetworkName>(getPreferredNetwork());
   const [busy, setBusy] = useState(false);
+  /** BIP-39 import form — collapsed until user clicks Add. */
+  const [importOpen, setImportOpen] = useState(false);
 
   async function refresh() {
     const st = await hotKeystoreStatus();
@@ -89,6 +91,7 @@ export function HotWalletsPage() {
     setBusy(true);
     try {
       await lockHotKeystore();
+      closeImportForm();
       setMessage("Locked");
       await refresh();
     } catch (err) {
@@ -124,9 +127,8 @@ export function HotWalletsPage() {
         workspaceId: "",
         createNestedWallet: true,
       });
-      setWords(Array(wordCount).fill(""));
-      setJsonPayload("");
-      setPassphrase("");
+      resetImportForm();
+      setImportOpen(false);
       setMessage(`Imported “${result.hotWallet.name}”`);
       await refresh();
       navigate(`/hot-wallets/${result.hotWallet.id}`);
@@ -135,6 +137,20 @@ export function HotWalletsPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function resetImportForm() {
+    setWords(Array(wordCount).fill(""));
+    setJsonPayload("");
+    setPassphrase("");
+    setAdvancedJson(false);
+    setName("My hot wallet");
+    setNetwork(getPreferredNetwork());
+  }
+
+  function closeImportForm() {
+    resetImportForm();
+    setImportOpen(false);
   }
 
   async function onRename(hw: HotWalletSummaryDto) {
@@ -225,84 +241,25 @@ export function HotWalletsPage() {
 
       {status?.unlocked ? (
         <>
-          <form className="panel form-grid" onSubmit={(e) => void onImport(e)}>
-            <h3>Import BIP-39 seed</h3>
-            <label>
-              Network
-              <select
-                value={network}
-                onChange={(e) => setNetwork(e.target.value as NetworkName)}
-              >
-                {NETWORKS.map((n) => (
-                  <option key={n} value={n}>
-                    {formatNetwork(n)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Display name
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </label>
-
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={advancedJson}
-                onChange={(e) => setAdvancedJson(e.target.checked)}
-              />
-              <span>Paste JSON / raw text instead of word grid</span>
-            </label>
-
-            {advancedJson ? (
-              <label>
-                Mnemonic JSON {'{ "mnemonic": "…" }'} or raw words
-                <textarea
-                  className="mono"
-                  rows={4}
-                  value={jsonPayload}
-                  onChange={(e) => setJsonPayload(e.target.value)}
-                  required
-                  autoComplete="off"
-                />
-              </label>
-            ) : (
-              <MnemonicGrid
-                wordCount={wordCount}
-                onWordCountChange={setWordCount}
-                words={words}
-                onWordsChange={setWords}
-                disabled={busy}
-              />
-            )}
-
-            <label>
-              BIP-39 passphrase (optional)
-              <input
-                type="password"
-                value={passphrase}
-                onChange={(e) => setPassphrase(e.target.value)}
-                autoComplete="off"
-              />
-            </label>
-            <p className="muted">
-              BIP-86 Taproot on {formatNetwork(network)}. SeedQR from Sparrow /
-              SeedSigner supported.
-            </p>
-            <button type="submit" disabled={busy || !canImport}>
-              {busy ? "Importing…" : "Import hot wallet"}
-            </button>
-          </form>
-
           <div className="panel">
-            <h3>Your hot wallets</h3>
-            <p className="muted">
-              Tap a wallet to open Transactions / Send / Receive.
-            </p>
+            <header className="page-header">
+              <div>
+                <h3>Your hot wallets</h3>
+                <p className="muted">
+                  Tap a wallet to open Transactions / Send / Receive.
+                </p>
+              </div>
+              {!importOpen ? (
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={busy}
+                  onClick={() => setImportOpen(true)}
+                >
+                  Add
+                </button>
+              ) : null}
+            </header>
             {hotWallets.length === 0 ? (
               <p className="muted">None yet.</p>
             ) : (
@@ -347,6 +304,106 @@ export function HotWalletsPage() {
               </ul>
             )}
           </div>
+
+          {importOpen ? (
+            <form
+              className="panel form-grid"
+              onSubmit={(e) => void onImport(e)}
+            >
+              <header className="page-header">
+                <div>
+                  <h3>Import BIP-39 seed</h3>
+                  <p className="muted">
+                    BIP-86 Taproot on {formatNetwork(network)}. SeedQR from
+                    Sparrow / SeedSigner supported.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={closeImportForm}
+                >
+                  Cancel
+                </button>
+              </header>
+              <label>
+                Network
+                <select
+                  value={network}
+                  onChange={(e) => setNetwork(e.target.value as NetworkName)}
+                >
+                  {NETWORKS.map((n) => (
+                    <option key={n} value={n}>
+                      {formatNetwork(n)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Display name
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </label>
+
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={advancedJson}
+                  onChange={(e) => setAdvancedJson(e.target.checked)}
+                />
+                <span>Paste JSON / raw text instead of word grid</span>
+              </label>
+
+              {advancedJson ? (
+                <label>
+                  Mnemonic JSON {'{ "mnemonic": "…" }'} or raw words
+                  <textarea
+                    className="mono"
+                    rows={4}
+                    value={jsonPayload}
+                    onChange={(e) => setJsonPayload(e.target.value)}
+                    required
+                    autoComplete="off"
+                  />
+                </label>
+              ) : (
+                <MnemonicGrid
+                  wordCount={wordCount}
+                  onWordCountChange={setWordCount}
+                  words={words}
+                  onWordsChange={setWords}
+                  disabled={busy}
+                />
+              )}
+
+              <label>
+                BIP-39 passphrase (optional)
+                <input
+                  type="password"
+                  value={passphrase}
+                  onChange={(e) => setPassphrase(e.target.value)}
+                  autoComplete="off"
+                />
+              </label>
+              <div className="row-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={closeImportForm}
+                >
+                  Cancel
+                </button>
+                <button type="submit" disabled={busy || !canImport}>
+                  {busy ? "Importing…" : "Import hot wallet"}
+                </button>
+              </div>
+            </form>
+          ) : null}
         </>
       ) : null}
     </section>
