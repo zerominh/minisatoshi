@@ -25,8 +25,8 @@ use crate::dto::{
     HwSignPsbtRequest, HwStatusDto, HwXpubDto, ImportDescriptorRequest, ImportHotWalletRequestDto,
     ImportHotWalletResultDto, ImportWalletBackupRequest, OpenTextFileDto, PsbtDto, ServerPresetDto,
     SignPsbtHotRequest, SignPsbtRequest, SignedPsbtDto, SparrowExportDto, SyncResultDto,
-    UnlockHotKeystoreRequest, WalletBackupDto, WalletDto, WalletSummaryDto, WorkspaceDto,
-    WorkspaceSummaryDto,
+    TxOutputDto, UnlockHotKeystoreRequest, WalletBackupDto, WalletDto, WalletSummaryDto,
+    WorkspaceDto, WorkspaceSummaryDto,
 };
 use crate::error::user_facing_error;
 use crate::state::AppState;
@@ -857,13 +857,43 @@ pub fn combine_psbts(request: CombinePsbtRequest) -> Result<PsbtDto, String> {
 }
 
 #[tauri::command]
-pub fn finalize_psbt_cmd(psbt_base64: String) -> Result<FinalizedTxDto, String> {
+pub fn finalize_psbt_cmd(
+    state: State<'_, AppState>,
+    psbt_base64: String,
+    wallet_id: Option<String>,
+) -> Result<FinalizedTxDto, String> {
     let mut psbt = parse_psbt_b64(&psbt_base64)?;
     let tx = finalize_psbt(&mut psbt).map_err(user_facing_error)?;
+
+    let btc_net = match wallet_id.as_deref().filter(|id| !id.is_empty()) {
+        Some(id) => state.with_store(|store| {
+            WalletService::new(store)
+                .get_wallet(id)
+                .map(|w| w.policy.network.to_bitcoin_network())
+                .map_err(user_facing_error)
+        })?,
+        None => bitcoin::Network::Bitcoin,
+    };
+
+    let outputs = tx
+        .output
+        .iter()
+        .map(|out| {
+            let address = bitcoin::Address::from_script(&out.script_pubkey, btc_net)
+                .ok()
+                .map(|a| a.to_string());
+            TxOutputDto {
+                address,
+                amount_sats: out.value.to_sat(),
+            }
+        })
+        .collect();
+
     Ok(FinalizedTxDto {
         hex: transaction_hex(&tx),
         txid: tx.compute_txid().to_string(),
         fully_signed: true,
+        outputs,
     })
 }
 

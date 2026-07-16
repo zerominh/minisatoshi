@@ -284,8 +284,12 @@ export async function combinePsbts(
 
 export async function finalizePsbt(
   psbtBase64: string,
+  walletId?: string | null,
 ): Promise<FinalizedTxDto> {
-  return invoke("finalize_psbt_cmd", { psbtBase64 });
+  return invoke("finalize_psbt_cmd", {
+    psbtBase64,
+    walletId: walletId ?? null,
+  });
 }
 
 export async function broadcastPsbt(

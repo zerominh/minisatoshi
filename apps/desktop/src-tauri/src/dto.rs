@@ -353,10 +353,18 @@ pub struct CombinePsbtRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TxOutputDto {
+    pub address: Option<String>,
+    pub amount_sats: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FinalizedTxDto {
     pub hex: String,
     pub txid: String,
     pub fully_signed: bool,
+    pub outputs: Vec<TxOutputDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

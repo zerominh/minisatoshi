@@ -4,6 +4,7 @@ import {
   PsbtSignMethodPanel,
   type SignMethod,
 } from "../components/PsbtSignMethodPanel";
+import { BroadcastConfirmSummary } from "../components/BroadcastConfirmSummary";
 import { useT } from "../i18n/LocaleContext";
 import {
   analyzePsbtStatus,
@@ -387,7 +388,7 @@ export function SignPsbtPage() {
     setBusy(true);
     setError(null);
     try {
-      const tx = await finalizePsbt(psbt.base64);
+      const tx = await finalizePsbt(psbt.base64, id);
       setFinalized(tx);
       flash("finalize");
       setMessage(`Finalized ${tx.txid} — review and broadcast`);
@@ -405,9 +406,7 @@ export function SignPsbtPage() {
   async function onBroadcast() {
     if (!broadcastConfirm) {
       setBroadcastConfirm(true);
-      setMessage(
-        `Confirm broadcast on ${wallet ? formatNetwork(wallet.policy.network) : "network"} — click Broadcast again.`,
-      );
+      setMessage(null);
       return;
     }
     setBusy(true);
@@ -767,15 +766,11 @@ export function SignPsbtPage() {
                   </>
                 )}
                 {broadcastConfirm ? (
-                  <p className="muted">
-                    Confirm sending to{" "}
-                    <strong>
-                      {wallet
-                        ? formatNetwork(wallet.policy.network)
-                        : "unknown"}
-                    </strong>
-                    . Click Broadcast again to publish.
-                  </p>
+                  <BroadcastConfirmSummary
+                    fromWallet={wallet?.name ?? t("shell.wallet")}
+                    network={wallet?.policy.network}
+                    outputs={finalized?.outputs}
+                  />
                 ) : null}
                 <button
                   type="button"

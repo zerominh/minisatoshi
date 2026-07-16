@@ -100,6 +100,15 @@ export function formatSats(sats: number): string {
   return `${sats.toLocaleString()} sats`;
 }
 
+/** Whole BTC string from satoshis (8 decimal places). */
+export function formatBtcFromSats(sats: number): string {
+  const btc = sats / 100_000_000;
+  return `${btc.toLocaleString(undefined, {
+    minimumFractionDigits: 8,
+    maximumFractionDigits: 8,
+  })} BTC`;
+}
+
 export async function copyText(value: string): Promise<void> {
   await navigator.clipboard.writeText(value);
 }

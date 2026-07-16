@@ -156,6 +156,13 @@ export const vi = {
   "send.finalized": "Đã hoàn tất ✓",
   "send.broadcasting": "Đang phát sóng…",
   "send.confirmBroadcast": "Xác nhận phát sóng ({network})",
+  "send.confirmTitle": "Xác nhận lần cuối",
+  "send.confirmFrom": "Từ ví",
+  "send.confirmTo": "Đến địa chỉ",
+  "send.confirmAmount": "Số lượng",
+  "send.confirmNetwork": "Mạng",
+  "send.confirmHint":
+    "Bấm nút lần nữa để đăng lên chuỗi. Không hoàn tác được.",
   "send.viewTx": "Xem giao dịch",
   "send.another": "Gửi tiếp",
   "send.refreshStatus": "Làm mới trạng thái",

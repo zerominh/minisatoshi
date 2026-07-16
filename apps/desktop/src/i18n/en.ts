@@ -160,6 +160,13 @@ export const en = {
   "send.finalized": "Finalized ✓",
   "send.broadcasting": "Broadcasting…",
   "send.confirmBroadcast": "Confirm broadcast ({network})",
+  "send.confirmTitle": "Final confirmation",
+  "send.confirmFrom": "From wallet",
+  "send.confirmTo": "To address",
+  "send.confirmAmount": "Amount",
+  "send.confirmNetwork": "Network",
+  "send.confirmHint":
+    "Click the button again to publish on-chain. This cannot be undone.",
   "send.viewTx": "View transactions",
   "send.another": "Send another",
   "send.refreshStatus": "Refresh status",

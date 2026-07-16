@@ -363,10 +363,16 @@ export interface CombinePsbtRequest {
   parts: string[];
 }
 
+export interface TxOutputDto {
+  address?: string | null;
+  amountSats: number;
+}
+
 export interface FinalizedTxDto {
   hex: string;
   txid: string;
   fullySigned: boolean;
+  outputs: TxOutputDto[];
 }
 
 export interface BroadcastTxRequest {

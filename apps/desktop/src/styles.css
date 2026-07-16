@@ -790,6 +790,66 @@ button.linkish:hover {
   justify-content: center;
 }
 
+.broadcast-confirm {
+  margin: 0.25rem 0 0.5rem;
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  border: 1px solid #f7931a66;
+  background: rgba(247, 147, 26, 0.08);
+}
+
+.broadcast-confirm h4 {
+  margin: 0 0 0.75rem;
+  color: #f7931a;
+  font-size: 1rem;
+}
+
+.broadcast-confirm-grid {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0.45rem 0.85rem;
+  margin: 0;
+}
+
+.broadcast-confirm-grid dt {
+  margin: 0;
+  color: #8b93a7;
+  font-size: 0.85rem;
+}
+
+.broadcast-confirm-grid dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.broadcast-confirm-amount {
+  color: #f7931a;
+  font-size: 1.1rem;
+}
+
+.broadcast-confirm-outputs {
+  margin-top: 0.85rem;
+}
+
+.broadcast-confirm-outputs ul {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.broadcast-confirm-outputs li {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.broadcast-confirm-hint {
+  margin: 0.85rem 0 0;
+  color: #c9cdd8;
+  font-size: 0.9rem;
+}
+
 @media (max-width: 860px) {
   .app {
     flex-direction: column;
