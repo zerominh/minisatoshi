@@ -464,6 +464,8 @@ pub struct TxSummaryDto {
     pub amount_sats: i64,
     pub confirmed: bool,
     pub block_height: Option<u32>,
+    /// Unix seconds when confirmed (from Esplora `block_time`).
+    pub block_time: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -496,6 +498,7 @@ impl From<blockchain::TxSummary> for TxSummaryDto {
             amount_sats: value.amount_sats,
             confirmed: value.confirmed,
             block_height: value.block_height,
+            block_time: value.block_time,
         }
     }
 }

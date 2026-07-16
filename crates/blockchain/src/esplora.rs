@@ -213,6 +213,7 @@ impl BlockchainBackend for EsploraBackend {
                         amount_sats: net,
                         confirmed: tx.status.confirmed,
                         block_height: tx.status.block_height,
+                        block_time: tx.status.block_time,
                     });
             }
         }
@@ -341,6 +342,7 @@ struct EsploraVout {
 struct EsploraStatus {
     confirmed: bool,
     block_height: Option<u32>,
+    block_time: Option<u64>,
 }
 
 #[cfg(test)]

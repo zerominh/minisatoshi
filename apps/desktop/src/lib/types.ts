@@ -118,6 +118,8 @@ export interface TxSummaryDto {
   amountSats: number;
   confirmed: boolean;
   blockHeight?: number | null;
+  /** Unix seconds (block time) when available from sync. */
+  blockTime?: number | null;
 }
 
 export interface SyncResultDto {

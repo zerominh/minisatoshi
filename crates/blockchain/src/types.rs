@@ -51,6 +51,8 @@ pub struct TxSummary {
     pub amount_sats: i64,
     pub confirmed: bool,
     pub block_height: Option<u32>,
+    /// Unix seconds (block time). Esplora fills this; Electrum may leave `None`.
+    pub block_time: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

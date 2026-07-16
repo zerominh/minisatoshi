@@ -161,6 +161,7 @@ impl BlockchainBackend for ElectrumBackend {
                         } else {
                             None
                         },
+                        block_time: None,
                     });
             }
         }
