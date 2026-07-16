@@ -113,7 +113,7 @@ export function SettingsPage() {
     try {
       setHwiPath(hwiPath);
       await refreshHwiStatus().catch(() => undefined);
-      const list = await listHwDevices(hwiPath || null);
+      const list = await listHwDevices(hwiPath || null, network);
       const status = await getHwiStatus(hwiPath || null);
       setHwiStatus(status);
       if (status.path && !getHwiPath()) {
@@ -142,6 +142,7 @@ export function SettingsPage() {
         fingerprint,
         derivationPath: xpubPath,
         hwiPath: hwiPath || null,
+        network,
       });
       setXpubResult(result.xpub);
       setHwFingerprintState(fingerprint);

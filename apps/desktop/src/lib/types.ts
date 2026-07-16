@@ -170,6 +170,7 @@ export interface HwGetXpubRequest {
   fingerprint: string;
   derivationPath: string;
   hwiPath?: string | null;
+  network?: NetworkName | null;
 }
 
 export interface HwXpubDto {
@@ -182,6 +183,7 @@ export interface HwSignPsbtRequest {
   fingerprint: string;
   psbtBase64: string;
   hwiPath?: string | null;
+  network?: NetworkName | null;
 }
 
 export interface HwStatusDto {

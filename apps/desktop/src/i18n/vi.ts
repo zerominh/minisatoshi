@@ -167,6 +167,16 @@ export const vi = {
   "send.another": "Gửi tiếp",
   "send.refreshStatus": "Làm mới trạng thái",
   "send.transactionsLink": "Giao dịch",
+  "send.hwScanDevices": "Quét thiết bị đang kết nối",
+  "send.hwScanning": "Đang quét…",
+  "send.hwSelectDevice": "Thiết bị đang kết nối",
+  "send.hwSelectPlaceholder": "— chọn thiết bị —",
+  "send.hwSelected": "Đã chọn ✓",
+  "send.hwSettingsLink": "Cài đặt HWI",
+  "send.hwNetworkHint":
+    "HWI dùng mạng {network} — mở khóa thiết bị trước khi ký.",
+  "send.hwNoFingerprint":
+    "Chọn ví phần cứng đang kết nối hoặc nhập fingerprint.",
 
   "signPsbt.title": "Nhập PSBT để ký",
   "signPsbt.subtitle": "đồng ký / air-gap",

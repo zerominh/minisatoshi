@@ -167,6 +167,8 @@ pub struct HwGetXpubRequest {
     pub derivation_path: String,
     #[serde(default)]
     pub hwi_path: Option<String>,
+    #[serde(default)]
+    pub network: Option<NetworkName>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -184,6 +186,8 @@ pub struct HwSignPsbtRequest {
     pub psbt_base64: String,
     #[serde(default)]
     pub hwi_path: Option<String>,
+    #[serde(default)]
+    pub network: Option<NetworkName>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

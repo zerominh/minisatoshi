@@ -66,7 +66,7 @@ export function HwConnectKeyPanel({
         );
         return;
       }
-      const list = await listHwDevices(getHwiPath() || null);
+      const list = await listHwDevices(getHwiPath() || null, network);
       setDevices(list);
       setStatusLine(
         list.length === 0
@@ -97,6 +97,7 @@ export function HwConnectKeyPanel({
         fingerprint: fp,
         derivationPath: derivationPath.trim() || defaultBip86AccountPath(network),
         hwiPath: getHwiPath() || null,
+        network,
       });
       const origin = originPathFromDerivation(result.derivationPath);
       setHwFingerprint(fp);

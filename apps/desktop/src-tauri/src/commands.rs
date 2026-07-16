@@ -666,8 +666,9 @@ pub fn ensure_hwi_installed(
 pub fn list_hw_devices(
     state: State<'_, AppState>,
     hwi_path: Option<String>,
+    network: Option<NetworkName>,
 ) -> Result<Vec<HwDeviceDto>, String> {
-    let client = hwi_client(&state, hwi_path.as_deref(), true, None)?;
+    let client = hwi_client(&state, hwi_path.as_deref(), true, network)?;
     let devices = client.enumerate().map_err(user_facing_error)?;
     Ok(devices.into_iter().map(device_to_dto).collect())
 }
@@ -678,7 +679,12 @@ pub fn hw_get_xpub(
     state: State<'_, AppState>,
     request: HwGetXpubRequest,
 ) -> Result<HwXpubDto, String> {
-    let client = hwi_client(&state, request.hwi_path.as_deref(), true, None)?;
+    let client = hwi_client(
+        &state,
+        request.hwi_path.as_deref(),
+        true,
+        request.network,
+    )?;
     let path = parse_derivation_path(&request.derivation_path).map_err(user_facing_error)?;
     let xpub = client
         .get_xpub(request.fingerprint.trim(), &path)
@@ -696,7 +702,12 @@ pub fn hw_sign_psbt(
     state: State<'_, AppState>,
     request: HwSignPsbtRequest,
 ) -> Result<SignedPsbtDto, String> {
-    let client = hwi_client(&state, request.hwi_path.as_deref(), true, None)?;
+    let client = hwi_client(
+        &state,
+        request.hwi_path.as_deref(),
+        true,
+        request.network,
+    )?;
     let signed_b64 = client
         .sign_psbt(request.fingerprint.trim(), &request.psbt_base64)
         .map_err(user_facing_error)?;

@@ -397,7 +397,11 @@ export function SendPage() {
   }
 
   async function onHwSign() {
-    if (!psbt || !hwFingerprint.trim()) return;
+    if (!psbt || !wallet) return;
+    if (!hwFingerprint.trim()) {
+      setError(t("send.hwNoFingerprint"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -405,6 +409,7 @@ export function SendPage() {
         fingerprint: hwFingerprint.trim(),
         psbtBase64: psbt.base64,
         hwiPath: getHwiPath() || null,
+        network: wallet.policy.network,
       });
       const next = {
         base64: signed.base64,
@@ -811,6 +816,7 @@ export function SendPage() {
                   onSignSoftware={() => void onSign()}
                   onSignHardware={() => void onHwSign()}
                   onCombine={() => void onCombine()}
+                  onHwError={setError}
                 />
                 <div className="row-actions">
                   <button

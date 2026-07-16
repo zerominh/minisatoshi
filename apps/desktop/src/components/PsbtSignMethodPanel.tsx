@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { HwDevicePicker } from "./HwDevicePicker";
 import type { HotWalletSummaryDto, WalletDto } from "../lib/types";
 
 export type SignMethod = "hot" | "software" | "hardware" | "combine";
@@ -50,6 +51,7 @@ type Props = {
   onSignSoftware: () => void;
   onSignHardware: () => void;
   onCombine: () => void;
+  onHwError?: (message: string | null) => void;
 };
 
 function actionLabel(ok: boolean, idle: string, done: string): string {
@@ -79,9 +81,12 @@ export function PsbtSignMethodPanel({
   onSignSoftware,
   onSignHardware,
   onCombine,
+  onHwError,
 }: Props) {
   const mainnet = wallet?.policy.network === "mainnet";
   const ok = (m: SignMethod) => successMethod === m;
+  const walletFingerprints =
+    wallet?.policy.keys.map((k) => k.fingerprint).filter(Boolean) ?? [];
 
   return (
     <div className="form-grid">
@@ -174,15 +179,18 @@ export function PsbtSignMethodPanel({
 
       {method === "hardware" ? (
         <>
-          <label>
-            Hardware fingerprint (HWI)
-            <input
-              className="mono"
-              value={hwFingerprint}
-              onChange={(e) => onHwFingerprintChange(e.target.value)}
-              placeholder="Settings → Signing devices"
+          {wallet ? (
+            <HwDevicePicker
+              network={wallet.policy.network}
+              fingerprint={hwFingerprint}
+              onFingerprintChange={onHwFingerprintChange}
+              walletFingerprints={walletFingerprints}
+              onError={onHwError}
+              disabled={busy}
             />
-          </label>
+          ) : (
+            <p className="muted">Loading wallet…</p>
+          )}
           <button
             type="button"
             className={ok("hardware") ? "btn-ok" : undefined}

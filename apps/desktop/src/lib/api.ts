@@ -224,8 +224,12 @@ export async function deleteHotWallet(hotWalletId: string): Promise<void> {
 
 export async function listHwDevices(
   hwiPath?: string | null,
+  network?: NetworkName | null,
 ): Promise<HwDeviceDto[]> {
-  return invoke("list_hw_devices", { hwiPath: hwiPath ?? null });
+  return invoke("list_hw_devices", {
+    hwiPath: hwiPath ?? null,
+    network: network ?? null,
+  });
 }
 
 export async function hwGetXpub(
