@@ -9,6 +9,7 @@ import {
   renameHotWallet,
   renameWallet,
 } from "../lib/api";
+import { HwDevicePicker } from "../components/HwDevicePicker";
 import { saveTextFileWithDialog, sanitizedFilename } from "../lib/download";
 import { formatTimelockLabel } from "../lib/duration";
 import {
@@ -152,7 +153,6 @@ export function WalletSettingsPage() {
       setRegistration(result.package);
       setCosignerHints(result.cosignerHints);
       setMessage(result.message);
-      if (!result.ok) setError(result.message);
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -264,9 +264,10 @@ export function WalletSettingsPage() {
       <div className="panel form-grid">
         <h3>Register on hardware</h3>
         <p className="muted">
-          BIP-388 / Coldcard package before the first hardware co-sign. Open this
-          wallet → <strong>Settings</strong> tab (same screen). See{" "}
-          <span className="mono">docs/hardware-signing.md</span>.
+          For Miniscript Taproot (ABC): <strong>Verify device</strong> only checks USB
+          connection — Ledger usually shows nothing until you <strong>sign a PSBT in Send</strong>.
+          If your key matches the wallet, the app may ask Ledger to confirm a single-key receive
+          address. Full multisig policy registration happens on the first hardware sign.
         </p>
         <div className="row-actions">
           <button
@@ -290,11 +291,13 @@ export function WalletSettingsPage() {
             </label>
             <label>
               Device fingerprint
-              <input
-                className="mono"
-                value={regFingerprint}
-                onChange={(e) => setRegFingerprint(e.target.value)}
-                placeholder="from app Settings → Signing devices"
+              <HwDevicePicker
+                network={wallet.policy.network}
+                fingerprint={regFingerprint}
+                onFingerprintChange={setRegFingerprint}
+                walletFingerprints={wallet.policy.keys.map((k) => k.fingerprint)}
+                onError={setError}
+                disabled={working}
               />
             </label>
             <div className="row-actions">
@@ -303,7 +306,7 @@ export function WalletSettingsPage() {
                 disabled={working || !regFingerprint.trim()}
                 onClick={() => void onRegisterOnDevice()}
               >
-                Register on device
+                Verify device / prepare sign
               </button>
               <button
                 type="button"

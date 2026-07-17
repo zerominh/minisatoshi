@@ -32,9 +32,10 @@ use crate::dto::{
 use crate::error::user_facing_error;
 use crate::state::AppState;
 use signing_devices::{
-    build_registration_package, ensure_hwi, find_hwi, hwi_chain, parse_derivation_path,
-    primary_cosigner_hints, DeviceInfo, HwiClient, HwiSource, RegistrationPackage,
-    PINNED_HWI_VERSION,
+    build_registration_package, ensure_hwi, find_hwi, find_key_by_fingerprint, hwi_chain,
+    is_registerpolicy_unavailable, is_taproot_script_path_miniscript, ledger_registers_on_first_psbt,
+    parse_derivation_path, primary_cosigner_hints, single_key_display_descriptor, DeviceInfo,
+    HwiClient, HwiSource, RegistrationPackage, PINNED_HWI_VERSION,
 };
 
 #[tauri::command]
@@ -697,12 +698,37 @@ pub fn hw_get_xpub(
     })
 }
 
+const HWI_LEDGER_SCRIPT_PATH_MSG: &str = "Ledger + HWI 3.2 cannot sign Miniscript Taproot script-path wallets \
+     (ABC and similar). HWI skips taproot script-path keys (see hwilib/devices/ledger.py: \
+     \"TODO: Support script path signing\"), so signtx returns the PSBT unchanged — \
+     registration in Settings cannot fix this. Workarounds: (1) sign one cosigner with a software/hot key \
+     in Minisatoshi, (2) use Coldcard (USB or SD PSBT), (3) export the PSBT to a wallet that signs \
+     with Ledger wallet policies (e.g. Liana, Sparrow with compatible HWI build).";
+
 /// Sign a PSBT on-device (`hwi signtx`). Secrets never leave the hardware.
 #[tauri::command]
 pub fn hw_sign_psbt(
     state: State<'_, AppState>,
     request: HwSignPsbtRequest,
 ) -> Result<SignedPsbtDto, String> {
+    let wallet_descriptor = request.wallet_id.as_deref().filter(|id| !id.is_empty()).and_then(|wallet_id| {
+        state
+            .with_store(|store| {
+                WalletService::new(store)
+                    .get_wallet(wallet_id)
+                    .map(|w| w.descriptor)
+                    .map_err(user_facing_error)
+            })
+            .ok()
+    });
+
+    if wallet_descriptor
+        .as_deref()
+        .is_some_and(is_taproot_script_path_miniscript)
+    {
+        return Err(HWI_LEDGER_SCRIPT_PATH_MSG.into());
+    }
+
     let mut psbt = parse_psbt_b64(&request.psbt_base64)?;
     let before = signature_snapshot(&psbt);
 
@@ -721,20 +747,26 @@ pub fn hw_sign_psbt(
         true,
         request.network,
     )?;
+    let fingerprint = client
+        .resolve_fingerprint(request.fingerprint.trim())
+        .map_err(user_facing_error)?;
     let signed_b64 = client
-        .sign_psbt(request.fingerprint.trim(), &psbt_for_hwi)
+        .sign_psbt(&fingerprint, &psbt_for_hwi)
         .map_err(user_facing_error)?;
     let psbt = parse_psbt_b64(&signed_b64)?;
     let after = signature_snapshot(&psbt);
 
     if !hw_sign_made_progress(&before, &after) {
-        return Err(
-            "Hardware wallet did not add any signature. For Miniscript Taproot wallets: \
-             register the wallet on the device first (Wallet → Settings → Register on hardware), \
-             unlock the device, approve on screen, then sign again. \
-             Multi-key paths need each cosigner to sign the same PSBT (or Combine partial PSBTs)."
-                .into(),
-        );
+        let hint = wallet_descriptor
+            .as_deref()
+            .filter(|d| is_taproot_script_path_miniscript(d))
+            .map(|_| HWI_LEDGER_SCRIPT_PATH_MSG)
+            .unwrap_or(
+                "Hardware wallet did not add any signature. Unlock the device, open the Bitcoin app, \
+                 approve on screen, and ensure the fingerprint matches a key in this PSBT. \
+                 Multi-key paths need each cosigner on the same PSBT (or Combine partial PSBTs).",
+            );
+        return Err(hint.into());
     }
 
     Ok(SignedPsbtDto {
@@ -800,7 +832,7 @@ pub fn hw_register_wallet(
     state: State<'_, AppState>,
     request: HwRegisterRequest,
 ) -> Result<HwRegisterResultDto, String> {
-    let (mut package, network, cosigner_hints) = state.with_store(|store| {
+    let (mut package, network, cosigner_hints, wallet_keys) = state.with_store(|store| {
         let service = WalletService::new(store);
         let wallet = service
             .get_wallet(&request.wallet_id)
@@ -812,6 +844,7 @@ pub fn hw_register_wallet(
             package,
             wallet.policy.network,
             primary_cosigner_hints(&wallet.policy),
+            wallet.policy.keys.clone(),
         ))
     })?;
 
@@ -821,43 +854,84 @@ pub fn hw_register_wallet(
         true,
         Some(network),
     )?;
-    let keys_json = serde_json::to_string(&package.bip388.keys).map_err(user_facing_error)?;
+    let fingerprint = client
+        .resolve_fingerprint(request.fingerprint.trim())
+        .map_err(user_facing_error)?;
 
-    match client.register_policy(
-        request.fingerprint.trim(),
-        &package.bip388.name,
-        &package.bip388.policy,
-        &keys_json,
-    ) {
-        Ok(hmac) => {
-            package.ledger_hmac = hmac.clone();
-            package.hwi_registerpolicy_supported = true;
-            Ok(HwRegisterResultDto {
-                ok: true,
-                message: "Wallet policy registered on device — confirm remaining prompts on the hardware screen.".into(),
-                hmac,
-                package,
-                cosigner_hints,
-            })
-        }
-        Err(err) => {
-            let msg = err.to_string();
-            let unsupported = msg.to_ascii_lowercase().contains("registerpolicy")
-                || msg.to_ascii_lowercase().contains("unsupported");
-            if unsupported {
-                Ok(HwRegisterResultDto {
-                    ok: false,
+    if ledger_registers_on_first_psbt(&package.descriptor) {
+        if let Some(key) = find_key_by_fingerprint(&wallet_keys, &fingerprint) {
+            let single_desc = single_key_display_descriptor(key);
+            if let Ok(addr) = client.display_address_desc(&fingerprint, &single_desc) {
+                return Ok(HwRegisterResultDto {
+                    ok: true,
                     message: format!(
-                        "On-device registerpolicy unavailable ({msg}). Export BIP-388 / Coldcard files from the package, then register via firmware flow or first co-sign."
+                        "Key {key_id} (fp {fingerprint}) confirmed on Ledger — check the device screen for address {addr}. \
+                         The full ABC multisig policy still registers when you sign your first PSBT in Send.",
+                        key_id = key.id,
                     ),
                     hmac: None,
                     package,
                     cosigner_hints,
-                })
-            } else {
-                Err(user_facing_error(err))
+                });
             }
         }
+        return Ok(HwRegisterResultDto {
+            ok: true,
+            message: format!(
+                "Device {fingerprint} connected over USB — no Ledger prompt at this step is normal. \
+                 HWI {PINNED_HWI_VERSION} cannot pre-register Miniscript Taproot (no registerpolicy; multisig uses and_v). \
+                 Next: Send → create PSBT → Sign with hardware — for ABC wallets Ledger signing via HWI 3.2 is not supported yet (script-path limitation); use software cosigner or Coldcard."
+            ),
+            hmac: None,
+            package,
+            cosigner_hints,
+        });
+    }
+
+    let keys_json = serde_json::to_string(&package.bip388.keys).map_err(user_facing_error)?;
+
+    if client.cli_supports_registerpolicy() {
+        match client.register_policy(
+            &fingerprint,
+            &package.bip388.name,
+            &package.bip388.policy,
+            &keys_json,
+        ) {
+            Ok(hmac) => {
+                package.ledger_hmac = hmac.clone();
+                package.hwi_registerpolicy_supported = true;
+                return Ok(HwRegisterResultDto {
+                    ok: true,
+                    message: "Wallet policy registered on device — confirm remaining prompts on the hardware screen.".into(),
+                    hmac,
+                    package,
+                    cosigner_hints,
+                });
+            }
+            Err(err) if is_registerpolicy_unavailable(&err) => {}
+            Err(err) => return Err(user_facing_error(err)),
+        }
+    }
+
+    match client.display_address_desc(&fingerprint, &package.descriptor) {
+        Ok(addr) => Ok(HwRegisterResultDto {
+            ok: true,
+            message: format!(
+                "Confirmed wallet on device ({addr}). If this is your first spend, the device may still prompt when signing the PSBT."
+            ),
+            hmac: None,
+            package,
+            cosigner_hints,
+        }),
+        Err(display_err) => Ok(HwRegisterResultDto {
+            ok: false,
+            message: format!(
+                "Could not confirm address on device: {display_err}. Save BIP-388 / Coldcard files below, or register when you sign your first PSBT."
+            ),
+            hmac: None,
+            package,
+            cosigner_hints,
+        }),
     }
 }
 

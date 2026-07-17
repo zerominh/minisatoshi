@@ -43,6 +43,26 @@ pub struct RegistrationPackage {
     pub hwi_registerpolicy_supported: bool,
 }
 
+/// Miniscript Taproot wallets cannot use HWI 3.2 `displayaddress` (`and_v` rejected) and
+/// have no `registerpolicy` — Ledger registers on the first PSBT sign instead.
+///
+/// Also: stock HWI 3.2 `ledger.py` has `TODO: Support script path signing` for
+/// `tap_bip32_paths`, so ABC-style script-path spends never receive signatures.
+pub fn ledger_registers_on_first_psbt(descriptor: &str) -> bool {
+    is_taproot_script_path_miniscript(descriptor)
+}
+
+/// True for `tr(NUMS, {{and_v(...), ...}})`-style script-path Miniscript descriptors.
+pub fn is_taproot_script_path_miniscript(descriptor: &str) -> bool {
+    let d = descriptor.trim();
+    d.starts_with("tr(")
+        && (d.contains("and_v")
+            || d.contains("andor")
+            || d.contains("thresh(")
+            || d.contains("older(")
+            || d.contains("{{"))
+}
+
 /// Build registration materials from policy + compiled descriptor.
 pub fn build_registration_package(
     vault_name: &str,
@@ -140,6 +160,21 @@ fn key_info_string(key: &KeyConfig) -> String {
         }
         None => format!("[{fp}]{}", key.xpub.trim()),
     }
+}
+
+/// Find a vault key by master fingerprint (case-insensitive).
+pub fn find_key_by_fingerprint<'a>(
+    keys: &'a [KeyConfig],
+    fingerprint: &str,
+) -> Option<&'a KeyConfig> {
+    let want = fingerprint.trim().to_ascii_lowercase();
+    keys.iter()
+        .find(|k| k.fingerprint.trim().to_ascii_lowercase() == want)
+}
+
+/// Single-key Taproot descriptor HWI `displayaddress` accepts (no `and_v`).
+pub fn single_key_display_descriptor(key: &KeyConfig) -> String {
+    format!("tr({}/<0;1>/*)", key_info_string(key))
 }
 
 /// Locate `[fp/…]xpub…[/derivation]` inside the descriptor body.
@@ -273,8 +308,7 @@ fn ledger_vendor(bip388: &Bip388Policy) -> VendorRegistration {
         instructions: vec![
             "Open the Bitcoin app on the Ledger (taproot / Miniscript capable firmware).".into(),
             "Register this wallet policy before the first co-sign (approve on device).".into(),
-            "Stock HWI 3.2.0 has no `registerpolicy` CLI — use first-sign registration, \
-             Bitcoin Core + HWI builds that support it, or export below."
+            "Stock HWI 3.2.0: Miniscript Taproot ABC wallets register on the first PSBT sign, not via registerpolicy/displayaddress."
                 .into(),
             "Confirm address on device after registering (display / receive verify).".into(),
             "HMAC proof of registration (if returned) can be stored for later signing sessions."
@@ -345,7 +379,9 @@ pub fn primary_cosigner_hints(config: &PolicyConfig) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use policy_engine::{FallbackPolicy, KeyRole, PolicyExpression, ScriptTypeName};
+    use policy_engine::{
+        FallbackPolicy, KeyConfig, KeyRole, PolicyConfig, PolicyExpression, ScriptTypeName,
+    };
 
     fn sample_config() -> PolicyConfig {
         let json = include_str!("../../../tests/vectors/policy_abc_testnet.json");
@@ -364,6 +400,25 @@ mod tests {
         assert_eq!(bip.keys.len(), 3);
         assert!(bip.keys[0].contains("78412e3a"));
         assert!(bip.policy.starts_with("tr("));
+    }
+
+    #[test]
+    fn single_key_display_descriptor_format() {
+        let config = sample_config();
+        let key = &config.keys[0];
+        let desc = single_key_display_descriptor(key);
+        assert!(desc.starts_with("tr(["), "{desc}");
+        assert!(desc.contains("/<0;1>/*)"), "{desc}");
+        assert!(!desc.contains("and_v"), "{desc}");
+    }
+
+    #[test]
+    fn ledger_registers_on_first_psbt_for_abc_descriptor() {
+        let descriptor = include_str!("../../../tests/vectors/policy_abc_testnet_descriptor.txt");
+        assert!(ledger_registers_on_first_psbt(descriptor.trim()));
+        assert!(!ledger_registers_on_first_psbt(
+            "wpkh([deadbeef/84'/0'/0']xpub6DeadBeefDeadBeefDeadBeefDeadBeefDeadBeefDeadBeefDeadBeefDeadBee/<0;1>/*)"
+        ));
     }
 
     #[test]

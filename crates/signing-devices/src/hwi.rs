@@ -60,6 +60,62 @@ impl HwiClient {
         parse_enumerate_json(&stdout)
     }
 
+    /// Match a user fingerprint against `enumerate` results (normalized lowercase hex).
+    pub fn resolve_fingerprint(&self, fingerprint: &str) -> Result<String, SignError> {
+        let want = fingerprint.trim().to_ascii_lowercase();
+        if want.len() != 8 || !want.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(SignError::DeviceNotFound(format!(
+                "invalid fingerprint “{fingerprint}” — use 8 hex characters from Settings → Signing devices → Scan"
+            )));
+        }
+        let devices = self.enumerate()?;
+        if let Some(device) = devices
+            .iter()
+            .find(|d| d.fingerprint.trim().to_ascii_lowercase() == want)
+        {
+            return Ok(device.fingerprint.trim().to_ascii_lowercase());
+        }
+        let found: Vec<String> = devices
+            .iter()
+            .filter(|d| !d.fingerprint.trim().is_empty())
+            .map(|d| {
+                let label = if d.model.is_empty() {
+                    d.device_type.as_str().to_string()
+                } else {
+                    d.model.clone()
+                };
+                format!("{label} (fp {})", d.fingerprint.trim().to_ascii_lowercase())
+            })
+            .collect();
+        if found.is_empty() {
+            Err(SignError::DeviceNotFound(
+                "no hardware wallet detected — unlock device, open the Bitcoin app, then scan in Settings → Signing devices"
+                    .into(),
+            ))
+        } else {
+            Err(SignError::DeviceNotFound(format!(
+                "no device with fingerprint {want}; connected: {} — pick the correct fingerprint from Scan",
+                found.join("; ")
+            )))
+        }
+    }
+
+    /// Whether this HWI binary exposes `registerpolicy` on the CLI (not stock 3.2.0).
+    pub fn cli_supports_registerpolicy(&self) -> bool {
+        Command::new(&self.config.binary)
+            .arg("--help")
+            .output()
+            .map(|o| {
+                let text = format!(
+                    "{}{}",
+                    String::from_utf8_lossy(&o.stdout),
+                    String::from_utf8_lossy(&o.stderr)
+                );
+                text.contains("registerpolicy")
+            })
+            .unwrap_or(false)
+    }
+
     pub fn get_xpub(&self, fingerprint: &str, path: &DerivationPath) -> Result<String, SignError> {
         let path_str = format!("m/{path}");
         let stdout = self.run_raw(&[
@@ -78,13 +134,10 @@ impl HwiClient {
     }
 
     pub fn sign_psbt(&self, fingerprint: &str, psbt_base64: &str) -> Result<String, SignError> {
-        let psbt = psbt_base64.trim();
-        // Windows cmd.exe caps argv near 8191 chars; PSBT base64 exceeds that quickly.
-        let stdout = if should_signtx_via_stdin(psbt) {
-            self.run_signtx_stdin(fingerprint, psbt)?
-        } else {
-            self.run_raw(&["--fingerprint", fingerprint, "signtx", psbt])?
-        };
+        let psbt = normalize_psbt_base64(psbt_base64);
+        // HWI `--stdin` reads one CLI arg per line; wrapped PSBT base64 must be a single line.
+        // Put fingerprint + subcommand on argv; pipe only the PSBT (see HWI examples).
+        let stdout = self.run_signtx_stdin(fingerprint, &psbt)?;
         let obj: HwiSign =
             serde_json::from_str(stdout.trim()).map_err(|e| SignError::Parse(e.to_string()))?;
         if let Some(err) = obj.error {
@@ -138,6 +191,18 @@ impl HwiClient {
         Ok(hmac)
     }
 
+    /// Whether HWI lacks `registerpolicy` (stock 3.2.0) or rejected that subcommand.
+    pub fn is_registerpolicy_unavailable(err: &SignError) -> bool {
+        match err {
+            SignError::Unsupported(msg) => msg.to_ascii_lowercase().contains("registerpolicy"),
+            SignError::Hwi(msg) => {
+                let lower = msg.to_ascii_lowercase();
+                lower.contains("registerpolicy") || lower.contains("invalid choice")
+            }
+            _ => false,
+        }
+    }
+
     /// Display an address for `--desc` (device confirmation / soft register path).
     pub fn display_address_desc(
         &self,
@@ -168,7 +233,7 @@ impl HwiClient {
         if let Some(chain) = &self.config.chain {
             cmd.arg("--chain").arg(chain);
         }
-        cmd.arg("--fingerprint").arg(fingerprint);
+        cmd.arg("--fingerprint").arg(fingerprint.trim());
         cmd.arg("--stdin").arg("signtx");
         cmd.stdin(Stdio::piped());
         cmd.stdout(Stdio::piped());
@@ -179,8 +244,9 @@ impl HwiClient {
             .map_err(|e| SignError::Binary(format!("{}: {e}", self.config.binary.display())))?;
 
         if let Some(mut stdin) = child.stdin.take() {
+            let payload = build_signtx_stdin_payload(psbt_base64);
             stdin
-                .write_all(psbt_base64.as_bytes())
+                .write_all(payload.as_bytes())
                 .map_err(|e| SignError::Binary(format!("hwi stdin write failed: {e}")))?;
         }
 
@@ -206,6 +272,10 @@ impl HwiClient {
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr);
 
+        if let Some(err) = hwi_json_error(stdout.trim()) {
+            return Err(map_hwi_error(&err));
+        }
+
         if !output.status.success() {
             let msg = if !stderr.trim().is_empty() {
                 stderr.trim().to_string()
@@ -217,13 +287,6 @@ impl HwiClient {
 
         if stdout.trim().is_empty() {
             return Err(SignError::Hwi("empty HWI stdout".into()));
-        }
-
-        // Some HWI errors still exit 0 with {"error":...}
-        if let Ok(value) = serde_json::from_str::<Value>(stdout.trim()) {
-            if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
-                return Err(map_hwi_error(err));
-            }
         }
 
         Ok(stdout)
@@ -336,24 +399,41 @@ pub fn parse_enumerate_json(raw: &str) -> Result<Vec<DeviceInfo>, SignError> {
     Ok(rows.into_iter().map(DeviceInfo::from).collect())
 }
 
-fn should_signtx_via_stdin(psbt_base64: &str) -> bool {
-    cfg!(windows) || psbt_base64.len() > 4096
+fn normalize_psbt_base64(psbt_base64: &str) -> String {
+    psbt_base64.split_whitespace().collect()
+}
+
+fn build_signtx_stdin_payload(psbt_base64: &str) -> String {
+    format!("{}\n\n", normalize_psbt_base64(psbt_base64))
+}
+
+fn hwi_json_error(stdout: &str) -> Option<String> {
+    let value: Value = serde_json::from_str(stdout).ok()?;
+    value
+        .get("error")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
 }
 
 fn map_hwi_error(msg: &str) -> SignError {
     let lower = msg.to_ascii_lowercase();
     if lower.contains("cancel") || lower.contains("abort") || lower.contains("disconnect") {
         SignError::Cancelled
-    } else if lower.contains("usage:") && lower.contains("signtx") {
+    } else if lower.contains("usage:") || lower.contains("unrecognized arguments") {
         SignError::Hwi(
-            "HWI rejected the command (often because the PSBT was too long for the Windows \
-             command line). Update Minisatoshi and try again — signing now pipes the PSBT via \
-             stdin. If this persists, run Settings → Verify HWI and reconnect the device."
+            "HWI rejected the command (invalid arguments). If the PSBT was pasted from a file, \
+             try again from a freshly built transaction. Otherwise: Settings -> Verify HWI, \
+             reconnect/unlock the device, and try signing again."
                 .into(),
         )
     } else {
         SignError::Hwi(msg.to_string())
     }
+}
+
+/// Whether HWI lacks `registerpolicy` (stock 3.2.0) or rejected that subcommand.
+pub fn is_registerpolicy_unavailable(err: &SignError) -> bool {
+    HwiClient::is_registerpolicy_unavailable(err)
 }
 
 /// Parse a user-facing path string (`m/86'/1'/0'` or `86'/1'/0'`) into BIP32.
@@ -391,15 +471,66 @@ mod tests {
     }
 
     #[test]
-    fn prefers_stdin_on_windows_or_large_psbt() {
-        let small = "cHNidP8B".repeat(100);
-        if cfg!(windows) {
-            assert!(should_signtx_via_stdin(&small));
-        } else {
-            assert!(!should_signtx_via_stdin(&small));
-            let large = "x".repeat(5000);
-            assert!(should_signtx_via_stdin(&large));
+    fn detects_registerpolicy_unavailable() {
+        let err = SignError::Hwi(
+            "hwi.exe: error: argument command: invalid choice: 'registerpolicy'".into(),
+        );
+        assert!(is_registerpolicy_unavailable(&err));
+        let unsupported = SignError::Unsupported(
+            "this HWI build has no registerpolicy — export BIP-388 / Coldcard files instead"
+                .into(),
+        );
+        assert!(is_registerpolicy_unavailable(&unsupported));
+    }
+
+    #[test]
+    fn signtx_stdin_payload_format() {
+        let payload = build_signtx_stdin_payload("cHNidP8B");
+        assert_eq!(payload, "cHNidP8B\n\n");
+    }
+
+    #[test]
+    fn normalize_psbt_base64_collapses_wrapped_lines() {
+        let wrapped = "cHNidP8B\ncHNidP8C\n";
+        assert_eq!(normalize_psbt_base64(wrapped), "cHNidP8BcHNidP8C");
+    }
+
+    #[test]
+    fn hwi_json_error_parsed_from_stdout() {
+        let raw = r#"{"error": "Could not find device", "code": -3}"#;
+        assert_eq!(
+            hwi_json_error(raw).as_deref(),
+            Some("Could not find device")
+        );
+    }
+
+    /// Run with `HWI_INTEGRATION=1` and HWI on PATH or in `%TEMP%\hwi-test\hwi.exe`.
+    #[test]
+    fn hwi_signtx_wrapped_psbt_integration() {
+        if std::env::var("HWI_INTEGRATION").ok().as_deref() != Some("1") {
+            return;
         }
+        let hwi_path = std::env::var("HWI_PATH").unwrap_or_else(|_| {
+            format!(
+                "{}\\hwi-test\\hwi.exe",
+                std::env::var("TEMP").or(std::env::var("TMP")).unwrap()
+            )
+        });
+        if !std::path::Path::new(&hwi_path).exists() {
+            eprintln!("skip: HWI not found at {hwi_path}");
+            return;
+        }
+        let client = HwiClient::with_binary(&hwi_path).with_chain("test");
+        let wrapped = "cHNidP8B\ncHNidP8C\n";
+        let err = client
+            .sign_psbt("a1b2c3d4", wrapped)
+            .expect_err("expected device-not-found, not invalid-args");
+        let msg = err.to_string().to_ascii_lowercase();
+        assert!(
+            !msg.contains("usage:") && !msg.contains("invalid arguments"),
+            "wrapped PSBT should not break HWI CLI: {err}"
+        );
+        assert!(msg.contains("could not find device"), "got: {err}");
     }
 
     #[test]

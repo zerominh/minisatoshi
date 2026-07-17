@@ -13,6 +13,18 @@ See also: [Interop matrix](interop.md) · [Bitcoin Core + Miniscript](bitcoin-co
 
 Primary spends for the default ABC template need **Investor (A) + Manager (B)**. Recovery / timelock paths use different key sets and usually need a BIP68 `input sequence`.
 
+## Ledger + Miniscript Taproot (ABC)
+
+**Stock HWI 3.2.0 cannot sign script-path Taproot spends** (ABC `(A && B) || …` with NUMS internal key). HWI’s Ledger driver ignores `tap_bip32_paths` for script-path keys (`TODO: Support script path signing` in upstream). `signtx` returns the PSBT unchanged — no Ledger prompt, no signature.
+
+| Workaround | Notes |
+|---|---|
+| Software / hot cosigner | Sign key A or B in Minisatoshi with a hot key; hardware for the other key only works once HWI supports script-path |
+| Coldcard | HWI USB or air-gapped SD PSBT import |
+| External signer | Export PSBT to Liana, Sparrow, etc. with a Ledger wallet-policy stack |
+
+Wallet → Settings → **Verify device** only checks USB; it does not prove Ledger can sign this policy.
+
 ## BIP-388 / Ledger
 
 Minisatoshi rewrites the wallet descriptor into a **wallet policy** template:
@@ -24,6 +36,7 @@ Minisatoshi rewrites the wallet descriptor into a **wallet policy** template:
 
 | Method | Notes |
 |---|---|
+| **Register on device** (Minisatoshi) | For Miniscript Taproot (ABC): verifies the Ledger is connected (no `registerpolicy` / `displayaddress` on HWI 3.2); policy registers on **first PSBT sign** |
 | First co-sign | Ledger Bitcoin app may prompt “Register account” when signing a policy PSBT |
 | Export BIP-388 JSON | Wallet → Settings → **Save BIP-388 JSON** — use with tools / Core builds that support wallet policies |
 | Newer HWI builds | If `registerpolicy` exists, **Register on device** stores any returned HMAC |

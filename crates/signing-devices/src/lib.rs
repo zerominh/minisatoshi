@@ -7,14 +7,18 @@ mod registration;
 mod types;
 
 pub use error::SignError;
-pub use hwi::{parse_derivation_path, parse_enumerate_json, HwiClient, HwiConfig, HwiDeviceSigner};
+pub use hwi::{
+    is_registerpolicy_unavailable, parse_derivation_path, parse_enumerate_json, HwiClient,
+    HwiConfig, HwiDeviceSigner,
+};
 pub use install::{
     bundled_hwi_binary, ensure_hwi, find_hwi, hwi_works, install_hwi, HwiSource, ResolvedHwi,
     PINNED_HWI_VERSION,
 };
 pub use registration::{
-    build_registration_package, descriptor_to_bip388, hwi_chain, primary_cosigner_hints,
-    Bip388Policy, RegistrationPackage, VendorRegistration,
+    build_registration_package, descriptor_to_bip388, find_key_by_fingerprint, hwi_chain,
+    is_taproot_script_path_miniscript, ledger_registers_on_first_psbt, primary_cosigner_hints,
+    single_key_display_descriptor, Bip388Policy, RegistrationPackage, VendorRegistration,
 };
 pub use types::{DeviceInfo, DeviceType};
 
