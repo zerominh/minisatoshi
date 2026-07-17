@@ -224,6 +224,35 @@ pub struct HwRegisterResultDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LedgerRegistrationStatusDto {
+    pub registered: bool,
+    pub stale: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stale_reason: Option<String>,
+    pub fingerprint: String,
+    pub python_available: bool,
+    pub ledger_cli_ready: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installed_version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LedgerRuntimeStatusDto {
+    pub available: bool,
+    pub python_path: Option<String>,
+    pub script_path: Option<String>,
+    pub pinned_version: String,
+    pub installed_version: Option<String>,
+    pub source: Option<String>,
+    pub script_ready: bool,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AnalyzePsbtRequest {
     pub wallet_id: String,
     pub psbt_base64: String,

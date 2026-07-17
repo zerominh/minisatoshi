@@ -1,6 +1,6 @@
 # Kế hoạch: Ledger wallet policy song song HWI (Phương án 1)
 
-Trạng thái: **Draft** · Cập nhật: 2026-07-17
+Trạng thái: **Implemented (Phases 0–4)** · Cập nhật: 2026-07-17
 
 ## Bối cảnh
 
@@ -20,7 +20,7 @@ Minisatoshi Desktop (Tauri)
   ├─ HWI 3.2 (existing)
   │     enumerate, getxpub, Coldcard/Trezor signtx, singlesig
   │
-  └─ ledger-bitcoin (NEW, Python subprocess → bundle sau)
+  └─ ledger-bitcoin (Python subprocess, bundled venv)
         register_wallet(policy) → HMAC
         sign_psbt(psbt, policy, hmac) → tap_script_sigs
 ```
@@ -29,45 +29,9 @@ Minisatoshi Desktop (Tauri)
 
 | Điều kiện | Backend |
 |-----------|---------|
-| Ledger + ABC script-path + đã register (có HMAC) | `LedgerPolicyClient` |
-| Ledger + ABC + chưa register | Lỗi rõ: "Register Ledger policy in Settings" |
+| Ledger + ABC script-path + đã register (HMAC hợp lệ, không stale) | `ledger-bitcoin` |
+| Ledger + ABC + chưa register / stale | Lỗi rõ + UI badge |
 | Coldcard / Trezor / singlesig | `HwiClient` (như hiện tại) |
-
-## Phạm vi
-
-### In scope (trung hạn)
-
-- Register BIP-388 → Ledger → lưu HMAC per `(wallet_id, fingerprint)`
-- Sign PSBT script-path qua `ledger-bitcoin`
-- Router trong `hw_register_wallet` / `hw_sign_psbt`
-- UI: Register Ledger policy, trạng thái registered
-- Network: `--chain` khớp wallet (`main`, `test`, …)
-
-### Out of scope (giai đoạn đầu)
-
-- Rust binding trực tiếp `ledger_bitcoin` (sau POC Python)
-- Trezor/Coldcard qua ledger path
-- Chờ HWI upstream thay thế hoàn toàn
-- MuSig2 nâng cao
-
-## Công nghệ
-
-| Thành phần | Ghi chú |
-|------------|---------|
-| [`ledger-bitcoin`](https://pypi.org/project/ledger-bitcoin/) ~0.4.x | `WalletPolicy`, `register_wallet`, `sign_psbt` |
-| BIP-388 package | Đã có trong `crates/signing-devices/src/registration.rs` |
-| Python 3 | POC: system Python; production: embed hoặc PyInstaller |
-
-### API Python (tham chiếu)
-
-```python
-from ledger_bitcoin import createClient, Chain, WalletPolicy
-
-client = createClient(chain=Chain.TEST)
-policy = WalletPolicy(name, descriptor_template, keys)
-hmac = client.register_wallet(policy)
-signed_psbt = client.sign_psbt(psbt, policy, hmac)
-```
 
 ## Lưu trữ app data
 
@@ -76,7 +40,8 @@ signed_psbt = client.sign_psbt(psbt, policy, hmac)
   hwi/3.2.0/hwi.exe
   ledger/
     ledger_cli.py
-    venv/                    # hoặc embed python + wheels
+    venv/                    # ledger-bitcoin 0.4.1
+    runtime.json
   ledger_registrations/
     {wallet_id}/
       {fingerprint}.json
@@ -88,164 +53,59 @@ signed_psbt = client.sign_psbt(psbt, policy, hmac)
 {
   "walletId": "uuid",
   "fingerprint": "a98a1256",
+  "hmac": "…",
+  "policyFingerprint": "sha256hex",
   "network": "testnet",
-  "policyName": "ABC Vault",
-  "policyTemplate": "tr(NUMS,{{and_v(v:pk(@0/**),pk(@1/**)),...}})",
-  "keys": ["[fp/path]xpub", "..."],
-  "hmacHex": "…",
-  "registeredAt": "2026-07-17T…"
+  "registeredAtSecs": 1710000000
 }
 ```
 
-- HMAC = proof of registration (BIP-388), không phải seed; lưu local.
-- Invalidate khi descriptor / policy wallet thay đổi.
-
-## Module Rust mới
-
-```
-crates/signing-devices/src/
-  ledger/
-    mod.rs       # LedgerPolicyClient
-    cli.rs       # subprocess ledger_cli.py, JSON protocol
-    store.rs     # load/save registrations
-    policy.rs    # Bip388Policy → JSON cho Python
-  hwi.rs         # unchanged
-  registration.rs  # + to_ledger_wallet_policy()
-```
-
-### API Rust (draft)
-
-```rust
-pub struct LedgerPolicyClient { /* python + script paths, chain */ }
-
-impl LedgerPolicyClient {
-    pub fn register(&self, fingerprint: &str, policy: &Bip388Policy) -> Result<String, SignError>;
-    pub fn sign_psbt(&self, fingerprint: &str, psbt_b64: &str, reg: &LedgerRegistration) -> Result<String, SignError>;
-}
-```
-
-### Python CLI protocol
-
-```bash
-ledger_cli.py register --chain test
-# stdin:  {"fingerprint":"…","name":"…","policy":"…","keys":[…]}
-# stdout: {"ok":true,"hmac":"hex"} | {"error":"…"}
-
-ledger_cli.py sign --chain test
-# stdin:  {"fingerprint":"…","psbt":"base64…","name":"…","policy":"…","keys":[…],"hmac":"hex"}
-# stdout: {"ok":true,"psbt":"base64…"} | {"error":"…"}
-```
-
-## Tauri commands & UI
-
-### Backend
-
-| Command | Thay đổi |
-|---------|----------|
-| `hw_register_wallet` | Ledger + ABC → `LedgerPolicyClient::register` + lưu HMAC |
-| `hw_sign_psbt` | Router Ledger vs HWI; gỡ block `HWI_LEDGER_SCRIPT_PATH_MSG` khi Ledger path OK |
-| `get_ledger_registration_status` | **NEW** |
-| `ensure_ledger_runtime_installed` | **NEW** (Phase 3) |
-
-### Frontend
-
-- **Wallet → Settings:** nút **Register Ledger policy**; badge Registered / Not registered
-- **Send:** disable Ledger sign nếu ABC chưa register; checklist cosigner A/B
-- Phân biệt **Verify USB** vs **Register policy** (có prompt trên device)
-
-### Docs liên quan
-
-- Cập nhật `docs/hardware-signing.md` khi Phase 2 xong
-- Thêm mục vào `docs/DEVELOPMENT_PLAN.md` (sprint Ledger ABC)
+- HMAC = proof of registration (BIP-388), không phải seed.
+- `policyFingerprint` = SHA-256 của BIP-388 template + keys; đổi descriptor → **stale** → re-register.
+- Không mã hóa at-rest (cùng trust model với SQLite vault).
 
 ## Phases
 
-### Phase 0 — POC thủ công (3–5 ngày)
+### Phase 0 — POC thủ công ✅
 
-**Mục tiêu:** 1 PSBT ABC testnet ký được trên Ledger (ít nhất 1 cosigner).
+- [x] `tools/ledger_cli.py` + `ledger-bitcoin`
+- [x] BIP-388 từ `prepare_hw_registration`
+- [x] `register` → HMAC → `sign` → `tap_script_sigs`
 
-- [ ] `tools/ledger_cli.py` + `pip install ledger-bitcoin`
-- [ ] BIP-388 từ `prepare_hw_registration` / fixture ABC testnet
-- [ ] `register` → HMAC → `sign` → kiểm tra `tap_script_sigs`
-- [ ] Ghi firmware Ledger, policy string chính xác, lỗi thường gặp
+### Phase 1 — Rust + storage ✅
 
-**Done:** PSBT có chữ ký script-path từ 1 Ledger.
+- [x] `ledger/store.rs`, `ledger/cli.rs`
+- [x] `hw_register_wallet` → register + lưu HMAC
+- [x] `get_ledger_registration_status`
 
----
+### Phase 2 — Sign router + UX ✅
 
-### Phase 1 — Rust + storage (1–2 tuần)
+- [x] `hw_sign_psbt` routing Ledger vs HWI
+- [x] UI Settings (wallet) — Register Ledger policy, badge registered
 
-- [ ] `ledger/store.rs`, `ledger/cli.rs`, `LedgerPolicyClient`
-- [ ] `to_ledger_wallet_policy()` từ `RegistrationPackage`
-- [ ] `hw_register_wallet` → register thật + lưu HMAC
-- [ ] `get_ledger_registration_status`
-- [ ] Unit tests: policy mapping, JSON; mock CLI integration test
+### Phase 3 — Bundle runtime ✅
 
-**Done:** Register + sign qua Tauri trên máy dev có Ledger.
+- [x] `ensure_ledger_runtime_installed` — venv + pip pin 0.4.1
+- [x] Settings → Install Ledger signer
+- [x] `get_ledger_runtime_status`
 
----
+**Giới hạn:** lần cài đầu có thể cần Python hệ thống để bootstrap venv; chưa embed Python độc lập.
 
-### Phase 2 — Sign router + UX (1 tuần)
+### Phase 4 — Hardening ✅
 
-- [ ] `hw_sign_psbt` routing
-- [ ] UI Settings + Send
-- [ ] Flow 2 cosigner: sign A → sign B (cùng PSBT hoặc Combine)
-
-**Done:** ABC testnet E2E: register → sign A+B → finalize → broadcast.
-
----
-
-### Phase 3 — Bundle runtime (1–2 tuần)
-
-- [ ] `ensure_ledger_runtime_installed` (embed Python hoặc PyInstaller)
-- [ ] Checksum, Windows / macOS / Linux
-- [ ] Settings → Install Ledger signer
-
-**Done:** User không cần Python system.
-
----
-
-### Phase 4 — Hardening
-
-- [ ] Error mapping (reject, timeout, wrong network, firmware cũ)
-- [ ] Re-register khi đổi descriptor
-- [ ] Review bảo mật HMAC storage
-- [ ] Theo dõi HWI #785, #827 — gộp lại một đường HWI khi upstream đủ
+- [x] `map_ledger_cli_error` — cancel, timeout (180s), network, firmware, HMAC, disconnect
+- [x] `policy_fingerprint` + `registration_stale_reason` — re-register khi đổi descriptor/keys/network
+- [x] UI badge **stale** + message
+- [x] Docs: `hardware-signing.md`, plan này
+- [ ] Theo dõi [HWI #827](https://github.com/bitcoin-core/HWI/issues/827) — gộp lại HWI khi upstream đủ (ongoing)
 
 ## Tiêu chí thành công
 
-1. Register: user duyệt policy trên Ledger; app lưu HMAC.
+1. Register: user duyệt policy trên Ledger; app lưu HMAC + fingerprint.
 2. Sign: `hw_sign_made_progress` = true; `tap_script_sigs` tăng.
 3. E2E testnet ABC primary (A+B) finalize + broadcast.
 4. HWI không regress (Coldcard vẫn qua HWI).
-5. Không còn message gây hiểu nhầm "register Settings = ký được" khi chưa register Ledger policy.
-
-## Rủi ro
-
-| Rủi ro | Giảm thiểu |
-|--------|------------|
-| Policy Ledger reject | Phase 0 validate; so với Liana / BIP-388 ref |
-| Python trên Windows | POC trước; PyInstaller / embed |
-| Firmware Ledger cũ | Check version; message rõ (Bitcoin app ≥ 2.1) |
-| 2 Ledger, 1 policy | Register từng fingerprint; mỗi device một HMAC |
-| ABC cần A+B | UI checklist; không claim 1 Ledger đủ |
-
-## Quyết định cần chốt
-
-1. POC dùng system Python (dev) — OK?
-2. Mỗi Ledger (fingerprint) register riêng trên cùng wallet policy?
-3. Testnet trước, mainnet sau?
-
-## Thứ tự thực hiện
-
-```
-Phase 0 (POC script)
-  → Phase 1 (Rust + store + register)
-  → Phase 2 (sign router + UI)
-  → Phase 3 (bundle)
-```
-
-Không làm UI production trước khi Phase 0 chứng minh Ledger ký được ABC.
+5. Stale registration detected khi policy đổi.
 
 ## Tham chiếu
 

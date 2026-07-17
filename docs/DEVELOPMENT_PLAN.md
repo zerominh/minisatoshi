@@ -675,17 +675,18 @@ Thêm crate `crates/signing-devices`:
 | Device | Ghi chú |
 |---|---|
 | **Coldcard** | SD card / PSBT file + tapscript mạnh; hỗ trợ multipath descriptor |
-| **Ledger** | Bitcoin app + **wallet policies** (register descriptor dạng `@0`, `/**`) |
+| **Ledger** | ABC script-path: **ledger-bitcoin** (bundled venv) + BIP-388 HMAC; singlesig / enumerate vẫn qua HWI |
 | **Trezor** | HWI; kiểm tra phiên bản firmware hỗ trợ policy đang dùng |
 
 - [x] Map vault descriptor → BIP-388 wallet policy (`@n`) + Coldcard MicroSD text (`signing-devices::registration`)
 - [x] UI Vault → Register on hardware (prepare package, save Coldcard/BIP-388, try `hw_register_vault`)
+- [x] **Ledger ABC:** `ledger-bitcoin` subprocess, `ensure_ledger_runtime_installed`, register/sign router, stale detection
 - [x] Send: list cosigner keys + multi-device combine guidance
-- [x] HWI `--chain` theo network; `registerpolicy` khi HWI build hỗ trợ (stock 3.2.0 → export fallback)
-- [x] Docs: `docs/hardware-signing.md`
+- [x] HWI `--chain` theo network; `registerpolicy` khi HWI build hỗ trợ (stock 3.2.0 → ledger path cho ABC)
+- [x] Docs: `docs/hardware-signing.md`, `docs/ledger-wallet-policy-plan.md`
 - [x] Unit: BIP-388 mapping từ `policy_abc_testnet` vector
 
-**Deliverable:** Đăng ký / export policy cho Ledger + Coldcard; ký multi-device qua HWI + combine trong app. ✅
+**Deliverable:** Ledger ABC qua ledger-bitcoin; Coldcard/Trezor qua HWI; combine trong app. ✅
 
 ---
 

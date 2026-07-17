@@ -234,6 +234,28 @@ export interface HwRegisterResultDto {
   cosignerHints: string[];
 }
 
+export interface LedgerRegistrationStatusDto {
+  registered: boolean;
+  stale: boolean;
+  staleReason?: string | null;
+  fingerprint: string;
+  pythonAvailable: boolean;
+  ledgerCliReady: boolean;
+  runtimeSource?: string | null;
+  installedVersion?: string | null;
+}
+
+export interface LedgerRuntimeStatusDto {
+  available: boolean;
+  pythonPath?: string | null;
+  scriptPath?: string | null;
+  pinnedVersion: string;
+  installedVersion?: string | null;
+  source?: string | null;
+  scriptReady: boolean;
+  message?: string | null;
+}
+
 export interface SpendingPathDto {
   id: string;
   label: string;

@@ -7,13 +7,14 @@ use commands::{
     analyze_psbt_status, app_version, broadcast_psbt_cmd, combine_psbts, compile_wallet_descriptor,
     create_hot_keystore, create_psbt, create_wallet, create_workspace, delete_hot_wallet,
     delete_wallet, delete_workspace, ensure_hwi_installed, export_bsms, export_sparrow_wallet,
-    export_wallet_backup, finalize_psbt_cmd, get_balance, get_hwi_status, get_wallet,
+    export_wallet_backup, finalize_psbt_cmd, get_balance, get_hwi_status, get_ledger_registration_status,
+    get_ledger_runtime_status, get_wallet,
     hot_keystore_status, hw_get_xpub, hw_register_wallet, hw_sign_psbt, import_descriptor,
     import_hot_wallet, import_psbt, import_wallet_backup, list_hot_wallets, list_hw_devices,
     list_server_presets, list_spending_paths, list_wallets, list_workspaces, list_addresses,
     lock_hot_keystore, new_receive_address, open_hot_wallet, prepare_hw_registration,
     rename_hot_wallet, rename_wallet, rename_workspace, save_text_file, open_text_file,
-    sign_psbt_hot, sign_psbt_software, sync_wallet, unlock_hot_keystore,
+    sign_psbt_hot, sign_psbt_software, sync_wallet, unlock_hot_keystore, ensure_ledger_runtime_installed,
 };
 use state::AppState;
 use tauri::Manager;
@@ -76,6 +77,9 @@ pub fn run() {
             ensure_hwi_installed,
             prepare_hw_registration,
             hw_register_wallet,
+            get_ledger_registration_status,
+            get_ledger_runtime_status,
+            ensure_ledger_runtime_installed,
             combine_psbts,
             finalize_psbt_cmd,
             broadcast_psbt_cmd,

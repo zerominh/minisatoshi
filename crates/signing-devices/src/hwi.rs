@@ -100,6 +100,17 @@ impl HwiClient {
         }
     }
 
+    /// Resolve fingerprint and return the matching enumerated device.
+    pub fn find_device(&self, fingerprint: &str) -> Result<DeviceInfo, SignError> {
+        let want = self.resolve_fingerprint(fingerprint)?;
+        self.enumerate()?
+            .into_iter()
+            .find(|d| d.fingerprint.trim().to_ascii_lowercase() == want)
+            .ok_or_else(|| {
+                SignError::DeviceNotFound(format!("device {want} disconnected during operation"))
+            })
+    }
+
     /// Whether this HWI binary exposes `registerpolicy` on the CLI (not stock 3.2.0).
     pub fn cli_supports_registerpolicy(&self) -> bool {
         Command::new(&self.config.binary)

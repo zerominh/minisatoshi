@@ -94,6 +94,14 @@ export const en = {
   "settings.usingFingerprint": "Using fingerprint {fp}",
   "settings.downloadingHwi":
     "Downloading official HWI {version} (checksum verified)…",
+  "settings.ledgerSigner": "Ledger signer (ABC wallets)",
+  "settings.ledgerHint":
+    "For Miniscript Taproot (ABC) on Ledger, the app installs ledger-bitcoin into app data. A one-time system Python may be needed for the first install.",
+  "settings.ledgerReady": "Ledger signer ready",
+  "settings.ledgerNotFound": "Ledger signer not installed",
+  "settings.installLedger": "Install Ledger signer",
+  "settings.verifyLedger": "Verify Ledger signer",
+  "settings.installingLedger": "Installing ledger-bitcoin {version}…",
   "settings.getXpub": "Get xpub",
   "settings.needsPin": "needs PIN",
   "settings.needsPassphrase": "needs passphrase",

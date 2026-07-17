@@ -31,4 +31,7 @@ pub enum SignError {
 
     #[error("HWI checksum mismatch (expected {expected}, got {actual})")]
     ChecksumMismatch { expected: String, actual: String },
+
+    #[error("ledger-bitcoin error: {0}")]
+    Ledger(String),
 }

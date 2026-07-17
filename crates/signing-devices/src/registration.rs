@@ -1,8 +1,12 @@
 //! Map Minisatoshi vault descriptors to hardware registration formats
 //! (BIP-388 / Ledger wallet policy, Coldcard MicroSD text).
 
+use descriptor_engine::compile_descriptor_from_abstract;
 use policy_engine::{KeyConfig, NetworkName, PolicyConfig};
 use serde::{Deserialize, Serialize};
+
+use miniscript::descriptor::{Descriptor, TapTree};
+use miniscript::{MiniscriptKey};
 
 use crate::error::SignError;
 use crate::types::DeviceType;
@@ -16,6 +20,220 @@ pub struct Bip388Policy {
     pub policy: String,
     /// Key info strings: `[fingerprint/origin]xpub`.
     pub keys: Vec<String>,
+}
+
+/// Stable SHA-256 hex fingerprint of a BIP-388 policy (template + keys).
+pub fn bip388_policy_fingerprint(bip388: &Bip388Policy) -> String {
+    use sha2::{Digest, Sha256};
+    let canonical = serde_json::json!({
+        "keys": bip388.keys,
+        "name": bip388.name,
+        "policy": bip388.policy,
+    });
+    let bytes = serde_json::to_vec(&canonical).expect("bip388 json");
+    hex::encode(Sha256::digest(bytes))
+}
+
+/// Ledger Bitcoin app limits (see Ledger `app-bitcoin-new` docs).
+pub const LEDGER_MAX_POLICY_TEMPLATE_LEN: usize = 252;
+
+/// Adapt a BIP-388 package for `ledger-bitcoin` / Ledger V2 wallet policies.
+///
+/// Ledger expects `@n/**` placeholders, network-encoded extended pubkeys (`tpub` on testnet),
+/// and a **binary** Taproot tree (`{left,right}`), not miniscript-rs depth encoding (`{{a,b,c,d}}`).
+pub fn to_ledger_wallet_policy(
+    bip388: &Bip388Policy,
+    config: &PolicyConfig,
+    network: NetworkName,
+) -> Result<Bip388Policy, SignError> {
+    let policy = ledger_policy_template(config, bip388)?;
+    let policy = normalize_ledger_policy_template(&policy)?;
+    validate_ledger_policy_template(&policy)?;
+    let keys = bip388
+        .keys
+        .iter()
+        .map(|k| normalize_ledger_key_info(k, network))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Bip388Policy {
+        name: bip388.name.clone(),
+        policy,
+        keys,
+    })
+}
+
+/// Rebuild a Ledger policy template (binary taptree + `@n/**`) from the vault policy config.
+fn ledger_policy_template(config: &PolicyConfig, bip388: &Bip388Policy) -> Result<String, SignError> {
+    let parsed = compile_descriptor_from_abstract(config)
+        .map_err(|e| SignError::Unsupported(format!("compile descriptor for Ledger: {e}")))?;
+
+    let policy = match parsed {
+        Descriptor::Tr(tr) => {
+            let internal = tr.internal_key().to_string();
+            let tree = tr
+                .tap_tree()
+                .map(taptree_binary_fmt)
+                .unwrap_or_default();
+            if tree.is_empty() {
+                format!("tr({internal})")
+            } else {
+                format!("tr({internal},{tree})")
+            }
+        }
+        _ => bip388.policy.clone(),
+    };
+
+    apply_bip388_placeholders(&policy, bip388)
+}
+
+/// Ledger / embit expect explicit `{left,right}` Taproot trees, not depth-compressed `{{a,b,c,d}}`.
+fn taptree_binary_fmt<Pk: MiniscriptKey>(tree: &TapTree<Pk>) -> String {
+    let scripts: Vec<String> = tree
+        .leaves()
+        .map(|item| item.miniscript().to_string())
+        .collect();
+    binary_taptree_from_leaf_strings(&scripts)
+}
+
+fn binary_taptree_from_leaf_strings(leaves: &[String]) -> String {
+    if leaves.is_empty() {
+        return String::new();
+    }
+    if leaves.len() == 1 {
+        return leaves[0].clone();
+    }
+    let mid = leaves.len() / 2;
+    format!(
+        "{{{},{}}}",
+        binary_taptree_from_leaf_strings(&leaves[..mid]),
+        binary_taptree_from_leaf_strings(&leaves[mid..])
+    )
+}
+
+fn apply_bip388_placeholders(policy: &str, bip388: &Bip388Policy) -> Result<String, SignError> {
+    let mut out = policy.to_string();
+    for (index, key_info) in bip388.keys.iter().enumerate() {
+        let fp = key_fingerprint(key_info)?;
+        let xpub = key_xpub_part(key_info)?;
+        let mut search_from = 0;
+        while let Some(rel) = out[search_from..]
+            .to_ascii_lowercase()
+            .find(&fp.to_ascii_lowercase())
+        {
+            let fp_at = search_from + rel;
+            let Some(start) = out[..fp_at].rfind('[') else {
+                break;
+            };
+            let Some(bracket_rel) = out[fp_at..].find(']') else {
+                break;
+            };
+            let after_bracket = fp_at + bracket_rel + 1;
+            if !out[after_bracket..].to_ascii_lowercase().starts_with(&xpub.to_ascii_lowercase()) {
+                search_from = fp_at + 8;
+                continue;
+            }
+            let xpub_end = after_bracket + xpub.len();
+            let end = extend_derivation_end(&out, xpub_end);
+            let needle = out[start..end].to_string();
+            let placeholder = format!("@{index}/**");
+            out = out.replace(&needle, &placeholder);
+            search_from = start + placeholder.len();
+        }
+    }
+    Ok(out)
+}
+
+fn key_fingerprint(key_info: &str) -> Result<String, SignError> {
+    let trimmed = key_info.trim();
+    let inner = trimmed
+        .strip_prefix('[')
+        .and_then(|s| s.split('/').next())
+        .ok_or_else(|| SignError::Unsupported(format!("invalid key info: {trimmed}")))?;
+    Ok(inner.to_ascii_lowercase())
+}
+
+fn key_xpub_part(key_info: &str) -> Result<String, SignError> {
+    let trimmed = key_info.trim();
+    let bracket_end = trimmed
+        .find(']')
+        .ok_or_else(|| SignError::Unsupported(format!("invalid key info: {trimmed}")))?;
+    let xpub = trimmed[bracket_end + 1..].trim();
+    let xpub = xpub.strip_suffix("/**").unwrap_or(xpub);
+    if xpub.is_empty() {
+        return Err(SignError::Unsupported(format!("invalid key info: {trimmed}")));
+    }
+    Ok(xpub.to_string())
+}
+
+pub fn validate_ledger_policy_template(policy: &str) -> Result<(), SignError> {
+    if policy.len() > LEDGER_MAX_POLICY_TEMPLATE_LEN {
+        return Err(SignError::Unsupported(format!(
+            "wallet policy template is {} bytes — Ledger supports at most {LEDGER_MAX_POLICY_TEMPLATE_LEN}. \
+             Simplify the vault or use another signer (Coldcard / software cosigner).",
+            policy.len()
+        )));
+    }
+    Ok(())
+}
+
+fn normalize_ledger_policy_template(policy: &str) -> Result<String, SignError> {
+    let mut out = policy.to_string();
+    for i in 0..16u8 {
+        let multisite = format!("@{i}/<0;1>/*");
+        let single = format!("@{i}/*");
+        let ledger = format!("@{i}/**");
+        out = out.replace(&multisite, &ledger);
+        if !out.contains(&ledger) {
+            out = out.replace(&single, &ledger);
+        }
+    }
+    Ok(out)
+}
+
+fn normalize_ledger_key_info(key_info: &str, network: NetworkName) -> Result<String, SignError> {
+    let trimmed = key_info.trim();
+    let bracket_end = trimmed
+        .find(']')
+        .ok_or_else(|| SignError::Unsupported(format!("invalid key info: {trimmed}")))?;
+    let origin = &trimmed[..=bracket_end];
+    let mut xpub_part = trimmed[bracket_end + 1..].trim();
+    if let Some(stripped) = xpub_part.strip_suffix("/**") {
+        xpub_part = stripped;
+    }
+    let converted = xpub_for_network(xpub_part, network)?;
+    Ok(format!("{origin}{converted}"))
+}
+
+fn xpub_for_network(xpub_b58: &str, network: NetworkName) -> Result<String, SignError> {
+    let want_test = !matches!(network, NetworkName::Mainnet);
+    let is_test = xpub_b58.starts_with("tpub")
+        || xpub_b58.starts_with("vpub")
+        || xpub_b58.starts_with("upub");
+    let is_main = xpub_b58.starts_with("xpub")
+        || xpub_b58.starts_with("zpub")
+        || xpub_b58.starts_with("ypub");
+    if (want_test && is_test) || (!want_test && is_main) || (!is_test && !is_main) {
+        return Ok(xpub_b58.to_string());
+    }
+    swap_xpub_version_bytes(xpub_b58, network)
+}
+
+fn swap_xpub_version_bytes(xpub_b58: &str, network: NetworkName) -> Result<String, SignError> {
+    let mut data = bitcoin::base58::decode_check(xpub_b58.trim())
+        .map_err(|e| SignError::Unsupported(format!("invalid extended pubkey: {e}")))?;
+    if data.len() < 4 {
+        return Err(SignError::Unsupported(
+            "invalid extended pubkey payload".into(),
+        ));
+    }
+    let version: [u8; 4] = match network {
+        NetworkName::Mainnet => [0x04, 0x88, 0xB2, 0x1E],
+        NetworkName::Testnet
+        | NetworkName::Testnet4
+        | NetworkName::Signet
+        | NetworkName::Regtest => [0x04, 0x35, 0x87, 0xCF],
+    };
+    data[..4].copy_from_slice(&version);
+    Ok(bitcoin::base58::encode_check(&data))
 }
 
 /// Per-vendor registration payload and human instructions.
@@ -307,9 +525,9 @@ fn ledger_vendor(bip388: &Bip388Policy) -> VendorRegistration {
         body: serde_json::to_string_pretty(bip388).unwrap_or_else(|_| bip388.policy.clone()),
         instructions: vec![
             "Open the Bitcoin app on the Ledger (taproot / Miniscript capable firmware).".into(),
-            "Register this wallet policy before the first co-sign (approve on device).".into(),
-            "Stock HWI 3.2.0: Miniscript Taproot ABC wallets register on the first PSBT sign, not via registerpolicy/displayaddress."
-                .into(),
+            "In Minisatoshi: Wallet → Settings → Register on hardware → Register Ledger policy.".into(),
+            "Approve the wallet policy on the Ledger screen — HMAC is stored locally for signing.".into(),
+            "Requires Python 3 with pip install ledger-bitcoin (bundled in a future release).".into(),
             "Confirm address on device after registering (display / receive verify).".into(),
             "HMAC proof of registration (if returned) can be stored for later signing sessions."
                 .into(),
@@ -386,6 +604,69 @@ mod tests {
     fn sample_config() -> PolicyConfig {
         let json = include_str!("../../../tests/vectors/policy_abc_testnet.json");
         serde_json::from_str(json).expect("fixture")
+    }
+
+    #[test]
+    fn ledger_policy_normalizes_multipath_placeholders() {
+        let config = sample_config();
+        let descriptor = include_str!("../../../tests/vectors/policy_abc_testnet_descriptor.txt");
+        let bip = descriptor_to_bip388("ABC Vault", &config, descriptor).unwrap();
+        let ledger =
+            to_ledger_wallet_policy(&bip, &config, NetworkName::Testnet).unwrap();
+        assert!(ledger.policy.contains("@0/**"));
+        assert!(ledger.policy.contains("@1/**"));
+        assert!(!ledger.policy.contains("<0;1>"));
+        assert!(ledger.keys[0].starts_with("[78412e3a"));
+        assert!(ledger.keys[0].contains("tpub") || ledger.keys[0].contains("xpub"));
+    }
+
+    #[test]
+    fn abc_ledger_policy_uses_binary_taptree() {
+        let config = sample_config();
+        let descriptor = include_str!("../../../tests/vectors/policy_abc_testnet_descriptor.txt");
+        let bip = descriptor_to_bip388("ABC Vault", &config, descriptor).unwrap();
+        let ledger =
+            to_ledger_wallet_policy(&bip, &config, NetworkName::Testnet).unwrap();
+        // Depth encoding chains all leaves: `)),and_v(...),and_v(...),0}}`
+        assert!(
+            !ledger.policy.contains(")),and_v(v:pk(@0/**),pk(@1/**)),and_v"),
+            "expected binary taptree, got depth encoding: {}",
+            ledger.policy
+        );
+        // Binary encoding nests subtrees: `...)),{and_v(...),0}}`
+        assert!(
+            ledger.policy.contains("))},{and_v"),
+            "expected binary taptree nesting: {}",
+            ledger.policy
+        );
+    }
+
+    #[test]
+    fn abc_testnet_bip388_fits_ledger_template_limit() {
+        let config = sample_config();
+        let descriptor = include_str!("../../../tests/vectors/policy_abc_testnet_descriptor.txt");
+        let bip = descriptor_to_bip388("ABC Vault", &config, descriptor).unwrap();
+        let ledger =
+            to_ledger_wallet_policy(&bip, &config, NetworkName::Testnet).unwrap();
+        assert!(
+            ledger.policy.len() <= LEDGER_MAX_POLICY_TEMPLATE_LEN,
+            "policy len {}: {}",
+            ledger.policy.len(),
+            ledger.policy
+        );
+    }
+
+    #[test]
+    fn bip388_policy_fingerprint_is_stable() {
+        let bip = Bip388Policy {
+            name: "ABC".into(),
+            policy: "tr(@0)".into(),
+            keys: vec!["[fp/86'/1'/0']xpub".into()],
+        };
+        let a = bip388_policy_fingerprint(&bip);
+        let b = bip388_policy_fingerprint(&bip);
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 64);
     }
 
     #[test]

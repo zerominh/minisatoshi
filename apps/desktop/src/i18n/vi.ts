@@ -90,6 +90,14 @@ export const vi = {
   "settings.usingFingerprint": "Đang dùng fingerprint {fp}",
   "settings.downloadingHwi":
     "Đang tải HWI chính thức {version} (đã kiểm tra checksum)…",
+  "settings.ledgerSigner": "Ledger signer (ví ABC)",
+  "settings.ledgerHint":
+    "Với Miniscript Taproot (ABC) trên Ledger, ứng dụng cài ledger-bitcoin vào dữ liệu app. Lần đầu có thể cần Python hệ thống để bootstrap.",
+  "settings.ledgerReady": "Ledger signer sẵn sàng",
+  "settings.ledgerNotFound": "Chưa cài Ledger signer",
+  "settings.installLedger": "Cài Ledger signer",
+  "settings.verifyLedger": "Xác minh Ledger signer",
+  "settings.installingLedger": "Đang cài ledger-bitcoin {version}…",
   "settings.getXpub": "Lấy xpub",
   "settings.needsPin": "cần PIN",
   "settings.needsPassphrase": "cần passphrase",

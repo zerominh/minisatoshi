@@ -7,6 +7,8 @@ license.workspace = true
 
 [dependencies]
 bitcoin.workspace = true
+descriptor-engine.workspace = true
+miniscript.workspace = true
 policy-engine.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true

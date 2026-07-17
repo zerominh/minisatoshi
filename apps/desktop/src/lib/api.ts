@@ -28,6 +28,8 @@ import type {
   HwRegisterRequest,
   HwRegisterResultDto,
   HwXpubDto,
+  LedgerRegistrationStatusDto,
+  LedgerRuntimeStatusDto,
   RegistrationPackageDto,
   AnalyzePsbtRequest,
   SigningStatusDto,
@@ -266,6 +268,21 @@ export async function hwRegisterWallet(
   request: HwRegisterRequest,
 ): Promise<HwRegisterResultDto> {
   return invoke("hw_register_wallet", { request });
+}
+
+export async function getLedgerRegistrationStatus(
+  walletId: string,
+  fingerprint: string,
+): Promise<LedgerRegistrationStatusDto> {
+  return invoke("get_ledger_registration_status", { walletId, fingerprint });
+}
+
+export async function getLedgerRuntimeStatus(): Promise<LedgerRuntimeStatusDto> {
+  return invoke("get_ledger_runtime_status");
+}
+
+export async function ensureLedgerRuntimeInstalled(): Promise<LedgerRuntimeStatusDto> {
+  return invoke("ensure_ledger_runtime_installed");
 }
 
 export async function listSpendingPaths(

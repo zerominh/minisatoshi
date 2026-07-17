@@ -4,6 +4,7 @@ import {
   deleteWallet,
   exportWalletBackup,
   formatError,
+  getLedgerRegistrationStatus,
   hwRegisterWallet,
   prepareHwRegistration,
   renameHotWallet,
@@ -17,7 +18,7 @@ import {
   getHwiPath,
   setHwFingerprint,
 } from "../lib/settings";
-import type { RegistrationPackageDto } from "../lib/types";
+import type { LedgerRegistrationStatusDto, RegistrationPackageDto } from "../lib/types";
 import { useWallet } from "../wallet/WalletContext";
 
 export function WalletSettingsPage() {
@@ -38,12 +39,30 @@ export function WalletSettingsPage() {
     useState<RegistrationPackageDto | null>(null);
   const [regFingerprint, setRegFingerprint] = useState(getHwFingerprint());
   const [cosignerHints, setCosignerHints] = useState<string[]>([]);
+  const [ledgerStatus, setLedgerStatus] =
+    useState<LedgerRegistrationStatusDto | null>(null);
+
+  const isAbcScriptPath =
+    wallet?.descriptor.includes("and_v") ||
+    wallet?.descriptor.includes("{{") ||
+    false;
 
   const working = walletBusy || localBusy;
 
   useEffect(() => {
     setDisplayName(wallet?.name ?? "");
   }, [wallet?.name]);
+
+  useEffect(() => {
+    const fp = regFingerprint.trim();
+    if (!walletId || !fp) {
+      setLedgerStatus(null);
+      return;
+    }
+    void getLedgerRegistrationStatus(walletId, fp)
+      .then(setLedgerStatus)
+      .catch(() => setLedgerStatus(null));
+  }, [walletId, regFingerprint, registration?.ledgerHmac]);
 
   if (!wallet) return null;
 
@@ -153,6 +172,13 @@ export function WalletSettingsPage() {
       setRegistration(result.package);
       setCosignerHints(result.cosignerHints);
       setMessage(result.message);
+      if (regFingerprint.trim()) {
+        const status = await getLedgerRegistrationStatus(
+          walletId,
+          regFingerprint.trim(),
+        );
+        setLedgerStatus(status);
+      }
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -264,10 +290,18 @@ export function WalletSettingsPage() {
       <div className="panel form-grid">
         <h3>Register on hardware</h3>
         <p className="muted">
-          For Miniscript Taproot (ABC): <strong>Verify device</strong> only checks USB
-          connection — Ledger usually shows nothing until you <strong>sign a PSBT in Send</strong>.
-          If your key matches the wallet, the app may ask Ledger to confirm a single-key receive
-          address. Full multisig policy registration happens on the first hardware sign.
+          {isAbcScriptPath ? (
+            <>
+              For Miniscript Taproot (ABC) with <strong>Ledger</strong>: install the{" "}
+              <strong>Ledger signer</strong> in Settings → Signing devices, then use{" "}
+              <strong>Register Ledger policy</strong> below. Then sign PSBTs in Send.
+            </>
+          ) : (
+            <>
+              Register or verify the wallet policy on your hardware device before
+              the first co-sign.
+            </>
+          )}
         </p>
         <div className="row-actions">
           <button
@@ -300,13 +334,37 @@ export function WalletSettingsPage() {
                 disabled={working}
               />
             </label>
+            {ledgerStatus ? (
+              <p className="muted">
+                Ledger policy:{" "}
+                {ledgerStatus.stale ? (
+                  <>
+                    <strong>stale</strong>
+                    {ledgerStatus.staleReason
+                      ? ` — ${ledgerStatus.staleReason}`
+                      : " — re-register required"}
+                  </>
+                ) : ledgerStatus.registered ? (
+                  <strong>registered</strong>
+                ) : (
+                  <strong>not registered</strong>
+                )}
+                {!ledgerStatus.registered && !ledgerStatus.stale
+                  ? !ledgerStatus.pythonAvailable
+                    ? " — install Ledger signer in Settings"
+                    : null
+                  : null}
+              </p>
+            ) : null}
             <div className="row-actions">
               <button
                 type="button"
                 disabled={working || !regFingerprint.trim()}
                 onClick={() => void onRegisterOnDevice()}
               >
-                Verify device / prepare sign
+                {isAbcScriptPath
+                  ? "Register Ledger policy"
+                  : "Verify device / register"}
               </button>
               <button
                 type="button"

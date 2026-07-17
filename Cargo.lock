@@ -3795,8 +3795,10 @@ name = "signing-devices"
 version = "0.1.0"
 dependencies = [
  "bitcoin",
+ "descriptor-engine",
  "flate2",
  "hex",
+ "miniscript",
  "policy-engine",
  "reqwest 0.12.28",
  "serde",

@@ -22,9 +22,10 @@ use crate::dto::{
     AddressDto, AnalyzePsbtRequest, BalanceDto, BroadcastTxRequest, BsmsExportDto,
     CombinePsbtRequest, CompileWalletResponse, CreateHotKeystoreRequest, CreatePsbtRequest,
     CreateWalletRequest, CreateWorkspaceRequest, FinalizedTxDto, HotKeystoreStatusDto,
-    HotWalletSummaryDto, HwDeviceDto, HwGetXpubRequest, HwRegisterRequest, HwRegisterResultDto,
+    HotWalletSummaryDto,     HwDeviceDto, HwGetXpubRequest, HwRegisterRequest, HwRegisterResultDto,
     HwSignPsbtRequest, HwStatusDto, HwXpubDto, ImportDescriptorRequest, ImportHotWalletRequestDto,
-    ImportHotWalletResultDto, ImportWalletBackupRequest, OpenTextFileDto, PsbtDto, ServerPresetDto,
+    ImportHotWalletResultDto, ImportWalletBackupRequest, LedgerRegistrationStatusDto,
+    LedgerRuntimeStatusDto, OpenTextFileDto, PsbtDto, ServerPresetDto,
     SignPsbtHotRequest, SignPsbtRequest, SignedPsbtDto, SparrowExportDto, SyncResultDto,
     TxOutputDto, UnlockHotKeystoreRequest, WalletBackupDto, WalletDto, WalletSummaryDto,
     WorkspaceDto, WorkspaceSummaryDto,
@@ -32,10 +33,12 @@ use crate::dto::{
 use crate::error::user_facing_error;
 use crate::state::AppState;
 use signing_devices::{
-    build_registration_package, ensure_hwi, find_hwi, find_key_by_fingerprint, hwi_chain,
-    is_registerpolicy_unavailable, is_taproot_script_path_miniscript, ledger_registers_on_first_psbt,
-    parse_derivation_path, primary_cosigner_hints, single_key_display_descriptor, DeviceInfo,
-    HwiClient, HwiSource, RegistrationPackage, PINNED_HWI_VERSION,
+    build_registration_package, descriptor_to_bip388, ensure_hwi, find_hwi, find_key_by_fingerprint,
+    find_ledger_runtime, hwi_chain, is_registerpolicy_unavailable, is_taproot_script_path_miniscript,
+    ledger_register_wallet, ledger_registers_on_first_psbt, ledger_sign_psbt,
+    load_registration, parse_derivation_path, primary_cosigner_hints, registration_stale_reason,
+    resolve_ledger_cli, runtime_source_label, save_registration, single_key_display_descriptor,
+    to_ledger_wallet_policy, DeviceInfo, DeviceType, HwiClient, HwiSource, RegistrationPackage, PINNED_HWI_VERSION, PINNED_LEDGER_BITCOIN_VERSION,
 };
 
 #[tauri::command]
@@ -698,36 +701,35 @@ pub fn hw_get_xpub(
     })
 }
 
-const HWI_LEDGER_SCRIPT_PATH_MSG: &str = "Ledger + HWI 3.2 cannot sign Miniscript Taproot script-path wallets \
-     (ABC and similar). HWI skips taproot script-path keys (see hwilib/devices/ledger.py: \
-     \"TODO: Support script path signing\"), so signtx returns the PSBT unchanged — \
-     registration in Settings cannot fix this. Workarounds: (1) sign one cosigner with a software/hot key \
-     in Minisatoshi, (2) use Coldcard (USB or SD PSBT), (3) export the PSBT to a wallet that signs \
-     with Ledger wallet policies (e.g. Liana, Sparrow with compatible HWI build).";
+const LEDGER_NOT_REGISTERED_MSG: &str = "Register Ledger policy first: Wallet → Settings → Register on hardware → \
+     Register Ledger policy. Install the Ledger signer in Settings if prompted.";
 
-/// Sign a PSBT on-device (`hwi signtx`). Secrets never leave the hardware.
+const LEDGER_STALE_MSG: &str = "Ledger registration is out of date — Wallet → Settings → Register Ledger policy again.";
+
+/// Sign a PSBT on-device (`hwi signtx` or ledger-bitcoin for Ledger ABC).
 #[tauri::command]
 pub fn hw_sign_psbt(
     state: State<'_, AppState>,
     request: HwSignPsbtRequest,
 ) -> Result<SignedPsbtDto, String> {
-    let wallet_descriptor = request.wallet_id.as_deref().filter(|id| !id.is_empty()).and_then(|wallet_id| {
-        state
-            .with_store(|store| {
-                WalletService::new(store)
-                    .get_wallet(wallet_id)
-                    .map(|w| w.descriptor)
-                    .map_err(user_facing_error)
-            })
-            .ok()
-    });
-
-    if wallet_descriptor
-        .as_deref()
-        .is_some_and(is_taproot_script_path_miniscript)
-    {
-        return Err(HWI_LEDGER_SCRIPT_PATH_MSG.into());
-    }
+    let (wallet_descriptor, wallet_network, wallet_policy, bip388) =
+        if let Some(wallet_id) = request.wallet_id.as_deref().filter(|id| !id.is_empty()) {
+            state.with_store(|store| {
+                let service = WalletService::new(store);
+                let wallet = service.get_wallet(wallet_id).map_err(user_facing_error)?;
+                let bip388 =
+                    descriptor_to_bip388(&wallet.name, &wallet.policy, &wallet.descriptor)
+                        .map_err(user_facing_error)?;
+                Ok((
+                    Some(wallet.descriptor),
+                    Some(wallet.policy.network),
+                    Some(wallet.policy),
+                    Some(bip388),
+                ))
+            })?
+        } else {
+            (None, None, None, None)
+        };
 
     let mut psbt = parse_psbt_b64(&request.psbt_base64)?;
     let before = signature_snapshot(&psbt);
@@ -741,31 +743,66 @@ pub fn hw_sign_psbt(
     }
 
     let psbt_for_hwi = encode_psbt(&psbt)?;
+    let network = request.network.or(wallet_network);
     let client = hwi_client(
         &state,
         request.hwi_path.as_deref(),
         true,
-        request.network,
+        network,
     )?;
     let fingerprint = client
         .resolve_fingerprint(request.fingerprint.trim())
         .map_err(user_facing_error)?;
-    let signed_b64 = client
-        .sign_psbt(&fingerprint, &psbt_for_hwi)
-        .map_err(user_facing_error)?;
+
+    let script_path = wallet_descriptor
+        .as_deref()
+        .is_some_and(is_taproot_script_path_miniscript);
+    let ledger_device = client
+        .find_device(&fingerprint)
+        .map(|d| d.device_type == DeviceType::Ledger)
+        .unwrap_or(false);
+
+    let signed_b64 = if script_path && ledger_device {
+        let wallet_id = request
+            .wallet_id
+            .as_deref()
+            .filter(|id| !id.is_empty())
+            .ok_or("wallet_id is required for Ledger ABC signing")?;
+        let bip388 = bip388.ok_or("could not load wallet policy for Ledger signing")?;
+        let net = network.ok_or("network is required for Ledger signing")?;
+        let policy = wallet_policy.ok_or("could not load wallet policy for Ledger signing")?;
+        let ledger_bip388 = to_ledger_wallet_policy(&bip388, &policy, net)
+            .map_err(user_facing_error)?;
+        let reg = load_registration(&state.data_dir, wallet_id, &fingerprint)
+            .ok_or(LEDGER_NOT_REGISTERED_MSG)?;
+        if let Some(reason) = registration_stale_reason(&reg, &ledger_bip388, net) {
+            return Err(format!("{LEDGER_STALE_MSG} ({reason})"));
+        }
+        let ledger_cli =
+            resolve_ledger_cli(&state.data_dir, net).map_err(user_facing_error)?;
+        ledger_sign_psbt(&ledger_cli, &ledger_bip388, &reg.hmac, &psbt_for_hwi)
+            .map_err(user_facing_error)?
+    } else {
+        client
+            .sign_psbt(&fingerprint, &psbt_for_hwi)
+            .map_err(user_facing_error)?
+    };
+
     let psbt = parse_psbt_b64(&signed_b64)?;
     let after = signature_snapshot(&psbt);
 
     if !hw_sign_made_progress(&before, &after) {
-        let hint = wallet_descriptor
-            .as_deref()
-            .filter(|d| is_taproot_script_path_miniscript(d))
-            .map(|_| HWI_LEDGER_SCRIPT_PATH_MSG)
-            .unwrap_or(
-                "Hardware wallet did not add any signature. Unlock the device, open the Bitcoin app, \
-                 approve on screen, and ensure the fingerprint matches a key in this PSBT. \
-                 Multi-key paths need each cosigner on the same PSBT (or Combine partial PSBTs).",
-            );
+        let hint = if script_path && ledger_device {
+            LEDGER_NOT_REGISTERED_MSG
+        } else if script_path {
+            "Hardware wallet did not add any signature for this script-path PSBT. \
+             For Ledger ABC wallets, register the policy in Settings first. \
+             Coldcard: unlock device and approve on screen."
+        } else {
+            "Hardware wallet did not add any signature. Unlock the device, open the Bitcoin app, \
+             approve on screen, and ensure the fingerprint matches a key in this PSBT. \
+             Multi-key paths need each cosigner on the same PSBT (or Combine partial PSBTs)."
+        };
         return Err(hint.into());
     }
 
@@ -832,7 +869,7 @@ pub fn hw_register_wallet(
     state: State<'_, AppState>,
     request: HwRegisterRequest,
 ) -> Result<HwRegisterResultDto, String> {
-    let (mut package, network, cosigner_hints, wallet_keys) = state.with_store(|store| {
+    let (mut package, network, cosigner_hints, wallet_keys, wallet_policy) = state.with_store(|store| {
         let service = WalletService::new(store);
         let wallet = service
             .get_wallet(&request.wallet_id)
@@ -845,6 +882,7 @@ pub fn hw_register_wallet(
             wallet.policy.network,
             primary_cosigner_hints(&wallet.policy),
             wallet.policy.keys.clone(),
+            wallet.policy,
         ))
     })?;
 
@@ -859,6 +897,38 @@ pub fn hw_register_wallet(
         .map_err(user_facing_error)?;
 
     if ledger_registers_on_first_psbt(&package.descriptor) {
+        if let Ok(device) = client.find_device(&fingerprint) {
+            if device.device_type == DeviceType::Ledger {
+                let ledger_cli =
+                    resolve_ledger_cli(&state.data_dir, network).map_err(user_facing_error)?;
+                let ledger_bip388 =
+                    to_ledger_wallet_policy(&package.bip388, &wallet_policy, network)
+                        .map_err(user_facing_error)?;
+                match ledger_register_wallet(&ledger_cli, &ledger_bip388) {
+                    Ok(hmac) => {
+                        save_registration(
+                            &state.data_dir,
+                            &request.wallet_id,
+                            &fingerprint,
+                            &hmac,
+                            &ledger_bip388,
+                            network,
+                        )
+                        .map_err(user_facing_error)?;
+                        package.ledger_hmac = Some(hmac.clone());
+                        return Ok(HwRegisterResultDto {
+                            ok: true,
+                            message: "Ledger wallet policy registered — confirm prompts on the device screen."
+                                .into(),
+                            hmac: Some(hmac),
+                            package,
+                            cosigner_hints,
+                        });
+                    }
+                    Err(err) => return Err(user_facing_error(err)),
+                }
+            }
+        }
         if let Some(key) = find_key_by_fingerprint(&wallet_keys, &fingerprint) {
             let single_desc = single_key_display_descriptor(key);
             if let Ok(addr) = client.display_address_desc(&fingerprint, &single_desc) {
@@ -878,9 +948,8 @@ pub fn hw_register_wallet(
         return Ok(HwRegisterResultDto {
             ok: true,
             message: format!(
-                "Device {fingerprint} connected over USB — no Ledger prompt at this step is normal. \
-                 HWI {PINNED_HWI_VERSION} cannot pre-register Miniscript Taproot (no registerpolicy; multisig uses and_v). \
-                 Next: Send → create PSBT → Sign with hardware — for ABC wallets Ledger signing via HWI 3.2 is not supported yet (script-path limitation); use software cosigner or Coldcard."
+                "Device {fingerprint} connected over USB — no Ledger prompt at this step is normal for non-Ledger devices. \
+                 For Ledger ABC wallets: Settings → Install Ledger signer, then Register Ledger policy here."
             ),
             hmac: None,
             package,
@@ -933,6 +1002,117 @@ pub fn hw_register_wallet(
             cosigner_hints,
         }),
     }
+}
+
+fn ledger_runtime_to_dto(
+    runtime: signing_devices::ResolvedLedgerRuntime,
+    message: Option<String>,
+) -> LedgerRuntimeStatusDto {
+    LedgerRuntimeStatusDto {
+        available: true,
+        python_path: Some(runtime.python.display().to_string()),
+        script_path: Some(runtime.script.display().to_string()),
+        pinned_version: PINNED_LEDGER_BITCOIN_VERSION.to_string(),
+        installed_version: Some(runtime.version),
+        source: Some(runtime_source_label(runtime.source).to_string()),
+        script_ready: true,
+        message,
+    }
+}
+
+/// Probe for ledger-bitcoin runtime in app data / env. Does not install.
+#[tauri::command]
+pub fn get_ledger_runtime_status(
+    state: State<'_, AppState>,
+) -> Result<LedgerRuntimeStatusDto, String> {
+    let script_ready = signing_devices::ensure_ledger_cli_script(&state.data_dir).is_ok();
+    match find_ledger_runtime(&state.data_dir) {
+        Some(runtime) => Ok(LedgerRuntimeStatusDto {
+            script_ready,
+            ..ledger_runtime_to_dto(runtime, None)
+        }),
+        None => Ok(LedgerRuntimeStatusDto {
+            available: false,
+            python_path: None,
+            script_path: signing_devices::ensure_ledger_cli_script(&state.data_dir)
+                .ok()
+                .map(|p| p.display().to_string()),
+            pinned_version: PINNED_LEDGER_BITCOIN_VERSION.to_string(),
+            installed_version: None,
+            source: None,
+            script_ready,
+            message: Some(format!(
+                "Ledger signer missing — installs ledger-bitcoin v{PINNED_LEDGER_BITCOIN_VERSION} into app data \
+                 (one-time Python bootstrap may be required)"
+            )),
+        }),
+    }
+}
+
+/// Install or refresh the ledger-bitcoin runtime into app data.
+#[tauri::command]
+pub fn ensure_ledger_runtime_installed(
+    state: State<'_, AppState>,
+) -> Result<LedgerRuntimeStatusDto, String> {
+    let had_runtime = find_ledger_runtime(&state.data_dir).is_some();
+    let runtime =
+        signing_devices::ensure_ledger_runtime(&state.data_dir).map_err(user_facing_error)?;
+    let message = if had_runtime {
+        Some(format!(
+            "Ledger signer ready — ledger-bitcoin v{} ({})",
+            runtime.version,
+            runtime_source_label(runtime.source)
+        ))
+    } else {
+        Some(format!(
+            "Installed ledger-bitcoin v{} into app data",
+            runtime.version
+        ))
+    };
+    Ok(ledger_runtime_to_dto(runtime, message))
+}
+
+/// Whether a Ledger wallet-policy HMAC is stored for this wallet + fingerprint.
+#[tauri::command]
+pub fn get_ledger_registration_status(
+    state: State<'_, AppState>,
+    wallet_id: String,
+    fingerprint: String,
+) -> Result<LedgerRegistrationStatusDto, String> {
+    let fp = fingerprint.trim().to_ascii_lowercase();
+    let runtime = find_ledger_runtime(&state.data_dir);
+    let reg = load_registration(&state.data_dir, &wallet_id, &fp);
+
+    let (stale, stale_reason, registered) = state.with_store(|store| {
+        let service = WalletService::new(store);
+        let wallet = service.get_wallet(&wallet_id).map_err(user_facing_error)?;
+        let bip388 =
+            descriptor_to_bip388(&wallet.name, &wallet.policy, &wallet.descriptor)
+                .map_err(user_facing_error)?;
+        let ledger_bip388 =
+            to_ledger_wallet_policy(&bip388, &wallet.policy, wallet.policy.network)
+                .map_err(user_facing_error)?;
+        let reg = reg.as_ref();
+        let stale_reason = reg
+            .and_then(|r| registration_stale_reason(r, &ledger_bip388, wallet.policy.network))
+            .map(str::to_string);
+        let stale = stale_reason.is_some();
+        let registered = reg.is_some() && !stale;
+        Ok((stale, stale_reason, registered))
+    })?;
+
+    Ok(LedgerRegistrationStatusDto {
+        registered,
+        stale,
+        stale_reason,
+        fingerprint: fp,
+        python_available: runtime.is_some(),
+        ledger_cli_ready: signing_devices::ensure_ledger_cli_script(&state.data_dir).is_ok(),
+        runtime_source: runtime
+            .as_ref()
+            .map(|r| runtime_source_label(r.source).to_string()),
+        installed_version: runtime.map(|r| r.version),
+    })
 }
 
 #[tauri::command]

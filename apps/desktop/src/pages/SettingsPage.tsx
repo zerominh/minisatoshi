@@ -2,8 +2,10 @@ import { FormEvent, useEffect, useState } from "react";
 import {
   appVersion,
   ensureHwiInstalled,
+  ensureLedgerRuntimeInstalled,
   formatError,
   getHwiStatus,
+  getLedgerRuntimeStatus,
   hwGetXpub,
   listHwDevices,
   listServerPresets,
@@ -25,6 +27,7 @@ import {
 import type {
   HwDeviceDto,
   HwStatusDto,
+  LedgerRuntimeStatusDto,
   NetworkName,
   ServerPresetDto,
 } from "../lib/types";
@@ -38,6 +41,9 @@ export function SettingsPage() {
   const [hwiPath, setHwiPathState] = useState(getHwiPath());
   const [hwFingerprint, setHwFingerprintState] = useState(getHwFingerprint());
   const [hwiStatus, setHwiStatus] = useState<HwStatusDto | null>(null);
+  const [ledgerStatus, setLedgerStatus] = useState<LedgerRuntimeStatusDto | null>(
+    null,
+  );
   const [devices, setDevices] = useState<HwDeviceDto[]>([]);
   const [xpubPath, setXpubPath] = useState("m/86'/1'/0'");
   const [xpubResult, setXpubResult] = useState<string | null>(null);
@@ -59,6 +65,9 @@ export function SettingsPage() {
     void getHwiStatus(hwiPath || null)
       .then(setHwiStatus)
       .catch(() => setHwiStatus(null));
+    void getLedgerRuntimeStatus()
+      .then(setLedgerStatus)
+      .catch(() => setLedgerStatus(null));
   }, []);
 
   function onSave(event: FormEvent) {
@@ -98,6 +107,28 @@ export function SettingsPage() {
       setMessage(
         status.message ??
           `${t("settings.hwiReady")}${status.version ? ` · ${status.version}` : ""}`,
+      );
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onInstallLedger() {
+    setBusy(true);
+    setError(null);
+    setMessage(
+      t("settings.installingLedger", {
+        version: ledgerStatus?.pinnedVersion ?? "",
+      }),
+    );
+    try {
+      const status = await ensureLedgerRuntimeInstalled();
+      setLedgerStatus(status);
+      setMessage(
+        status.message ??
+          `${t("settings.ledgerReady")}${status.installedVersion ? ` · ${status.installedVersion}` : ""}`,
       );
     } catch (err) {
       setError(formatError(err));
@@ -335,6 +366,29 @@ export function SettingsPage() {
             <textarea className="mono" rows={2} readOnly value={xpubResult} />
           </label>
         ) : null}
+      </div>
+
+      <div className="panel form-grid">
+        <h3>{t("settings.ledgerSigner")}</h3>
+        <p className="muted">{t("settings.ledgerHint")}</p>
+        {ledgerStatus ? (
+          <p className={ledgerStatus.available ? "status" : "muted"}>
+            {ledgerStatus.available
+              ? `${t("settings.ledgerReady")} · ${ledgerStatus.installedVersion ?? "unknown"} · ${ledgerStatus.source ?? ""} · ${ledgerStatus.pythonPath ?? ""}`
+              : (ledgerStatus.message ?? t("settings.ledgerNotFound"))}
+          </p>
+        ) : null}
+        <div className="row-actions">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void onInstallLedger()}
+          >
+            {ledgerStatus?.available
+              ? t("settings.verifyLedger")
+              : t("settings.installLedger")}
+          </button>
+        </div>
       </div>
 
       <div className="panel">
