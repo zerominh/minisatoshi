@@ -13,7 +13,8 @@ Trạng thái: **Implemented (Phases 0–4)** · Cập nhật: 2026-07-17
 
 Bài học: fixture không chứa fingerprint Ledger → `0x6a80`/`0x6a82` (nhiễu). UI register phải dùng key thật trong vault.
 
-Tiếp: `tools/ledger_register_abc_smoke.cmd` (ABC taproot + device key A).  
+Baseline wsh OK; ABC taproot (`tr` + `and_v` + NUMS) vẫn **0x6a82** dù đã có key device.
+Tiếp: `tools/ledger_register_abc_isolate.cmd` (BIP86 → pk leaf → and_v → NUMS) để pinpoint fragment bị reject.
 `older(210240)` vẫn không tương thích app ≥ 2.4.6 (BIP68 max 65535).
 
 ## Bối cảnh
