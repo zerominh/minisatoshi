@@ -30,8 +30,9 @@ pub use registration::{
     bip388_policy_fingerprint, build_registration_package, descriptor_to_bip388,
     find_key_by_fingerprint, hwi_chain, is_taproot_script_path_miniscript,
     ledger_registers_on_first_psbt, primary_cosigner_hints, single_key_display_descriptor,
-    to_ledger_wallet_policy, validate_ledger_policy_template, Bip388Policy, RegistrationPackage,
-    VendorRegistration, LEDGER_MAX_POLICY_TEMPLATE_LEN,
+    ledger_policy_has_unsupported_and_v_tree, to_ledger_wallet_policy,
+    validate_ledger_policy_template, Bip388Policy, RegistrationPackage, VendorRegistration,
+    LEDGER_MAX_POLICY_TEMPLATE_LEN,
 };
 pub use types::{DeviceInfo, DeviceType};
 

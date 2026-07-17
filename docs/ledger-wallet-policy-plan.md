@@ -13,9 +13,26 @@ Trạng thái: **Implemented (Phases 0–4)** · Cập nhật: 2026-07-17
 
 Bài học: fixture không chứa fingerprint Ledger → `0x6a80`/`0x6a82` (nhiễu). UI register phải dùng key thật trong vault.
 
-Baseline wsh OK; ABC taproot (`tr` + `and_v` + NUMS) vẫn **0x6a82** dù đã có key device.
-Tiếp: `tools/ledger_register_abc_isolate.cmd` (BIP86 → pk leaf → and_v → NUMS) để pinpoint fragment bị reject.
-`older(210240)` vẫn không tương thích app ≥ 2.4.6 (BIP68 max 65535).
+### Kết quả isolate trên Bitcoin Test **2.4.6** (`a98a1256`)
+
+| Policy | Kết quả |
+|--------|---------|
+| `wsh(sortedmulti(2,@0/**,@1/**))` + key device | OK |
+| `tr(@0/**)` BIP-86 | OK |
+| `tr(@0/**,pk(@1/**))` bare leaf | OK |
+| `tr(@0/**,{pk(@1/**)})` brace 1 lá | **0x6a80** (cây `{` cần 2 nhánh) |
+| `tr(@0/**,{pk,pk})` | OK |
+| `tr(@0/**,and_v(...))` bare | OK |
+| `tr(@0/**,multi_a(...))` | OK |
+| `tr(@0/**,{and_v(...),pk(...)})` | OK |
+| `tr(@0/**,{and_v(...),and_v(...)})` | **0x6a82** |
+| `tr(@0/**,or_i(and_v,and_v))` | **0x6a82** |
+| `tr(@0/**,and_v(...))` + NUMS dummy | OK |
+
+**Kết luận:** Ledger 2.4.6 **không đăng ký/ký được** policy có **≥ 2× `and_v`** (cây `{and_v,and_v}` hay `or_i(and_v,and_v)`). ABC `(A∧B)∨(A∧C)` dính lỗi này. Một nhánh `and_v` (+ NUMS) thì OK. Giới hạn firmware/app, không phải `ledger-bitcoin` / DMK.
+
+`to_ledger_wallet_policy` từ chối sớm với message rõ. Cosigner: Coldcard / app khác.  
+`older(210240)` thêm incompatible trên ≥ 2.4.6 (BIP68 max 65535).
 
 ## Bối cảnh
 

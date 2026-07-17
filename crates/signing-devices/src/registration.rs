@@ -185,6 +185,13 @@ pub fn validate_ledger_policy_template(policy: &str) -> Result<(), SignError> {
     Ok(())
 }
 
+/// Bitcoin app 2.4.6 accepts a single `and_v(...)` leaf (and `{and_v,pk}`), but rejects
+/// policies with **two or more** `and_v(` fragments — whether as `{and_v,and_v}` or
+/// `or_i(and_v,and_v)` — with 0x6a82. ABC primary `(A∧B)∨(A∧C)` hits this.
+pub fn ledger_policy_has_unsupported_and_v_tree(policy: &str) -> bool {
+    policy.matches("and_v(").count() >= 2
+}
+
 fn normalize_ledger_policy_template(policy: &str) -> Result<String, SignError> {
     let mut out = policy.to_string();
     for i in 0..16u8 {
@@ -724,6 +731,25 @@ mod tests {
         assert_eq!(out, "[78412e3a/44'/1'/0']");
         let same = normalize_ledger_origin_coin_type("[a98a1256/86'/1'/0']", NetworkName::Testnet);
         assert_eq!(same, "[a98a1256/86'/1'/0']");
+    }
+
+    #[test]
+    fn detects_unsupported_multi_and_v_tree() {
+        assert!(ledger_policy_has_unsupported_and_v_tree(
+            "tr(@0/**,{and_v(v:pk(@1/**),pk(@2/**)),and_v(v:pk(@1/**),pk(@3/**))})"
+        ));
+        assert!(ledger_policy_has_unsupported_and_v_tree(
+            "tr(@0/**,or_i(and_v(v:pk(@1/**),pk(@2/**)),and_v(v:pk(@1/**),pk(@3/**))))"
+        ));
+        assert!(!ledger_policy_has_unsupported_and_v_tree(
+            "tr(@0/**,and_v(v:pk(@1/**),pk(@2/**)))"
+        ));
+        assert!(!ledger_policy_has_unsupported_and_v_tree(
+            "tr(@0/**,{and_v(v:pk(@1/**),pk(@2/**)),pk(@3/**)})"
+        ));
+        assert!(!ledger_policy_has_unsupported_and_v_tree(
+            "tr(@0/**,{pk(@1/**),pk(@2/**)})"
+        ));
     }
 
     #[test]

@@ -87,6 +87,15 @@ pub fn evaluate_ledger_readiness(
                 BITCOIN_APP_STRICT_OLDER_CHECK.2,
             ));
         }
+        if crate::registration::ledger_policy_has_unsupported_and_v_tree(policy) {
+            warnings.push(
+                "Ledger Bitcoin app (tested 2.4.6) rejects policies with two or more and_v() \
+                 fragments (0x6a82) — including ABC (A∧B)∨(A∧C) and or_i(and_v,and_v). \
+                 A single and_v path works. Use Coldcard for full ABC, or simplify the vault."
+                    .into(),
+            );
+            blocking = true;
+        }
     }
 
     let (device_connected, app_name, app_version) = match device {
