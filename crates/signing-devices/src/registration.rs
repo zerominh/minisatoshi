@@ -2,6 +2,7 @@
 //! (BIP-388 / Ledger wallet policy, Coldcard MicroSD text).
 
 use descriptor_engine::compile_descriptor_from_abstract;
+use descriptor_engine::NUMS_UNSPENDABLE_KEY;
 use policy_engine::{KeyConfig, NetworkName, PolicyConfig};
 use serde::{Deserialize, Serialize};
 
@@ -37,10 +38,19 @@ pub fn bip388_policy_fingerprint(bip388: &Bip388Policy) -> String {
 /// Ledger Bitcoin app limits (see Ledger `app-bitcoin-new` docs).
 pub const LEDGER_MAX_POLICY_TEMPLATE_LEN: usize = 252;
 
+/// Ledger wallet-policy dummy internal key (BIP-341 NUMS compressed pubkey as xpub; zero chain code).
+/// Firmware ≥ 2.2.2 labels this xpub as `dummy` on the registration screen.
+pub const LEDGER_NUMS_DUMMY_KEY_FP: &str = "50929b74";
+const LEDGER_NUMS_DUMMY_XPUB_MAIN: &str =
+    "xpub661MyMwAqRbcEYS8w7XLSVeEsBXy79zSzH1J8vCdxAZningWLdN3zgtU6QgnecKFpJFPpdzxKrwoaZoV44qAJewsc4kX9vGaCaBExuvJH57";
+const LEDGER_NUMS_DUMMY_XPUB_TEST: &str =
+    "tpubD6NzVbkrYhZ4WLczPJWReQycCJdd6YVWXubbVUFnJ5KgU5MDQrD998ZJLSmaB7GVcCnJSDWprxmrGkJ6SvgQC6QAffVpqSvonXmeizXcrkN";
+
 /// Adapt a BIP-388 package for `ledger-bitcoin` / Ledger V2 wallet policies.
 ///
 /// Ledger expects `@n/**` placeholders, network-encoded extended pubkeys (`tpub` on testnet),
-/// and a **binary** Taproot tree (`{left,right}`), not miniscript-rs depth encoding (`{{a,b,c,d}}`).
+/// a **binary** Taproot tree (`{left,right}`), not miniscript-rs depth encoding (`{{a,b,c,d}}`),
+/// and `tr(@0/**, …)` with a NUMS dummy xpub in `keys[0]` (hex internal keys are rejected).
 pub fn to_ledger_wallet_policy(
     bip388: &Bip388Policy,
     config: &PolicyConfig,
@@ -48,9 +58,9 @@ pub fn to_ledger_wallet_policy(
 ) -> Result<Bip388Policy, SignError> {
     let policy = ledger_policy_template(config, bip388)?;
     let policy = normalize_ledger_policy_template(&policy)?;
+    let (policy, keys) = rewrite_nums_internal_key_for_ledger(&policy, &bip388.keys, network)?;
     validate_ledger_policy_template(&policy)?;
-    let keys = bip388
-        .keys
+    let keys = keys
         .iter()
         .map(|k| normalize_ledger_key_info(k, network))
         .collect::<Result<Vec<_>, _>>()?;
@@ -187,6 +197,49 @@ fn normalize_ledger_policy_template(policy: &str) -> Result<String, SignError> {
         }
     }
     Ok(out)
+}
+
+/// Ledger wallet policies require `tr(@0/**, tree)` — not `tr(NUMS_hex, tree)`.
+fn rewrite_nums_internal_key_for_ledger(
+    policy: &str,
+    keys: &[String],
+    network: NetworkName,
+) -> Result<(String, Vec<String>), SignError> {
+    let with_tree = format!("tr({NUMS_UNSPENDABLE_KEY},");
+    let new_policy = if let Some(tree) = policy.strip_prefix(&with_tree) {
+        let shifted = shift_policy_key_placeholders(tree, 1);
+        format!("tr(@0/**,{shifted}")
+    } else if policy == format!("tr({NUMS_UNSPENDABLE_KEY})") {
+        "tr(@0/**)".to_string()
+    } else {
+        return Ok((policy.to_string(), keys.to_vec()));
+    };
+
+    let mut new_keys = keys.to_vec();
+    new_keys.insert(0, ledger_nums_dummy_key_info(network));
+    Ok((new_policy, new_keys))
+}
+
+fn ledger_nums_dummy_key_info(network: NetworkName) -> String {
+    let xpub = match network {
+        NetworkName::Mainnet => LEDGER_NUMS_DUMMY_XPUB_MAIN,
+        NetworkName::Testnet
+        | NetworkName::Testnet4
+        | NetworkName::Signet
+        | NetworkName::Regtest => LEDGER_NUMS_DUMMY_XPUB_TEST,
+    };
+    format!("[{LEDGER_NUMS_DUMMY_KEY_FP}]{xpub}")
+}
+
+fn shift_policy_key_placeholders(policy: &str, delta: u8) -> String {
+    let mut out = policy.to_string();
+    for i in (0..=15u8).rev() {
+        let new = i.saturating_add(delta);
+        out = out.replace(&format!("@{i}/**"), &format!("@{new}/**"));
+        out = out.replace(&format!("@{i}/<0;1>/*"), &format!("@{new}/<0;1>/*"));
+        out = out.replace(&format!("@{i}/*"), &format!("@{new}/*"));
+    }
+    out
 }
 
 fn normalize_ledger_key_info(key_info: &str, network: NetworkName) -> Result<String, SignError> {
@@ -613,11 +666,14 @@ mod tests {
         let bip = descriptor_to_bip388("ABC Vault", &config, descriptor).unwrap();
         let ledger =
             to_ledger_wallet_policy(&bip, &config, NetworkName::Testnet).unwrap();
-        assert!(ledger.policy.contains("@0/**"));
+        assert!(ledger.policy.starts_with("tr(@0/**,"));
         assert!(ledger.policy.contains("@1/**"));
+        assert!(ledger.policy.contains("@2/**"));
+        assert!(!ledger.policy.contains(NUMS_UNSPENDABLE_KEY));
         assert!(!ledger.policy.contains("<0;1>"));
-        assert!(ledger.keys[0].starts_with("[78412e3a"));
-        assert!(ledger.keys[0].contains("tpub") || ledger.keys[0].contains("xpub"));
+        assert!(ledger.keys[0].starts_with("[50929b74]"));
+        assert!(ledger.keys[1].starts_with("[78412e3a"));
+        assert!(ledger.keys[1].contains("tpub") || ledger.keys[1].contains("xpub"));
     }
 
     #[test]
@@ -637,6 +693,11 @@ mod tests {
         assert!(
             ledger.policy.contains("))},{and_v"),
             "expected binary taptree nesting: {}",
+            ledger.policy
+        );
+        assert!(
+            !ledger.policy.contains("pk(@0/**)"),
+            "cosigner placeholders should be shifted past dummy @0: {}",
             ledger.policy
         );
     }
