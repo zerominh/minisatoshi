@@ -143,6 +143,109 @@ def cmd_register(chain: Chain, payload: dict[str, Any]) -> None:
         client.stop()
 
 
+def _device_key_info(client: Any, path: str) -> tuple[str, str]:
+    fp = client.get_master_fingerprint().hex()
+    xpub = client.get_extended_pubkey(path, display=False)
+    return fp, f"[{fp}/{path}]{xpub}"
+
+
+def cmd_baseline_register(chain: Chain) -> None:
+    """Register a 2-of-2 wsh policy that includes THIS device's key.
+
+    Fixture-only keys (no matching fingerprint) often return 0x6a80/0x6a82 on
+    Bitcoin app ≥ 2.4.3 — that is not a client-library bug.
+    """
+    if chain == Chain.MAIN:
+        path = "48'/0'/0'/2'"
+        external = (
+            "[76223a6e/48'/0'/0'/2']"
+            "xpub6ERApfZwUNrhLCkDtcHTcxd75RbzS1ed54G1LkBUHQVHQKqhMkhgbmJbZRkrgZw4koxb5JaHWkY4ALHY2grBGRjaDMzQLcgJvLJuZZvRcEL"
+        )
+    else:
+        path = "48'/1'/0'/2'"
+        # Cosigner from Ledger Bitcoin app docs (testnet).
+        external = (
+            "[76223a6e/48'/1'/0'/2']"
+            "tpubDE7NQymr4AFtewpAsWtnreyq9ghkzQBXpCZjWLFVRAvnbf7vya2eMTvT2fPapNqL8SuVvLQdbUbMfWLVDCZKnsEBqp6UK93QEzL8Ck23AwF"
+        )
+
+    client = createClient(chain=chain)
+    try:
+        fp, our_key = _device_key_info(client, path)
+        wallet = WalletPolicy(
+            "Minisatoshi baseline",
+            "wsh(sortedmulti(2,@0/**,@1/**))",
+            [our_key, external],
+        )
+        sys.stderr.write(f"fingerprint={fp} path={path}\n")
+        sys.stderr.write(f"ourKey={our_key}\n")
+        sys.stderr.write("Approve wallet policy on Ledger...\n")
+        sys.stderr.flush()
+        _wallet_id, wallet_hmac = client.register_wallet(wallet)
+        emit({"ok": True, "hmac": wallet_hmac.hex(), "fingerprint": fp})
+    except Exception as exc:  # noqa: BLE001
+        fail(str(exc))
+    finally:
+        client.stop()
+
+
+def cmd_abc_smoke_register(chain: Chain, with_older: bool) -> None:
+    """Taproot ABC-shaped policy using THIS device as key A (@1 after NUMS dummy)."""
+    from ledger_bitcoin.embit.bip32 import HDKey
+    from ledger_bitcoin.embit.ec import NUMS_PUBKEY
+    from ledger_bitcoin.embit.networks import NETWORKS
+
+    coin = "0'" if chain == Chain.MAIN else "1'"
+    path_a = f"86'/{coin}/0'"
+    net = "main" if chain == Chain.MAIN else "test"
+    dummy_xpub = HDKey(
+        NUMS_PUBKEY, bytes(32), version=NETWORKS[net]["xpub"]
+    ).to_string()
+    dummy = f"[50929b74/86'/{coin}/0']{dummy_xpub}"
+
+    # External cosigners (B/C) — fixture-style; device is A.
+    key_b = (
+        f"[73c5da0a/86'/{coin}/0']"
+        "tpubDC3pD7UZXnsgh3EBjbtBQiB1FnLask7UHBSunZ1DPK4dCFFZoFRkgxHB8gt42FvLzx1DpxfHWxAsYaY6b643RVcGjDxXxns7wKKYnnfEcbB"
+    )
+    key_c = (
+        f"[73c5da0a/84'/{coin}/0']"
+        "tpubDCxX2sYFS5bDkSe5GKKYHjBW7tgyN1R3UchpLJvdbf54ohxeGRtd8MbDUe1cguVHe4vnK68DsuD5MXjxi9EXx16rb9EnNsaF5KT99CinaJz"
+    )
+    if chain == Chain.MAIN:
+        key_b = key_b.replace("tpub", "xpub", 1)
+        key_c = key_c.replace("tpub", "xpub", 1)
+
+    if with_older:
+        # 65535 = BIP68 max; 210240 is rejected on Bitcoin app ≥ 2.4.6
+        policy = (
+            "tr(@0/**,{{and_v(v:pk(@1/**),pk(@2/**)),and_v(v:pk(@1/**),pk(@3/**))},"
+            "{and_v(v:pk(@1/**),older(65535)),0}})"
+        )
+        name = "ABC older65535"
+    else:
+        policy = (
+            "tr(@0/**,{and_v(v:pk(@1/**),pk(@2/**)),and_v(v:pk(@1/**),pk(@3/**))})"
+        )
+        name = "ABC no older"
+
+    client = createClient(chain=chain)
+    try:
+        fp, key_a = _device_key_info(client, path_a)
+        keys = [dummy, key_a, key_b, key_c]
+        wallet = WalletPolicy(name, policy, keys)
+        sys.stderr.write(f"fingerprint={fp} path={path_a} name={name}\n")
+        sys.stderr.write(f"policy={policy}\n")
+        sys.stderr.write("Approve wallet policy on Ledger...\n")
+        sys.stderr.flush()
+        _wallet_id, wallet_hmac = client.register_wallet(wallet)
+        emit({"ok": True, "hmac": wallet_hmac.hex(), "fingerprint": fp, "name": name})
+    except Exception as exc:  # noqa: BLE001
+        fail(str(exc))
+    finally:
+        client.stop()
+
+
 def cmd_sign(chain: Chain, payload: dict[str, Any]) -> None:
     psbt_b64 = payload.get("psbt") or payload.get("psbtBase64")
     if not psbt_b64 or not isinstance(psbt_b64, str):
@@ -185,13 +288,27 @@ def read_stdin_payload() -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Minisatoshi ledger-bitcoin bridge")
-    parser.add_argument("command", choices=["register", "sign", "probe"])
+    parser.add_argument(
+        "command",
+        choices=["register", "sign", "probe", "baseline", "abc-smoke"],
+    )
     parser.add_argument("--chain", default="test", help="main|test|regtest|signet")
+    parser.add_argument(
+        "--with-older",
+        action="store_true",
+        help="For abc-smoke: include older(65535) recovery leaf",
+    )
     args = parser.parse_args()
 
     chain = parse_chain(args.chain)
     if args.command == "probe":
         cmd_probe(chain)
+        return
+    if args.command == "baseline":
+        cmd_baseline_register(chain)
+        return
+    if args.command == "abc-smoke":
+        cmd_abc_smoke_register(chain, with_older=args.with_older)
         return
 
     payload = read_stdin_payload()

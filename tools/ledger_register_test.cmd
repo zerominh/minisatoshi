@@ -8,6 +8,7 @@ set "PY=%LEDGER_DIR%\venv\Scripts\python.exe"
 set "CLI=%LEDGER_DIR%\ledger_cli.py"
 set "REPO=%~dp0.."
 set "JSON=%REPO%\tools\ledger_register_abc_testnet.json"
+set "JSON_NO_OLDER=%REPO%\tools\ledger_register_abc_no_older.json"
 
 echo === 1) Runtime check ===
 if not exist "%PY%" (
@@ -27,17 +28,21 @@ echo === 3) Probe open Bitcoin app (12s timeout) ===
 echo Close Ledger Live first. Unlock device, open Bitcoin Test.
 "%PY%" "%CLI%" probe --chain test
 if errorlevel 1 (
-  echo.
   echo Probe failed/timed out. Fix device access, then re-run.
-  echo Skipping register.
   exit /b 1
 )
 echo.
+echo NOTE: Bitcoin Test 2.4.6+ rejects older(N) with N ^> 65535 ^(ABC 4y = 210240^).
+echo.
 
-echo === 4) Register ABC testnet fixture on device ===
+echo === 4a) Control: ABC WITHOUT older^(^) — should prompt on device if paths OK ===
+echo Approve or reject on Ledger...
+type "%JSON_NO_OLDER%" | "%PY%" "%CLI%" register --chain test
+echo exit %ERRORLEVEL%
+echo.
+
+echo === 4b) Full ABC with older^(210240^) — expect 0x6a82 on app 2.4.6 ===
 echo JSON: %JSON%
-echo Keys use coin type 1' for Bitcoin Test path hardening.
-echo Approve prompts on Ledger screen...
 type "%JSON%" | "%PY%" "%CLI%" register --chain test
 echo.
 echo Exit code: %ERRORLEVEL%

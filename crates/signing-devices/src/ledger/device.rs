@@ -75,21 +75,17 @@ pub fn evaluate_ledger_readiness(
     let mut warnings = Vec::new();
     let mut blocking = false;
 
+    let mut older_over_bip68 = Vec::new();
     if let Some(policy) = policy {
-        for n in invalid_older_blocks_in_policy(policy) {
+        older_over_bip68 = invalid_older_blocks_in_policy(policy);
+        for n in &older_over_bip68 {
             warnings.push(format!(
-                "Policy uses older({n}) — block timelocks above {BIP68_MAX_BLOCK_RELATIVE} are rejected by Bitcoin app ≥ {}.{}.{}.",
+                "Policy uses older({n}) — BIP68 allows at most {BIP68_MAX_BLOCK_RELATIVE} blocks (~455 days). \
+                 Bitcoin app ≥ {}.{}.{} rejects this (often as 0x6a82).",
                 BITCOIN_APP_STRICT_OLDER_CHECK.0,
                 BITCOIN_APP_STRICT_OLDER_CHECK.1,
                 BITCOIN_APP_STRICT_OLDER_CHECK.2,
             ));
-            if let Some((_, ver_raw)) = device {
-                if let Some(ver) = parse_app_version(ver_raw) {
-                    if version_gte(ver, BITCOIN_APP_STRICT_OLDER_CHECK) {
-                        blocking = true;
-                    }
-                }
-            }
         }
     }
 
@@ -134,6 +130,10 @@ pub fn evaluate_ledger_readiness(
                         "Bitcoin app < 2.2.2 — NUMS internal keys may not show as \"dummy\" during registration (update recommended)."
                             .into(),
                     );
+                }
+                if version_gte(ver, BITCOIN_APP_STRICT_OLDER_CHECK) && !older_over_bip68.is_empty()
+                {
+                    blocking = true;
                 }
             } else {
                 warnings.push(format!(

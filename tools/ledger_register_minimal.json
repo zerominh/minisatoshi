@@ -1,0 +1,8 @@
+{
+  "name": "WSH smoke",
+  "policy": "wsh(sortedmulti(2,@0/**,@1/**))",
+  "keys": [
+    "[78412e3a/48'/1'/0'/2']tpubDEnoLuPdBep9bzw5LoGYpsxUQYheRQ9gcgrJhJEcdKFB9cWQRyYmkCyRoTqeD4tJYiVVgt6A3rN6rWn9RYhR9sBsGxji29LYWHuKKbdb1ev",
+    "[73c5da0a/48'/1'/0'/2']tpubDC3pD7UZXnsgh3EBjbtBQiB1FnLask7UHBSunZ1DPK4dCFFZoFRkgxHB8gt42FvLzx1DpxfHWxAsYaY6b643RVcGjDxXxns7wKKYnnfEcbB"
+  ]
+}

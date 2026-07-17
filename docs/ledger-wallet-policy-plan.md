@@ -2,6 +2,20 @@
 
 Trạng thái: **Implemented (Phases 0–4)** · Cập nhật: 2026-07-17
 
+## Blocker notes (hardware, 2026-07-17)
+
+- Probe OK: `Bitcoin Test` **2.4.6**
+- Fixture-only keys (không khớp fingerprint thiết bị) → `0x6a80` / `0x6a82` — **không** kết luận được client sai
+- **Không** cần DMK/npm — cùng APDU `REGISTER_WALLET`; `ledger-bitcoin` 0.4.1 đúng stack
+
+**Baseline OK** trên thiết bị thật (`a98a1256`, Bitcoin Test 2.4.6):
+`tools/ledger_register_baseline.cmd` → HMAC trả về khi policy có key của device.
+
+Bài học: fixture không chứa fingerprint Ledger → `0x6a80`/`0x6a82` (nhiễu). UI register phải dùng key thật trong vault.
+
+Tiếp: `tools/ledger_register_abc_smoke.cmd` (ABC taproot + device key A).  
+`older(210240)` vẫn không tương thích app ≥ 2.4.6 (BIP68 max 65535).
+
 ## Bối cảnh
 
 - Ví **ABC Miniscript Taproot script-path** (`tr(NUMS, {{and_v(...), ...}})`) spend qua `tap_bip32_paths`, không qua internal key.

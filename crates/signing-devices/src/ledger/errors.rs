@@ -56,10 +56,10 @@ pub fn map_ledger_cli_error(raw: &str) -> SignError {
     }
     if lower.contains("0x6a82") || lower.contains("6a82") {
         return SignError::Ledger(
-            "Ledger rejected a key derivation path (0x6a82). Bitcoin app ≥ 2.4.3 only allows \
-             standard BIP paths with the correct coin type (0' mainnet, 1' testnet). \
-             Use origin paths like 86'/1'/0' on Bitcoin Test, or install Bitcoin Recovery \
-             temporarily for non-standard paths."
+            "Ledger NotSupported (0x6a82). On Bitcoin app ≥ 2.4.6 this often means older(N) \
+             with N > 65535 (ABC 4y = older(210240) is rejected). On ≥ 2.4.3 it can also mean \
+             a non-standard derivation path. Options: shorten the fallback timelock to ≤ 455 days, \
+             use Coldcard, or temporarily use Bitcoin app 2.4.2 / Bitcoin Recovery."
                 .into(),
         );
     }
@@ -140,11 +140,11 @@ mod tests {
     }
 
     #[test]
-    fn maps_6a82_path_hardening() {
+    fn maps_6a82_not_supported() {
         let err = map_ledger_cli_error(
             "('0x6a82', 'Error in <BitcoinInsType.REGISTER_WALLET: 2> command', '')",
         );
         assert!(err.to_string().contains("0x6a82"));
-        assert!(err.to_string().contains("coin type"));
+        assert!(err.to_string().contains("older"));
     }
 }
