@@ -11,8 +11,9 @@ use miniscript::descriptor::DescriptorSecretKey;
 use policy_engine::{NetworkName, PolicyConfig};
 use psbt_engine::{
     analyze_signing_status, broadcast_psbt, combine_psbt, create_psbt as build_psbt, export_psbt,
-    finalize_psbt, import_psbt_base64, sign_psbt, transaction_hex, CreatePsbtOptions, ExportFormat,
-    FeeRate, PsbtRecipient, SoftwareSigner, SpendingUtxo, SigningStatus,
+    finalize_psbt, hw_sign_made_progress, import_psbt_base64, populate_global_xpubs, sign_psbt,
+    signature_snapshot, transaction_hex, CreatePsbtOptions, ExportFormat, FeeRate, PsbtRecipient,
+    SoftwareSigner, SpendingUtxo, SigningStatus,
 };
 use tauri::State;
 use vault::WalletService;
@@ -702,6 +703,18 @@ pub fn hw_sign_psbt(
     state: State<'_, AppState>,
     request: HwSignPsbtRequest,
 ) -> Result<SignedPsbtDto, String> {
+    let mut psbt = parse_psbt_b64(&request.psbt_base64)?;
+    let before = signature_snapshot(&psbt);
+
+    if let Some(wallet_id) = request.wallet_id.as_deref().filter(|id| !id.is_empty()) {
+        state.with_store(|store| {
+            let service = WalletService::new(store);
+            let wallet = service.get_wallet(wallet_id).map_err(user_facing_error)?;
+            populate_global_xpubs(&mut psbt, &wallet.policy).map_err(user_facing_error)
+        })?;
+    }
+
+    let psbt_for_hwi = encode_psbt(&psbt)?;
     let client = hwi_client(
         &state,
         request.hwi_path.as_deref(),
@@ -709,9 +722,21 @@ pub fn hw_sign_psbt(
         request.network,
     )?;
     let signed_b64 = client
-        .sign_psbt(request.fingerprint.trim(), &request.psbt_base64)
+        .sign_psbt(request.fingerprint.trim(), &psbt_for_hwi)
         .map_err(user_facing_error)?;
     let psbt = parse_psbt_b64(&signed_b64)?;
+    let after = signature_snapshot(&psbt);
+
+    if !hw_sign_made_progress(&before, &after) {
+        return Err(
+            "Hardware wallet did not add any signature. For Miniscript Taproot wallets: \
+             register the wallet on the device first (Wallet → Settings → Register on hardware), \
+             unlock the device, approve on screen, then sign again. \
+             Multi-key paths need each cosigner to sign the same PSBT (or Combine partial PSBTs)."
+                .into(),
+        );
+    }
+
     Ok(SignedPsbtDto {
         base64: signed_b64,
         input_count: psbt.inputs.len(),

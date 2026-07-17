@@ -264,7 +264,8 @@ export function WalletSettingsPage() {
       <div className="panel form-grid">
         <h3>Register on hardware</h3>
         <p className="muted">
-          BIP-388 / Coldcard package before the first hardware co-sign. See{" "}
+          BIP-388 / Coldcard package before the first hardware co-sign. Open this
+          wallet → <strong>Settings</strong> tab (same screen). See{" "}
           <span className="mono">docs/hardware-signing.md</span>.
         </p>
         <div className="row-actions">

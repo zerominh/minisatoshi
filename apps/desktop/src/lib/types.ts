@@ -184,6 +184,7 @@ export interface HwSignPsbtRequest {
   psbtBase64: string;
   hwiPath?: string | null;
   network?: NetworkName | null;
+  walletId?: string | null;
 }
 
 export interface HwStatusDto {

@@ -56,7 +56,7 @@ Send → PSBT → HW/software sign (or Core / Nunchuk) → finalize → broadcas
 
 ### Share watch-only with a third party
 
-Vault → **Share** (descriptor QR / file / BSMS) → they **Import** in Minisatoshi (or Core/Nunchuk). They never receive seeds.
+Wallet → **Share** (descriptor QR / file / BSMS) → they **Import** in Minisatoshi (or Core/Nunchuk). They never receive seeds.
 
 ### External Core signing
 

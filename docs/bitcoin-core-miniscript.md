@@ -19,7 +19,7 @@ Minisatoshi Taproot policies often use a NUMS internal key + script tree. Core m
 
 In Minisatoshi:
 
-- Vault → **Share** / **Receive** → copy descriptor, or
+- Wallet → **Share** / **Receive** → copy descriptor, or
 - Export `minisatoshi-vault-v1.json` / BSMS and take the descriptor line.
 
 Expected shape (example; yours will differ):
@@ -99,7 +99,7 @@ Policies with `older(N)` / BIP68 need the correct input `nSequence`. Minisatoshi
 
 ## 5. What Core is not
 
-- A replacement for Coldcard MicroSD / BIP-388 registration UX — use Vault → **Register on hardware** for those exports.
+- A replacement for Coldcard MicroSD / BIP-388 registration UX — use **Wallet → Settings → Register on hardware** for those exports.
 - Automatic understanding of Minisatoshi policy JSON — Core only sees the **compiled descriptor**.
 
 ## Troubleshooting
@@ -108,7 +108,7 @@ Policies with `older(N)` / BIP68 need the correct input `nSequence`. Minisatoshi
 |---|---|
 | `importdescriptors` rejects checksum | Truncated paste; re-run `getdescriptorinfo` |
 | Address ≠ Minisatoshi index 0 | Wrong network, wrong receive/change path, or non-multipath import |
-| Device won’t sign | Vault not registered / wrong chain flag / unsupported Miniscript fragment on firmware |
+| Device won’t sign | Wallet not registered / wrong chain flag / unsupported Miniscript fragment on firmware |
 | Finalize fails | Missing cosigner signature or wrong timelock sequence |
 
 When unsure, fund and sign on **testnet/signet** first.

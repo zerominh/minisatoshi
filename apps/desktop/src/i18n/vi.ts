@@ -177,6 +177,8 @@ export const vi = {
     "HWI dùng mạng {network} — mở khóa thiết bị trước khi ký.",
   "send.hwNoFingerprint":
     "Chọn ví phần cứng đang kết nối hoặc nhập fingerprint.",
+  "send.finalizeBlocked":
+    "Chưa thể hoàn tất — cần ký đủ mọi khoá cho đường chi tiêu này (xem danh sách trên). Ví nhiều khoá: mỗi đồng ký ký cùng PSBT, hoặc Combine các PSBT đã ký riêng.",
 
   "signPsbt.title": "Nhập PSBT để ký",
   "signPsbt.subtitle": "đồng ký / air-gap",

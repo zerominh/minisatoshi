@@ -1,7 +1,8 @@
 //! HWI subprocess client (`enumerate`, `getxpub`, `signtx`).
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
 use std::str::FromStr;
 
 use bitcoin::bip32::DerivationPath;
@@ -77,12 +78,13 @@ impl HwiClient {
     }
 
     pub fn sign_psbt(&self, fingerprint: &str, psbt_base64: &str) -> Result<String, SignError> {
-        let stdout = self.run_raw(&[
-            "--fingerprint",
-            fingerprint,
-            "signtx",
-            psbt_base64.trim(),
-        ])?;
+        let psbt = psbt_base64.trim();
+        // Windows cmd.exe caps argv near 8191 chars; PSBT base64 exceeds that quickly.
+        let stdout = if should_signtx_via_stdin(psbt) {
+            self.run_signtx_stdin(fingerprint, psbt)?
+        } else {
+            self.run_raw(&["--fingerprint", fingerprint, "signtx", psbt])?
+        };
         let obj: HwiSign =
             serde_json::from_str(stdout.trim()).map_err(|e| SignError::Parse(e.to_string()))?;
         if let Some(err) = obj.error {
@@ -161,6 +163,33 @@ impl HwiClient {
             .ok_or_else(|| SignError::Hwi("displayaddress missing address".into()))
     }
 
+    fn run_signtx_stdin(&self, fingerprint: &str, psbt_base64: &str) -> Result<String, SignError> {
+        let mut cmd = Command::new(&self.config.binary);
+        if let Some(chain) = &self.config.chain {
+            cmd.arg("--chain").arg(chain);
+        }
+        cmd.arg("--fingerprint").arg(fingerprint);
+        cmd.arg("--stdin").arg("signtx");
+        cmd.stdin(Stdio::piped());
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
+
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| SignError::Binary(format!("{}: {e}", self.config.binary.display())))?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin
+                .write_all(psbt_base64.as_bytes())
+                .map_err(|e| SignError::Binary(format!("hwi stdin write failed: {e}")))?;
+        }
+
+        let output = child
+            .wait_with_output()
+            .map_err(|e| SignError::Binary(format!("{}: {e}", self.config.binary.display())))?;
+        self.parse_output(output)
+    }
+
     fn run_raw(&self, args: &[&str]) -> Result<String, SignError> {
         let mut cmd = Command::new(&self.config.binary);
         if let Some(chain) = &self.config.chain {
@@ -170,7 +199,10 @@ impl HwiClient {
             .args(args)
             .output()
             .map_err(|e| SignError::Binary(format!("{}: {e}", self.config.binary.display())))?;
+        self.parse_output(output)
+    }
 
+    fn parse_output(&self, output: Output) -> Result<String, SignError> {
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -304,10 +336,21 @@ pub fn parse_enumerate_json(raw: &str) -> Result<Vec<DeviceInfo>, SignError> {
     Ok(rows.into_iter().map(DeviceInfo::from).collect())
 }
 
+fn should_signtx_via_stdin(psbt_base64: &str) -> bool {
+    cfg!(windows) || psbt_base64.len() > 4096
+}
+
 fn map_hwi_error(msg: &str) -> SignError {
     let lower = msg.to_ascii_lowercase();
     if lower.contains("cancel") || lower.contains("abort") || lower.contains("disconnect") {
         SignError::Cancelled
+    } else if lower.contains("usage:") && lower.contains("signtx") {
+        SignError::Hwi(
+            "HWI rejected the command (often because the PSBT was too long for the Windows \
+             command line). Update Minisatoshi and try again — signing now pipes the PSBT via \
+             stdin. If this persists, run Settings → Verify HWI and reconnect the device."
+                .into(),
+        )
     } else {
         SignError::Hwi(msg.to_string())
     }
@@ -345,6 +388,18 @@ mod tests {
     #[test]
     fn maps_cancel_error() {
         assert!(matches!(map_hwi_error("user cancelled"), SignError::Cancelled));
+    }
+
+    #[test]
+    fn prefers_stdin_on_windows_or_large_psbt() {
+        let small = "cHNidP8B".repeat(100);
+        if cfg!(windows) {
+            assert!(should_signtx_via_stdin(&small));
+        } else {
+            assert!(!should_signtx_via_stdin(&small));
+            let large = "x".repeat(5000);
+            assert!(should_signtx_via_stdin(&large));
+        }
     }
 
     #[test]

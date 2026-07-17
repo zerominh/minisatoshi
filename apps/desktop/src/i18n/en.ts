@@ -179,6 +179,8 @@ export const en = {
   "send.hwSettingsLink": "HWI settings",
   "send.hwNetworkHint": "HWI uses {network} — unlock the device before signing.",
   "send.hwNoFingerprint": "Select a connected hardware wallet or enter its fingerprint.",
+  "send.finalizeBlocked":
+    "Cannot finalize yet — sign all required keys for this spending path (see checklist above). Multi-key wallets need each cosigner on the same PSBT, or Combine partial PSBTs.",
 
   "signPsbt.title": "Import PSBT to sign",
   "signPsbt.subtitle": "cosigner / air-gap",

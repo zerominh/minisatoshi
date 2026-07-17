@@ -31,6 +31,7 @@ import {
   getHwiPath,
 } from "../lib/settings";
 import { savePsbtFileWithDialog, sanitizedFilename } from "../lib/download";
+import { pathSatisfied } from "../lib/signingStatus";
 import { useSuccessPulse } from "../lib/useSuccessPulse";
 import type {
   FinalizedTxDto,
@@ -88,6 +89,7 @@ export function SendPage() {
   const [broadcastConfirm, setBroadcastConfirm] = useState(false);
   const [broadcastTxid, setBroadcastTxid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const readyToFinalize = pathSatisfied(signStatus, activePathId);
   const { pulse, flash, is } = useSuccessPulse();
   const successMethod: SignMethod | null =
     pulse === "hot" ||
@@ -410,6 +412,7 @@ export function SendPage() {
         psbtBase64: psbt.base64,
         hwiPath: getHwiPath() || null,
         network: wallet.policy.network,
+        walletId: id,
       });
       const next = {
         base64: signed.base64,
@@ -451,6 +454,10 @@ export function SendPage() {
 
   async function onFinalize() {
     if (!psbt) return;
+    if (!readyToFinalize) {
+      setError(t("send.finalizeBlocked"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -822,7 +829,7 @@ export function SendPage() {
                   <button
                     type="button"
                     className={is("finalize") ? "btn-ok" : undefined}
-                    disabled={busy}
+                    disabled={busy || (!readyToFinalize && !is("finalize"))}
                     onClick={() => void onFinalize()}
                   >
                     {busy
@@ -913,7 +920,7 @@ export function SendPage() {
                     <button
                       type="button"
                       className={is("finalize") ? "btn-ok secondary" : "secondary"}
-                      disabled={busy}
+                      disabled={busy || (!readyToFinalize && !is("finalize"))}
                       onClick={() => void onFinalize()}
                     >
                       {is("finalize") ? "Finalized ✓" : "Finalize first"}

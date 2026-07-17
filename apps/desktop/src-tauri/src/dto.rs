@@ -188,6 +188,8 @@ pub struct HwSignPsbtRequest {
     pub hwi_path: Option<String>,
     #[serde(default)]
     pub network: Option<NetworkName>,
+    #[serde(default)]
+    pub wallet_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

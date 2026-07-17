@@ -8,6 +8,7 @@ use std::str::FromStr;
 use wallet_core::Wallet;
 
 use crate::descriptor::definite_descriptor_at;
+use crate::enrich::{populate_global_xpubs, tag_change_output};
 use crate::error::PsbtError;
 use crate::types::{CreatePsbtOptions, FeeRate, PsbtRecipient, SpendingUtxo};
 
@@ -32,6 +33,7 @@ pub fn create_psbt(
     let estimated_vbytes = estimate_vbytes(utxos.len(), recipients.len() + 1);
     let fee_sats = fee_rate.sat_per_vb.saturating_mul(estimated_vbytes as u64);
     let change_index = options.change_index.unwrap_or(0);
+    let mut change_output_index: Option<usize> = None;
 
     let mut outputs = Vec::with_capacity(recipients.len() + 1);
     for recipient in recipients {
@@ -58,6 +60,7 @@ pub fn create_psbt(
             value: Amount::from_sat(change_amount),
             script_pubkey: address.script_pubkey(),
         });
+        change_output_index = Some(recipients.len());
     } else if change_amount != 0 {
         return Err(PsbtError::InsufficientFunds {
             needed: recipient_total + fee_sats + change_amount,
@@ -111,6 +114,11 @@ pub fn create_psbt(
         psbt.inputs[index].witness_utxo = Some(witness_utxo);
         psbt.update_input_with_descriptor(index, &definite_descriptor)
             .map_err(|e| PsbtError::Psbt(e.to_string()))?;
+    }
+
+    populate_global_xpubs(&mut psbt, &wallet.policy)?;
+    if let Some(idx) = change_output_index {
+        tag_change_output(&mut psbt, &wallet.policy, idx, change_index)?;
     }
 
     Ok(psbt)

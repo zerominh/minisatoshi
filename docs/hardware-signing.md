@@ -6,16 +6,16 @@ See also: [Interop matrix](interop.md) · [Bitcoin Core + Miniscript](bitcoin-co
 
 ## Supported path
 
-1. Create / open a Taproot vault (e.g. ABC `(A && B) || (A && C)`).
-2. **Settings → Signing devices** — install/verify HWI, connect Ledger / Coldcard / Trezor, note fingerprint.
-3. **Vault → Register on hardware** — build BIP-388 policy + Coldcard MicroSD text; optionally try on-device register.
+1. Create / open a Taproot **wallet** (e.g. ABC `(A && B) || (A && C)`).
+2. **Settings** (app nav) → **Signing devices** — install/verify HWI, connect Ledger / Coldcard / Trezor, note fingerprint.
+3. **Wallet → Settings → Register on hardware** — build BIP-388 policy + Coldcard MicroSD text; optionally try on-device register.
 4. **Send** — create PSBT → sign on each required device → combine → finalize → broadcast.
 
 Primary spends for the default ABC template need **Investor (A) + Manager (B)**. Recovery / timelock paths use different key sets and usually need a BIP68 `input sequence`.
 
 ## BIP-388 / Ledger
 
-Minisatoshi rewrites the vault descriptor into a **wallet policy** template:
+Minisatoshi rewrites the wallet descriptor into a **wallet policy** template:
 
 - Keys become `@0`, `@1`, … with key-info strings `[fingerprint/origin]xpub`.
 - The internal key / Miniscript tree stays as in the output descriptor (`tr(NUMS,{…})`).
@@ -25,14 +25,14 @@ Minisatoshi rewrites the vault descriptor into a **wallet policy** template:
 | Method | Notes |
 |---|---|
 | First co-sign | Ledger Bitcoin app may prompt “Register account” when signing a policy PSBT |
-| Export BIP-388 JSON | Vault → Save BIP-388 JSON — use with tools / Core builds that support wallet policies |
+| Export BIP-388 JSON | Wallet → Settings → **Save BIP-388 JSON** — use with tools / Core builds that support wallet policies |
 | Newer HWI builds | If `registerpolicy` exists, **Register on device** stores any returned HMAC |
 
 Confirm receive addresses on-device whenever the firmware allows (`displayaddress` / wallet UI).
 
 ## Coldcard
 
-1. Vault → **Save Coldcard MicroSD file**.
+1. Wallet → Settings → **Save Coldcard MicroSD file**.
 2. Copy onto a MicroSD card.
 3. On Coldcard (Mk4+): Advanced → MicroSD → import / descriptor workflows (exact menus vary by firmware).
 4. Sign PSBTs via USB (HWI `signtx`) or air-gapped SD card; paste the signed PSBT back into **Send → Combine**.
@@ -51,7 +51,7 @@ Example ABC primary path:
 2. Sign with Manager device (fingerprint of key B) — either on the partially-signed PSBT, or sign separately and **Combine** in the app.
 3. Finalize → broadcast (Esplora).
 
-The Send screen lists vault keys (id · fingerprint · role) as a checklist.
+The Send screen lists wallet keys (id · fingerprint · role) as a checklist.
 
 ## Timelocks (`older` / BIP68)
 
@@ -59,8 +59,8 @@ Inheritance / dead-man’s-switch leaves need the correct **input `nSequence`**.
 
 ## Networks
 
-HWI `--chain` follows the vault network (`main`, `test`, `testnet4`, `signet`, `regtest`). Always confirm you are on the intended network before registering or signing.
+HWI `--chain` follows the wallet network (`main`, `test`, `testnet4`, `signet`, `regtest`). Always confirm you are on the intended network before registering or signing.
 
 ## Out of Sprint 11 scope
 
-Jade / BitBox / Specter DIY → later. Prefer Ledger + Coldcard (or Trezor) for Miniscript Taproot vaults today.
+Jade / BitBox / Specter DIY → later. Prefer Ledger + Coldcard (or Trezor) for Miniscript Taproot wallets today.

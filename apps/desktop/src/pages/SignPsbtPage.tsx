@@ -34,6 +34,7 @@ import {
   sanitizedFilename,
 } from "../lib/download";
 import { useSuccessPulse } from "../lib/useSuccessPulse";
+import { pathSatisfied } from "../lib/signingStatus";
 import type {
   FinalizedTxDto,
   HotWalletSummaryDto,
@@ -52,18 +53,6 @@ const STEP_OFFSET: Record<Step, string> = {
   broadcast: "translateX(-200%)",
   done: "translateX(-300%)",
 };
-
-function pathSatisfied(
-  status: SigningStatusDto | null,
-  pathId: string,
-): boolean {
-  if (!status?.paths.length) return false;
-  const focus =
-    status.paths.find((p) => p.path.id === pathId) ??
-    status.paths.find((p) => p.satisfied) ??
-    null;
-  return focus?.satisfied ?? false;
-}
 
 /**
  * Cosigner / air-gap: import a PSBT created elsewhere, sign locally, copy back.
@@ -349,6 +338,7 @@ export function SignPsbtPage() {
         psbtBase64: psbt.base64,
         hwiPath: getHwiPath() || null,
         network: wallet.policy.network,
+        walletId: id,
       });
       const next = {
         base64: signed.base64,
@@ -390,6 +380,10 @@ export function SignPsbtPage() {
 
   async function onFinalize() {
     if (!psbt) return;
+    if (!readyToFinalize) {
+      setError(t("send.finalizeBlocked"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -672,7 +666,7 @@ export function SignPsbtPage() {
                   <button
                     type="button"
                     className={is("finalize") ? "btn-ok" : undefined}
-                    disabled={busy}
+                    disabled={busy || (!readyToFinalize && !is("finalize"))}
                     onClick={() => void onFinalize()}
                   >
                     {busy
