@@ -17,6 +17,8 @@ use crate::registration::Bip388Policy;
 
 /// Device prompts (register / sign) can take several minutes.
 const LEDGER_CLI_TIMEOUT: Duration = Duration::from_secs(180);
+/// Probe only needs a quick GET_VERSION; HID can hang if Ledger Live holds the device.
+const LEDGER_PROBE_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Debug, Clone)]
 pub struct LedgerCliConfig {
@@ -32,6 +34,10 @@ struct CliResponse {
     error: Option<String>,
     hmac: Option<String>,
     psbt: Option<String>,
+    #[serde(rename = "appName")]
+    app_name: Option<String>,
+    #[serde(rename = "appVersion")]
+    app_version: Option<String>,
 }
 
 /// `ledger-bitcoin` `--chain` value for a Minisatoshi network.
@@ -65,12 +71,15 @@ fn policy_payload(bip388: &Bip388Policy) -> Value {
     })
 }
 
-fn wait_child(child: std::process::Child) -> Result<std::process::Output, SignError> {
+fn wait_child(
+    child: std::process::Child,
+    timeout: Duration,
+) -> Result<std::process::Output, SignError> {
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let _ = tx.send(child.wait_with_output());
     });
-    match rx.recv_timeout(LEDGER_CLI_TIMEOUT) {
+    match rx.recv_timeout(timeout) {
         Ok(Ok(output)) => Ok(output),
         Ok(Err(e)) => Err(map_ledger_cli_error(&format!("wait ledger_cli.py: {e}"))),
         Err(mpsc::RecvTimeoutError::Timeout) => Err(map_ledger_cli_error("operation timed out")),
@@ -105,7 +114,12 @@ fn run_cli(config: &LedgerCliConfig, command: &str, payload: &Value) -> Result<C
             .map_err(|e| SignError::Ledger(format!("write stdin: {e}")))?;
     }
 
-    let output = wait_child(child)?;
+    let timeout = if command == "probe" {
+        LEDGER_PROBE_TIMEOUT
+    } else {
+        LEDGER_CLI_TIMEOUT
+    };
+    let output = wait_child(child, timeout)?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -123,6 +137,8 @@ fn run_cli(config: &LedgerCliConfig, command: &str, payload: &Value) -> Result<C
         }),
         hmac: None,
         psbt: None,
+        app_name: None,
+        app_version: None,
     });
 
     if parsed.ok {
@@ -140,6 +156,19 @@ fn run_cli(config: &LedgerCliConfig, command: &str, payload: &Value) -> Result<C
             }
         });
     Err(map_ledger_cli_error(&msg))
+}
+
+pub fn probe_device(config: &LedgerCliConfig) -> Result<(String, String), SignError> {
+    let resp = run_cli(config, "probe", &serde_json::json!({}))?;
+    let name = resp
+        .app_name
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| map_ledger_cli_error("probe missing appName"))?;
+    let version = resp
+        .app_version
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| map_ledger_cli_error("probe missing appVersion"))?;
+    Ok((name, version))
 }
 
 pub fn register_wallet(

@@ -236,6 +236,15 @@ pub struct LedgerRegistrationStatusDto {
     pub runtime_source: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub installed_version: Option<String>,
+    /// Live probe of the open Bitcoin app (name + version).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app_version: Option<String>,
+    pub expected_app_name: String,
+    pub device_connected: bool,
+    pub warnings: Vec<String>,
+    pub ready: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

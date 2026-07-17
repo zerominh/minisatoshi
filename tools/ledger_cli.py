@@ -13,12 +13,16 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import multiprocessing
 import sys
 from typing import Any
 
-from ledger_bitcoin import WalletPolicy, createClient, Chain
+from ledger_bitcoin import WalletPolicy, createClient, Chain, Client, TransportClient
 from ledger_bitcoin.client_base import PartialSignature, MusigPubNonce, MusigPartialSignature
 from ledger_bitcoin.psbt import PSBT
+
+# HID open / APDU can block forever if Ledger Live holds the device or no app is open.
+PROBE_TIMEOUT_SECS = 12
 
 
 CHAIN_MAP = {
@@ -85,6 +89,48 @@ def apply_signatures(psbt: PSBT, results: list) -> None:
             fail("MuSig2 PSBT signing is not supported in Minisatoshi yet")
 
 
+def _probe_worker(chain_value: int, queue: "multiprocessing.Queue[object]") -> None:
+    """Run in a child process so a stuck HID open can be terminated."""
+    try:
+        chain = Chain(chain_value)  # type: ignore[arg-type]
+        comm_client = TransportClient("hid")
+        client = Client(comm_client, chain, False)
+        try:
+            app_name, app_version, _ = client.get_version()
+            queue.put({"ok": True, "appName": app_name, "appVersion": app_version})
+        finally:
+            client.stop()
+    except Exception as exc:  # noqa: BLE001
+        queue.put({"ok": False, "error": str(exc)})
+
+
+def cmd_probe(chain: Chain) -> None:
+    ctx = multiprocessing.get_context("spawn")
+    queue: multiprocessing.Queue = ctx.Queue()
+    proc = ctx.Process(target=_probe_worker, args=(chain.value, queue))
+    proc.start()
+    proc.join(PROBE_TIMEOUT_SECS)
+    if proc.is_alive():
+        proc.terminate()
+        proc.join(2)
+        fail(
+            f"probe timed out after {PROBE_TIMEOUT_SECS}s. "
+            "Unlock Ledger, open Bitcoin Test (or Bitcoin), and close Ledger Live / other wallets using the device."
+        )
+    if queue.empty():
+        fail("probe failed — no response from device (is Bitcoin Test open?)")
+    result = queue.get()
+    if not result.get("ok"):
+        fail(result.get("error") or "probe failed")
+    emit(
+        {
+            "ok": True,
+            "appName": result["appName"],
+            "appVersion": result["appVersion"],
+        }
+    )
+
+
 def cmd_register(chain: Chain, payload: dict[str, Any]) -> None:
     wallet = wallet_from_payload(payload)
     client = createClient(chain=chain)
@@ -126,19 +172,29 @@ def cmd_sign(chain: Chain, payload: dict[str, Any]) -> None:
         client.stop()
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Minisatoshi ledger-bitcoin bridge")
-    parser.add_argument("command", choices=["register", "sign"])
-    parser.add_argument("--chain", default="test", help="main|test|regtest|signet")
-    args = parser.parse_args()
-
+def read_stdin_payload() -> dict[str, Any]:
+    """Read JSON from stdin. Avoid blocking forever when stdin is an open TTY."""
+    if sys.stdin.isatty():
+        return {}
     try:
         raw = sys.stdin.read()
-        payload = json.loads(raw) if raw.strip() else {}
+        return json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError as exc:
         fail(f"invalid JSON stdin: {exc}")
 
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Minisatoshi ledger-bitcoin bridge")
+    parser.add_argument("command", choices=["register", "sign", "probe"])
+    parser.add_argument("--chain", default="test", help="main|test|regtest|signet")
+    args = parser.parse_args()
+
     chain = parse_chain(args.chain)
+    if args.command == "probe":
+        cmd_probe(chain)
+        return
+
+    payload = read_stdin_payload()
     if args.command == "register":
         cmd_register(chain, payload)
     else:

@@ -12,7 +12,14 @@ pub fn map_ledger_cli_error(raw: &str) -> SignError {
     }
     if lower.contains("timeout") || lower.contains("timed out") {
         return SignError::Ledger(
-            "Ledger did not respond in time. Unlock the device, open the Bitcoin app, and approve on screen."
+            "Ledger did not respond in time. Unlock the device, open Bitcoin / Bitcoin Test, \
+             close Ledger Live (it locks USB), then retry."
+                .into(),
+        );
+    }
+    if lower.contains("0x5515") || lower.contains("5515") {
+        return SignError::Ledger(
+            "Ledger is locked (0x5515) — enter your PIN, then open Bitcoin Test (or Bitcoin)."
                 .into(),
         );
     }
@@ -47,11 +54,20 @@ pub fn map_ledger_cli_error(raw: &str) -> SignError {
                 .into(),
         );
     }
+    if lower.contains("0x6a82") || lower.contains("6a82") {
+        return SignError::Ledger(
+            "Ledger rejected a key derivation path (0x6a82). Bitcoin app ≥ 2.4.3 only allows \
+             standard BIP paths with the correct coin type (0' mainnet, 1' testnet). \
+             Use origin paths like 86'/1'/0' on Bitcoin Test, or install Bitcoin Recovery \
+             temporarily for non-standard paths."
+                .into(),
+        );
+    }
     if lower.contains("0x6a80") || lower.contains("6a80") {
         return SignError::Ledger(
-            "Ledger rejected the wallet policy (0x6a80). Ensure the Bitcoin app is ≥ 2.2.1 for \
-             Taproot Miniscript, unlock the device, and retry Register Ledger policy. If this \
-             persists, export BIP-388 from Wallet Settings and compare with Coldcard / software signing."
+            "Ledger rejected the wallet policy (0x6a80). Open the correct Bitcoin app for your \
+             network (Bitcoin vs Bitcoin Test), ensure app version ≥ 2.2.1, unlock the device, \
+             and retry Register Ledger policy."
                 .into(),
         );
     }
@@ -121,5 +137,14 @@ mod tests {
     fn maps_hidapi_missing() {
         let err = map_ledger_cli_error("HIDAPINotInstalledError: hidapi is not installed");
         assert!(err.to_string().contains("Install Ledger signer"));
+    }
+
+    #[test]
+    fn maps_6a82_path_hardening() {
+        let err = map_ledger_cli_error(
+            "('0x6a82', 'Error in <BitcoinInsType.REGISTER_WALLET: 2> command', '')",
+        );
+        assert!(err.to_string().contains("0x6a82"));
+        assert!(err.to_string().contains("coin type"));
     }
 }

@@ -335,31 +335,81 @@ export function WalletSettingsPage() {
               />
             </label>
             {ledgerStatus ? (
-              <p className="muted">
-                Ledger policy:{" "}
-                {ledgerStatus.stale ? (
-                  <>
-                    <strong>stale</strong>
-                    {ledgerStatus.staleReason
-                      ? ` — ${ledgerStatus.staleReason}`
-                      : " — re-register required"}
-                  </>
-                ) : ledgerStatus.registered ? (
-                  <strong>registered</strong>
-                ) : (
-                  <strong>not registered</strong>
-                )}
-                {!ledgerStatus.registered && !ledgerStatus.stale
-                  ? !ledgerStatus.pythonAvailable
-                    ? " — install Ledger signer in Settings"
-                    : null
-                  : null}
-              </p>
+              <>
+                <p className="muted">
+                  Ledger policy:{" "}
+                  {ledgerStatus.stale ? (
+                    <>
+                      <strong>stale</strong>
+                      {ledgerStatus.staleReason
+                        ? ` — ${ledgerStatus.staleReason}`
+                        : " — re-register required"}
+                    </>
+                  ) : ledgerStatus.registered ? (
+                    <strong>registered</strong>
+                  ) : (
+                    <strong>not registered</strong>
+                  )}
+                  {!ledgerStatus.registered && !ledgerStatus.stale
+                    ? !ledgerStatus.pythonAvailable
+                      ? " — install Ledger signer in Settings"
+                      : null
+                    : null}
+                </p>
+                {isAbcScriptPath && ledgerStatus.pythonAvailable ? (
+                  <div
+                    className={
+                      ledgerStatus.ready
+                        ? "panel muted"
+                        : "panel"
+                    }
+                    style={
+                      ledgerStatus.ready
+                        ? undefined
+                        : {
+                            borderColor: "var(--color-warning, #c9a227)",
+                          }
+                    }
+                  >
+                    <h4>Ledger device check</h4>
+                    <p className="muted">
+                      Expected app: <strong>{ledgerStatus.expectedAppName}</strong>
+                      {ledgerStatus.deviceConnected &&
+                      ledgerStatus.appName &&
+                      ledgerStatus.appVersion ? (
+                        <>
+                          {" "}
+                          · Open: <strong>{ledgerStatus.appName}</strong>{" "}
+                          {ledgerStatus.appVersion}
+                        </>
+                      ) : (
+                        <> · Device not detected</>
+                      )}
+                    </p>
+                    {ledgerStatus.warnings.length > 0 ? (
+                      <ul className="list compact">
+                        {ledgerStatus.warnings.map((w) => (
+                          <li key={w}>{w}</li>
+                        ))}
+                      </ul>
+                    ) : ledgerStatus.ready ? (
+                      <p className="muted">Ready to register on Ledger.</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
             ) : null}
             <div className="row-actions">
               <button
                 type="button"
-                disabled={working || !regFingerprint.trim()}
+                disabled={
+                  working ||
+                  !regFingerprint.trim() ||
+                  (isAbcScriptPath &&
+                    ledgerStatus != null &&
+                    !ledgerStatus.ready &&
+                    ledgerStatus.pythonAvailable)
+                }
                 onClick={() => void onRegisterOnDevice()}
               >
                 {isAbcScriptPath

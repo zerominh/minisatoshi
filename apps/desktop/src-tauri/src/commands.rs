@@ -33,12 +33,14 @@ use crate::dto::{
 use crate::error::user_facing_error;
 use crate::state::AppState;
 use signing_devices::{
-    build_registration_package, descriptor_to_bip388, ensure_hwi, find_hwi, find_key_by_fingerprint,
-    find_ledger_runtime, hwi_chain, is_registerpolicy_unavailable, is_taproot_script_path_miniscript,
-    ledger_register_wallet, ledger_registers_on_first_psbt, ledger_sign_psbt,
-    load_registration, parse_derivation_path, primary_cosigner_hints, registration_stale_reason,
-    resolve_ledger_cli, runtime_source_label, save_registration, single_key_display_descriptor,
-    to_ledger_wallet_policy, DeviceInfo, DeviceType, HwiClient, HwiSource, RegistrationPackage, PINNED_HWI_VERSION, PINNED_LEDGER_BITCOIN_VERSION,
+    build_registration_package, descriptor_to_bip388, ensure_hwi, evaluate_ledger_readiness,
+    expected_bitcoin_app_name, find_hwi, find_key_by_fingerprint, find_ledger_runtime, hwi_chain,
+    is_registerpolicy_unavailable, is_taproot_script_path_miniscript, ledger_probe_device,
+    ledger_register_wallet, ledger_registers_on_first_psbt, ledger_sign_psbt, load_registration,
+    parse_derivation_path, primary_cosigner_hints, registration_stale_reason, resolve_ledger_cli,
+    runtime_source_label, save_registration, single_key_display_descriptor,
+    to_ledger_wallet_policy, DeviceInfo, DeviceType, HwiClient, HwiSource, RegistrationPackage,
+    PINNED_HWI_VERSION, PINNED_LEDGER_BITCOIN_VERSION,
 };
 
 #[tauri::command]
@@ -904,6 +906,23 @@ pub fn hw_register_wallet(
                 let ledger_bip388 =
                     to_ledger_wallet_policy(&package.bip388, &wallet_policy, network)
                         .map_err(user_facing_error)?;
+                let readiness = ledger_readiness_for_wallet(
+                    &state.data_dir,
+                    network,
+                    Some(&ledger_bip388.policy),
+                );
+                if !readiness.ready {
+                    let expected = expected_bitcoin_app_name(network);
+                    let mut lines = readiness.warnings;
+                    if lines.is_empty() {
+                        lines.push(format!(
+                            "Open \"{expected}\" on the Ledger (≥ 2.2.1) before registering."
+                        ));
+                    }
+                    return Err(user_facing_error(signing_devices::SignError::Ledger(
+                        lines.join(" "),
+                    )));
+                }
                 match ledger_register_wallet(&ledger_cli, &ledger_bip388) {
                     Ok(hmac) => {
                         save_registration(
@@ -1072,6 +1091,19 @@ pub fn ensure_ledger_runtime_installed(
     Ok(ledger_runtime_to_dto(runtime, message))
 }
 
+fn ledger_readiness_for_wallet(
+    data_dir: &std::path::Path,
+    network: NetworkName,
+    policy: Option<&str>,
+) -> signing_devices::LedgerReadiness {
+    let device = find_ledger_runtime(data_dir).and_then(|_| {
+        let cli = resolve_ledger_cli(data_dir, network).ok()?;
+        ledger_probe_device(&cli).ok()
+    });
+    let device_info = device.as_ref().map(|(n, v)| (n.as_str(), v.as_str()));
+    evaluate_ledger_readiness(network, device_info, policy)
+}
+
 /// Whether a Ledger wallet-policy HMAC is stored for this wallet + fingerprint.
 #[tauri::command]
 pub fn get_ledger_registration_status(
@@ -1083,7 +1115,7 @@ pub fn get_ledger_registration_status(
     let runtime = find_ledger_runtime(&state.data_dir);
     let reg = load_registration(&state.data_dir, &wallet_id, &fp);
 
-    let (stale, stale_reason, registered) = state.with_store(|store| {
+    let (stale, stale_reason, registered, network, ledger_policy) = state.with_store(|store| {
         let service = WalletService::new(store);
         let wallet = service.get_wallet(&wallet_id).map_err(user_facing_error)?;
         let bip388 =
@@ -1098,8 +1130,20 @@ pub fn get_ledger_registration_status(
             .map(str::to_string);
         let stale = stale_reason.is_some();
         let registered = reg.is_some() && !stale;
-        Ok((stale, stale_reason, registered))
+        Ok((
+            stale,
+            stale_reason,
+            registered,
+            wallet.policy.network,
+            ledger_bip388.policy,
+        ))
     })?;
+
+    let readiness = if runtime.is_some() {
+        ledger_readiness_for_wallet(&state.data_dir, network, Some(&ledger_policy))
+    } else {
+        evaluate_ledger_readiness(network, None, Some(&ledger_policy))
+    };
 
     Ok(LedgerRegistrationStatusDto {
         registered,
@@ -1112,6 +1156,12 @@ pub fn get_ledger_registration_status(
             .as_ref()
             .map(|r| runtime_source_label(r.source).to_string()),
         installed_version: runtime.map(|r| r.version),
+        app_name: readiness.app_name,
+        app_version: readiness.app_version,
+        expected_app_name: readiness.expected_app_name,
+        device_connected: readiness.device_connected,
+        warnings: readiness.warnings,
+        ready: readiness.ready,
     })
 }
 

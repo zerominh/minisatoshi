@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::SignError;
 
 pub const PINNED_LEDGER_BITCOIN_VERSION: &str = "0.4.1";
-pub const LEDGER_CLI_SCRIPT_VERSION: &str = "1";
+pub const LEDGER_CLI_SCRIPT_VERSION: &str = "3";
 /// Pip extras required for USB HID (Ledger). Bumping forces `ensure_ledger_runtime` reinstall.
 pub const RUNTIME_DEPS_TAG: &str = "ledgercomm[hid]";
 

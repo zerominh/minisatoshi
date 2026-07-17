@@ -221,14 +221,16 @@ fn rewrite_nums_internal_key_for_ledger(
 }
 
 fn ledger_nums_dummy_key_info(network: NetworkName) -> String {
-    let xpub = match network {
-        NetworkName::Mainnet => LEDGER_NUMS_DUMMY_XPUB_MAIN,
+    // Bitcoin app ≥ 2.4.3 rejects key origins without a standard BIP path (0x6a82).
+    // Use BIP-86 account path; firmware still labels the NUMS pubkey as "dummy".
+    let (xpub, coin) = match network {
+        NetworkName::Mainnet => (LEDGER_NUMS_DUMMY_XPUB_MAIN, "0'"),
         NetworkName::Testnet
         | NetworkName::Testnet4
         | NetworkName::Signet
-        | NetworkName::Regtest => LEDGER_NUMS_DUMMY_XPUB_TEST,
+        | NetworkName::Regtest => (LEDGER_NUMS_DUMMY_XPUB_TEST, "1'"),
     };
-    format!("[{LEDGER_NUMS_DUMMY_KEY_FP}]{xpub}")
+    format!("[{LEDGER_NUMS_DUMMY_KEY_FP}/86'/{coin}/0']{xpub}")
 }
 
 fn shift_policy_key_placeholders(policy: &str, delta: u8) -> String {
@@ -247,13 +249,46 @@ fn normalize_ledger_key_info(key_info: &str, network: NetworkName) -> Result<Str
     let bracket_end = trimmed
         .find(']')
         .ok_or_else(|| SignError::Unsupported(format!("invalid key info: {trimmed}")))?;
-    let origin = &trimmed[..=bracket_end];
+    let origin = normalize_ledger_origin_coin_type(&trimmed[..=bracket_end], network);
     let mut xpub_part = trimmed[bracket_end + 1..].trim();
     if let Some(stripped) = xpub_part.strip_suffix("/**") {
         xpub_part = stripped;
     }
     let converted = xpub_for_network(xpub_part, network)?;
     Ok(format!("{origin}{converted}"))
+}
+
+/// Bitcoin app ≥ 2.4.3 whitelists BIP paths with network coin type (`0'` mainnet, `1'` test).
+/// Rewrite the coin-type segment in `[fp/purpose'/coin'/…]` origins for Ledger registration.
+fn normalize_ledger_origin_coin_type(origin: &str, network: NetworkName) -> String {
+    let want_coin = match network {
+        NetworkName::Mainnet => "0'",
+        NetworkName::Testnet
+        | NetworkName::Testnet4
+        | NetworkName::Signet
+        | NetworkName::Regtest => "1'",
+    };
+    let Some(inner) = origin.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
+        return origin.to_string();
+    };
+    let mut parts: Vec<&str> = inner.split('/').collect();
+    if parts.len() < 3 {
+        return origin.to_string();
+    }
+    // [fingerprint, purpose', coin', …]
+    let purpose = parts[1];
+    let is_bip_purpose = matches!(
+        purpose,
+        "44'" | "49'" | "84'" | "86'" | "45'" | "48'" | "47'"
+    );
+    if !is_bip_purpose {
+        return origin.to_string();
+    }
+    if parts[2] == want_coin {
+        return origin.to_string();
+    }
+    parts[2] = want_coin;
+    format!("[{}]", parts.join("/"))
 }
 
 fn xpub_for_network(xpub_b58: &str, network: NetworkName) -> Result<String, SignError> {
@@ -577,13 +612,11 @@ fn ledger_vendor(bip388: &Bip388Policy) -> VendorRegistration {
         title: "Ledger (wallet policy)".into(),
         body: serde_json::to_string_pretty(bip388).unwrap_or_else(|_| bip388.policy.clone()),
         instructions: vec![
-            "Open the Bitcoin app on the Ledger (taproot / Miniscript capable firmware).".into(),
-            "In Minisatoshi: Wallet → Settings → Register on hardware → Register Ledger policy.".into(),
-            "Approve the wallet policy on the Ledger screen — HMAC is stored locally for signing.".into(),
-            "Requires Python 3 with pip install ledger-bitcoin (bundled in a future release).".into(),
-            "Confirm address on device after registering (display / receive verify).".into(),
-            "HMAC proof of registration (if returned) can be stored for later signing sessions."
-                .into(),
+            "Install the Ledger signer in Minisatoshi Settings (one-time).".into(),
+            "Open Bitcoin Test (testnet) or Bitcoin (mainnet) — not the Legacy app.".into(),
+            "Bitcoin app must be ≥ 2.2.1; Wallet Settings shows a live device check before register.".into(),
+            "Wallet → Settings → Register Ledger policy — approve template and cosigner xpubs on screen.".into(),
+            "HMAC is stored locally; re-register if the descriptor or keys change.".into(),
         ],
     }
 }
@@ -671,9 +704,26 @@ mod tests {
         assert!(ledger.policy.contains("@2/**"));
         assert!(!ledger.policy.contains(NUMS_UNSPENDABLE_KEY));
         assert!(!ledger.policy.contains("<0;1>"));
-        assert!(ledger.keys[0].starts_with("[50929b74]"));
+        assert!(
+            ledger.keys[0].starts_with("[50929b74/86'/1'/0']"),
+            "dummy key needs BIP-86 testnet origin for path hardening: {}",
+            ledger.keys[0]
+        );
+        assert!(
+            ledger.keys[1].contains("/1'/"),
+            "cosigner coin type should be 1' on testnet: {}",
+            ledger.keys[1]
+        );
         assert!(ledger.keys[1].starts_with("[78412e3a"));
         assert!(ledger.keys[1].contains("tpub") || ledger.keys[1].contains("xpub"));
+    }
+
+    #[test]
+    fn ledger_origin_coin_type_rewrites_mainnet_to_testnet() {
+        let out = normalize_ledger_origin_coin_type("[78412e3a/44'/0'/0']", NetworkName::Testnet);
+        assert_eq!(out, "[78412e3a/44'/1'/0']");
+        let same = normalize_ledger_origin_coin_type("[a98a1256/86'/1'/0']", NetworkName::Testnet);
+        assert_eq!(same, "[a98a1256/86'/1'/0']");
     }
 
     #[test]

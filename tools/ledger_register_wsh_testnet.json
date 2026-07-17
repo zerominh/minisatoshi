@@ -2,6 +2,6 @@
   "name": "WSH miniscript test",
   "policy": "wsh(and_v(v:pk(@0/**),older(1008)))",
   "keys": [
-    "[78412e3a/44'/0'/0']tpubDEnoLuPdBep9bzw5LoGYpsxUQYheRQ9gcgrJhJEcdKFB9cWQRyYmkCyRoTqeD4tJYiVVgt6A3rN6rWn9RYhR9sBsGxji29LYWHuKKbdb1ev"
+    "[78412e3a/84'/1'/0']tpubDEnoLuPdBep9bzw5LoGYpsxUQYheRQ9gcgrJhJEcdKFB9cWQRyYmkCyRoTqeD4tJYiVVgt6A3rN6rWn9RYhR9sBsGxji29LYWHuKKbdb1ev"
   ]
 }

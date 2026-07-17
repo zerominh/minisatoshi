@@ -243,6 +243,12 @@ export interface LedgerRegistrationStatusDto {
   ledgerCliReady: boolean;
   runtimeSource?: string | null;
   installedVersion?: string | null;
+  appName?: string | null;
+  appVersion?: string | null;
+  expectedAppName: string;
+  deviceConnected: boolean;
+  warnings: string[];
+  ready: boolean;
 }
 
 export interface LedgerRuntimeStatusDto {

@@ -17,12 +17,14 @@ pub use install::{
     PINNED_HWI_VERSION,
 };
 pub use ledger::{
-    delete_registration, ensure_ledger_cli_script, ensure_ledger_runtime, find_ledger_runtime,
-    install_ledger_runtime, is_registered as ledger_is_registered, ledger_chain,
-    ledger_import_works, load_registration, map_ledger_cli_error, register_wallet as ledger_register_wallet,
-    registration_stale_reason, resolve_ledger_cli, runtime_source_label, save_registration,
-    sign_psbt as ledger_sign_psbt, LedgerCliConfig, LedgerRegistration, LedgerRuntimeSource,
-    ResolvedLedgerRuntime, PINNED_LEDGER_BITCOIN_VERSION,
+    delete_registration, ensure_ledger_cli_script, ensure_ledger_runtime, evaluate_ledger_readiness,
+    expected_bitcoin_app_name, find_ledger_runtime, install_ledger_runtime,
+    is_registered as ledger_is_registered, ledger_chain, ledger_import_works, load_registration,
+    map_ledger_cli_error, probe_device as ledger_probe_device,
+    register_wallet as ledger_register_wallet, registration_stale_reason, resolve_ledger_cli,
+    runtime_source_label, save_registration, sign_psbt as ledger_sign_psbt, LedgerCliConfig,
+    LedgerReadiness, LedgerRegistration, LedgerRuntimeSource, ResolvedLedgerRuntime,
+    PINNED_LEDGER_BITCOIN_VERSION,
 };
 pub use registration::{
     bip388_policy_fingerprint, build_registration_package, descriptor_to_bip388,
